@@ -1,0 +1,150 @@
+{% load i18n report_math_filters %}
+
+<div class="row">
+    <!-- Summary Cards -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'ملخص الإنتاج' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="border rounded p-3 text-center">
+                            <h6>{% trans 'إجمالي أوامر الإنتاج' %}</h6>
+                            <h3 class="mb-0">{{ data.total_orders }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border rounded p-3 text-center">
+                            <h6>{% trans 'مشاكل الجودة' %}</h6>
+                            <h3 class="mb-0">{{ data.quality_issues }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Orders by Status -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'أوامر الإنتاج حسب الحالة' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans 'الحالة' %}</th>
+                                <th>{% trans 'عدد الأوامر' %}</th>
+                                <th>{% trans 'النسبة' %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for status in data.orders_by_status %}
+                            <tr>
+                                <td>{{ status.status }}</td>
+                                <td>{{ status.count }}</td>
+                                <td>{{ status.count|div:data.total_orders|mul:100|floatformat:1 }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Production Lines Performance -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'أداء خطوط الإنتاج' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans 'خط الإنتاج' %}</th>
+                                <th>{% trans 'عدد الأوامر' %}</th>
+                                <th>{% trans 'النسبة من الإجمالي' %}</th>
+                                <th>{% trans 'نسبة الإنجاز' %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for line in data.orders_by_line %}
+                            <tr>
+                                <td>{{ line.production_line__name }}</td>
+                                <td>{{ line.count }}</td>
+                                <td>{{ line.count|div:data.total_orders|mul:100|floatformat:1 }}%</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        {% with completion=line.count|div:data.total_orders|mul:100 %}
+                                        <div class="progress-bar {% if completion >= 75 %}bg-success{% elif completion >= 50 %}bg-info{% elif completion >= 25 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ completion|floatformat:1 }}%"
+                                             aria-valuenow="{{ completion|floatformat:1 }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ completion|floatformat:1 }}%
+                                        </div>
+                                        {% endwith %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quality Issues -->
+    <div class="col-12 mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'مؤشرات الجودة' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 text-center">
+                            <h6>{% trans 'نسبة مشاكل الجودة' %}</h6>
+                            <h3 class="mb-0">{{ data.quality_issues|div:data.total_orders|mul:100|floatformat:1 }}%</h3>
+                            <small class="text-muted">
+                                {% blocktrans with total=data.quality_issues %}
+                                إجمالي المشاكل: {{ total }}
+                                {% endblocktrans %}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 text-center">
+                            <h6>{% trans 'معدل النجاح' %}</h6>
+                            {% with success_rate=100|sub:data.quality_issues|div:data.total_orders|mul:100 %}
+                            <h3 class="mb-0">{{ success_rate|floatformat:1 }}%</h3>
+                            <small class="text-muted">
+                                {% blocktrans with successful=data.total_orders|sub:data.quality_issues %}
+                                الأوامر الناجحة: {{ successful }}
+                                {% endblocktrans %}
+                            </small>
+                            {% endwith %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialize any charts or interactive elements here
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% load i18n report_math_filters %}
+
+<div class="row">
+    <!-- Summary Cards -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'ملخص مالي' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="border rounded p-3 text-center">
+                            <h6>{% trans 'إجمالي الإيرادات' %}</h6>
+                            <h3 class="mb-0">{{ data.total_revenue|floatformat:2 }} {% trans 'جنيه' %}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border rounded p-3 text-center">
+                            <h6>{% trans 'إجمالي المدفوعات' %}</h6>
+                            <h3 class="mb-0">{{ data.total_payments|floatformat:2 }} {% trans 'جنيه' %}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outstanding Balance -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'الرصيد المستحق' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <h2 class="mb-3">{{ data.outstanding_balance|floatformat:2 }} {% trans 'جنيه' %}</h2>
+                    <div class="progress" style="height: 25px;">
+                        {% with payment_percentage=data.total_payments|div:data.total_revenue|mul:100 %}
+                        <div class="progress-bar {% if payment_percentage >= 90 %}bg-success{% elif payment_percentage >= 70 %}bg-info{% elif payment_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ payment_percentage|floatformat:1 }}%"
+                             aria-valuenow="{{ payment_percentage|floatformat:1 }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                            {{ payment_percentage|floatformat:1 }}% {% trans 'مدفوع' %}
+                        </div>
+                        {% endwith %}
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        {% blocktrans with total=data.total_revenue payments=data.total_payments %}
+                        من إجمالي {{ total }} جنيه، تم دفع {{ payments }} جنيه
+                        {% endblocktrans %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payments by Method -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{% trans 'المدفوعات حسب طريقة الدفع' %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans 'طريقة الدفع' %}</th>
+                                <th>{% trans 'عدد المعاملات' %}</th>
+                                <th>{% trans 'إجمالي المبلغ' %}</th>
+                                <th>{% trans 'متوسط المعاملة' %}</th>
+                                <th>{% trans 'النسبة من الإجمالي' %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for method in data.payments_by_method %}
+                            <tr>
+                                <td>{{ method.payment_method }}</td>
+                                <td>{{ method.count }}</td>
+                                <td>{{ method.total|floatformat:2 }} {% trans 'جنيه' %}</td>
+                                <td>{{ method.total|div:method.count|floatformat:2 }} {% trans 'جنيه' %}</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        {% with percentage=method.total|div:data.total_payments|mul:100 %}
+                                        <div class="progress-bar {% if percentage >= 50 %}bg-success{% elif percentage >= 30 %}bg-info{% elif percentage >= 10 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ percentage|floatformat:1 }}%"
+                                             aria-valuenow="{{ percentage|floatformat:1 }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ percentage|floatformat:1 }}%
+                                        </div>
+                                        {% endwith %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-info">
+                                <td><strong>{% trans 'الإجمالي' %}</strong></td>
+                                <td>{{ data.payments_by_method|sum_attr:'count' }}</td>
+                                <td>{{ data.total_payments|floatformat:2 }} {% trans 'جنيه' %}</td>
+                                <td>
+                                    {% with total_count=data.payments_by_method|sum_attr:'count' %}
+                                        {% if total_count > 0 %}
+                                            {{ data.total_payments|div:total_count|floatformat:2 }} {% trans 'جنيه' %}
+                                        {% else %}
+                                            0.00 {% trans 'جنيه' %}
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                                <td>100%</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialize any charts or interactive elements here
+    });
+</script>
+{% endblock %}

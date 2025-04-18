@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}لوحة تحكم التقارير{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="my-4">لوحة تحكم التقارير</h2>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">إجمالي التقارير</h5>
+                    <p class="display-6">{{ total_reports }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">تقارير اليوم</h5>
+                    <p class="display-6 text-success">{{ today_reports }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">تقارير هذا الشهر</h5>
+                    <p class="display-6 text-info">{{ month_reports }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <h4>أحدث التقارير</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>العنوان</th>
+                <th>النوع</th>
+                <th>الفرع</th>
+                <th>التاريخ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in recent_reports %}
+            <tr>
+                <td>{{ report.title }}</td>
+                <td>{{ report.get_report_type_display }}</td>
+                <td>{{ report.branch }}</td>
+                <td>{{ report.date_from|date:"Y-m-d" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">لا يوجد تقارير حديثة.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

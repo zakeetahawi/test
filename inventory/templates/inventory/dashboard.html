@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}لوحة تحكم المخزون{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="my-4">لوحة تحكم المخزون</h2>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">إجمالي المنتجات</h5>
+                    <p class="display-6">{{ total_products }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">منتجات منخفضة المخزون</h5>
+                    <p class="display-6 text-danger">{{ low_stock_products_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">أصناف</h5>
+                    <p class="display-6">{{ total_categories }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <h4>أحدث المنتجات</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>الاسم</th>
+                <th>الوصف</th>
+                <th>المخزون</th>
+                <th>الحد الأدنى</th>
+                <th>التصنيف</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in recent_products %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.description }}</td>
+                <td>{{ product.stock }}</td>
+                <td>{{ product.minimum_stock }}</td>
+                <td>{{ product.category }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">لا يوجد منتجات حديثاً.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

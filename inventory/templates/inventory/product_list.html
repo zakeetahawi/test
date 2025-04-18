@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <h1>قائمة المنتجات</h1>
+    {% if page_obj %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>اسم المنتج</th>
+                    <th>الكمية</th>
+                    <th>الوصف</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in page_obj %}
+                <tr>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.quantity }}</td>
+                    <td>{{ product.description }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3">لا توجد منتجات</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}">السابق</a>
+            {% endif %}
+            <span>صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">التالي</a>
+            {% endif %}
+        </div>
+    {% else %}
+        <p>لا توجد بيانات لعرضها.</p>
+    {% endif %}
+</div>
+{% endblock %}

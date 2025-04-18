@@ -1,0 +1,53 @@
+{% load report_math_filters %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">تقرير المخزون</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>المنتج</th>
+                        <th>الكمية المتاحة</th>
+                        <th>الكمية المحجوزة</th>
+                        <th>تكلفة الوحدة</th>
+                        <th>إجمالي التكلفة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.available_quantity }}</td>
+                        <td>{{ product.reserved_quantity }}</td>
+                        <td>{{ product.unit_cost }}</td>
+                        <td>{{ product.available_quantity|multiply:product.unit_cost }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="4">إجمالي قيمة المخزون</th>
+                        <th>{{ total_inventory_value }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+class Order(models.Model):
+    ORDER_TYPES = (
+        ('regular', 'طلب عادي'),
+        ('urgent', 'طلب عاجل'),
+    )
+    
+    # ... الحقول الأخرى الموجودة ...
+    order_type = models.CharField(
+        max_length=20,
+        choices=ORDER_TYPES,
+        default='regular',
+        verbose_name='نوع الطلب'
+    )

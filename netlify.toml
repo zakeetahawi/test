@@ -6,9 +6,9 @@
   PYTHON_VERSION = "3.13"
   DJANGO_SETTINGS_MODULE = "crm.settings"
   DEBUG = "0"
-  ALLOWED_HOSTS = "*.netlify.app"
+  ALLOWED_HOSTS = "*"
   SITE_URL = "https://ewaw.netlify.app"
-  CORS_ALLOWED_ORIGINS = "https://*.netlify.app"
+  CORS_ALLOWED_ORIGINS = "*"
   CSRF_TRUSTED_ORIGINS = "https://*.netlify.app"
   SECURE_SSL_REDIRECT = "true"
   SESSION_COOKIE_SECURE = "true"
@@ -17,7 +17,7 @@
 
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/.netlify/functions/handler"
   status = 200
 
 [[headers]]

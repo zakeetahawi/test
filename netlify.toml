@@ -1,5 +1,5 @@
 [build]
-  command = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+  command = "pip install -r requirements-netlify.txt && python manage.py collectstatic --noinput"
   publish = "staticfiles"
 
 [build.environment]

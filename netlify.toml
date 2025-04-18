@@ -1,7 +1,7 @@
 [build]
   base = "/"
   command = """
-    cp .env.production .env &&
+    python -m pip install --upgrade pip &&
     python -m pip install -r requirements.prod.txt &&
     python manage.py collectstatic --noinput &&
     mkdir -p staticfiles/data &&
@@ -11,7 +11,8 @@
   publish = "staticfiles"
 
 [build.environment]
-  PYTHON_VERSION = "3.8"
+  PYTHON_VERSION = "3.10"
+  PIP_VERSION = "23.1.2"
   DJANGO_SETTINGS_MODULE = "crm.settings"
   DEBUG = "0"
   ALLOWED_HOSTS = "*.netlify.app"

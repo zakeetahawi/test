@@ -3,7 +3,7 @@
   publish = "staticfiles"
 
 [build.environment]
-  PYTHON_VERSION = "3.9"
+  PYTHON_VERSION = "3.13"
   DJANGO_SETTINGS_MODULE = "crm.settings"
   DEBUG = "0"
   ALLOWED_HOSTS = "*.netlify.app"
@@ -19,3 +19,8 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"

@@ -3,7 +3,8 @@
     cp .env.production .env &&
     python -m pip install -r requirements-netlify.txt &&
     python manage.py collectstatic --noinput &&
-    python manage.py migrate
+    mkdir -p staticfiles/data &&
+    cp db.sqlite3 staticfiles/data/db.sqlite3
   """
   publish = "staticfiles"
 

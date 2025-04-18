@@ -1,18 +1,9 @@
 [build]
-  base = "/"
-  command = """
-    python -m pip install --upgrade pip &&
-    python -m pip install -r requirements.prod.txt &&
-    python manage.py collectstatic --noinput &&
-    mkdir -p staticfiles/data &&
-    cp db.sqlite3 staticfiles/data/ &&
-    cp -r media staticfiles/
-  """
+  command = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
   publish = "staticfiles"
 
 [build.environment]
-  PYTHON_VERSION = "3.10"
-  PIP_VERSION = "23.1.2"
+  PYTHON_VERSION = "3.9"
   DJANGO_SETTINGS_MODULE = "crm.settings"
   DEBUG = "0"
   ALLOWED_HOSTS = "*.netlify.app"
@@ -22,14 +13,9 @@
   SECURE_SSL_REDIRECT = "true"
   SESSION_COOKIE_SECURE = "true"
   CSRF_COOKIE_SECURE = "true"
-  DATABASE_URL = "sqlite:///staticfiles/data/db.sqlite3"
+  DATABASE_URL = "sqlite:///db.sqlite3"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000"

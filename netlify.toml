@@ -16,10 +16,6 @@
   CSRF_COOKIE_SECURE = "true"
   DATABASE_URL = "sqlite:///db.sqlite3"
 
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/handler"
-  status = 200
 
 [[headers]]
   for = "/static/*"

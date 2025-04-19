@@ -11,12 +11,6 @@ import re
 from django.http import HttpResponse
 
 def home(request):
-    # Health check view for Railway deployment
-    return HttpResponse("It works!")
-
-# الكود الأصلي لدالة home معلق مؤقتًا
-'''
-def home(request):
     """
     View for the home page
     """
@@ -54,7 +48,7 @@ def home(request):
     }
     
     return render(request, 'home.html', context)
-'''
+
 
 def about(request):
     """

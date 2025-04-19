@@ -17,8 +17,7 @@ DEBUG = os.environ.get('DEBUG', '0').lower() in ['true', 't', '1']
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '.netlify.app',  # Allows all Netlify subdomains
-    os.environ.get('SITE_URL', ''),  # Custom domain if configured
+    '192.168.2.52',
 ]
 
 # Application definition
@@ -82,20 +81,12 @@ WSGI_APPLICATION = 'crm.wsgi.application'
 
 # Database
 # Database
-if DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': r'C:/Users/zakee/Desktop/final/test/db.sqlite3',
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'staticfiles' / 'data' / 'db.sqlite3',
-        }
-    }
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -125,7 +116,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+if DEBUG:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'
@@ -152,7 +146,8 @@ REST_FRAMEWORK = {
 }
 
 # Security Settings for Production
-if not DEBUG:
+# Security Settings for Production (only enable if DEBUG is False AND ENABLE_SSL_SECURITY is set to 'true')
+if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true':
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -165,7 +160,6 @@ if not DEBUG:
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
-    "https://*.netlify.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]

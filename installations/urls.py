@@ -8,14 +8,7 @@ urlpatterns = [
     path('', views.InstallationDashboardView.as_view(), name='dashboard'),
     
     # Installation URLs
-    path('installations/', views.InstallationListView.as_view(), name='installation_list'),
-    # alias for compatibility
-    path('installations/', views.InstallationListView.as_view(), name='installations_list'),
-    path('installations/create/', views.InstallationCreateView.as_view(), name='installation_create'),
-    path('installations/<int:pk>/', views.InstallationDetailView.as_view(), name='installation_detail'),
-    path('installations/<int:pk>/update/', views.InstallationUpdateView.as_view(), name='installation_update'),
-    path('installations/<int:pk>/delete/', views.InstallationDeleteView.as_view(), name='installation_delete'),
-    
+    path('create/', views.InstallationCreateView.as_view(), name='installation_create'),
     # Transport URLs
     path('transport/', views.TransportListView.as_view(), name='transport_list'),
     path('transport/create/', views.TransportCreateView.as_view(), name='transport_create'),

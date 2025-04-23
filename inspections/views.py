@@ -8,20 +8,26 @@ from django.db.models import Q
 from .models import Inspection, InspectionReport, InspectionNotification, InspectionEvaluation
 from .forms import InspectionForm, InspectionReportForm, InspectionNotificationForm, InspectionEvaluationForm
 
+from django.urls import reverse
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'inspections/dashboard.html'
 
     def get_context_data(self, **kwargs):
+        from accounts.models import Branch
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
-        
-        # Get all inspections for the current user or all if superuser
-        if self.request.user.is_superuser:
-            inspections = Inspection.objects.all()
+        branch_id = self.request.GET.get('branch')
+        inspections = Inspection.objects.all()
+        if branch_id:
+            try:
+                branch_id = int(branch_id)
+                inspections = inspections.filter(branch_id=branch_id)
+                context['selected_branch'] = branch_id
+            except (ValueError, TypeError):
+                context['selected_branch'] = None
         else:
-            inspections = Inspection.objects.filter(
-                Q(inspector=self.request.user) | Q(created_by=self.request.user)
-            )
+            context['selected_branch'] = None
         
         # Count inspections by status
         pending_inspections = inspections.filter(status='pending')
@@ -29,25 +35,62 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['new_inspections_count'] = pending_inspections.filter(
             scheduled_date__gt=today
         ).count()
-        
         context['completed_inspections_count'] = inspections.filter(
             status='completed'
         ).count()
-        
         context['in_progress_inspections_count'] = pending_inspections.filter(
             scheduled_date=today
         ).count()
-        
         context['overdue_inspections_count'] = pending_inspections.filter(
             scheduled_date__lt=today
         ).count()
-        
-        # Get recent inspections
-        context['recent_inspections'] = inspections.select_related(
-            'customer', 'inspector', 'branch'
-        ).order_by('-created_at')[:10]
-        
+        context['branches'] = Branch.objects.all()
         return context
+
+class CompletedInspectionsDetailView(LoginRequiredMixin, ListView):
+    model = Inspection
+    template_name = 'inspections/completed_details.html'
+    context_object_name = 'inspections'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Inspection.objects.filter(status='completed')
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(
+                Q(inspector=self.request.user) | Q(created_by=self.request.user)
+            )
+        return queryset.select_related('customer', 'inspector', 'branch')
+
+
+class CancelledInspectionsDetailView(LoginRequiredMixin, ListView):
+    model = Inspection
+    template_name = 'inspections/cancelled_details.html'
+    context_object_name = 'inspections'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Inspection.objects.filter(status='cancelled')
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(
+                Q(inspector=self.request.user) | Q(created_by=self.request.user)
+            )
+        return queryset.select_related('customer', 'inspector', 'branch')
+
+
+class PendingInspectionsDetailView(LoginRequiredMixin, ListView):
+    model = Inspection
+    template_name = 'inspections/pending_details.html'
+    context_object_name = 'inspections'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Inspection.objects.filter(status='pending')
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(
+                Q(inspector=self.request.user) | Q(created_by=self.request.user)
+            )
+        return queryset.select_related('customer', 'inspector', 'branch')
+
 
 class InspectionListView(LoginRequiredMixin, ListView):
     model = Inspection
@@ -59,11 +102,9 @@ class InspectionListView(LoginRequiredMixin, ListView):
         queryset = Inspection.objects.all() if self.request.user.is_superuser else Inspection.objects.filter(
             Q(inspector=self.request.user) | Q(created_by=self.request.user)
         )
-        
         status = self.request.GET.get('status')
         overdue = self.request.GET.get('overdue')
         today = timezone.now().date()
-        
         if status == 'new':
             queryset = queryset.filter(status='pending', scheduled_date__gt=today)
         elif status == 'in_progress':
@@ -72,8 +113,20 @@ class InspectionListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(status='completed')
         elif overdue == '1':
             queryset = queryset.filter(status='pending', scheduled_date__lt=today)
-            
         return queryset.select_related('customer', 'inspector', 'branch')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # حساب الأرقام الحقيقية
+        inspections = Inspection.objects.all()
+        context['dashboard'] = {
+            'total_inspections': inspections.count(),
+            'successful_inspections': inspections.filter(status='completed').count(),
+            'pending_inspections': inspections.filter(status='pending').count(),
+            'cancelled_inspections': inspections.filter(status='cancelled').count(),
+        }
+        return context
+
 
 class InspectionCreateView(LoginRequiredMixin, CreateView):
     model = Inspection
@@ -129,10 +182,14 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         # If status is changing to completed, set completed_at
         if new_status == 'completed' and old_status != 'completed':
             inspection.completed_at = timezone.now()
+            response = super().form_valid(form)
+            # إذا لم يوجد تقييم، أعد التوجيه مباشرة لصفحة التقييم
+            if not hasattr(inspection, 'evaluation'):
+                return redirect('inspections:evaluation_create', inspection_pk=inspection.pk)
+            return response
         # If status is changing from completed to something else, clear completed_at
         elif new_status != 'completed' and old_status == 'completed':
             inspection.completed_at = None
-            
         messages.success(self.request, 'تم تحديث المعاينة بنجاح')
         return super().form_valid(form)
 
@@ -158,20 +215,64 @@ class InspectionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         messages.error(self.request, 'ليس لديك صلاحية لحذف هذه المعاينة')
         return redirect('inspections:inspection_list')
 
+from django.db import transaction
+
 class EvaluationCreateView(LoginRequiredMixin, CreateView):
-    model = InspectionEvaluation
     form_class = InspectionEvaluationForm
     template_name = 'inspections/evaluation_form.html'
 
+    def get_form_kwargs(self):
+        # حذف instance من kwargs إذا كان موجوداً
+        kwargs = super().get_form_kwargs()
+        kwargs.pop('instance', None)
+        return kwargs
+
     def form_valid(self, form):
         inspection = get_object_or_404(Inspection, pk=self.kwargs['inspection_pk'])
-        form.instance.inspection = inspection
-        form.instance.created_by = self.request.user
-        messages.success(self.request, 'تم إضافة التقييم بنجاح')
-        return super().form_valid(form)
+        notes = form.cleaned_data.get('notes', '')
+        user = self.request.user
+        created = 0
+        with transaction.atomic():
+            for criteria in ['location', 'condition', 'suitability', 'safety', 'accessibility']:
+                rating = form.cleaned_data.get(criteria)
+                if rating:
+                    InspectionEvaluation.objects.create(
+                        inspection=inspection,
+                        criteria=criteria,
+                        rating=rating,
+                        notes=notes,
+                        created_by=user
+                    )
+                    created += 1
+        if created:
+            messages.success(self.request, f'تم إضافة {created} تقييمات للمعاينة بنجاح')
+        else:
+            messages.warning(self.request, 'لم يتم إضافة أي تقييمات')
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse_lazy('inspections:inspection_detail', kwargs={'pk': self.kwargs['inspection_pk']})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['inspection'] = get_object_or_404(Inspection, pk=self.kwargs['inspection_pk'])
+        return context
+
+class InspectionReportCreateView(LoginRequiredMixin, CreateView):
+    model = InspectionReport
+    form_class = InspectionReportForm
+    template_name = 'inspections/inspection_report_form.html'
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        self.object.calculate_statistics()
+        messages.success(self.request, 'تم إنشاء تقرير المعاينات بنجاح')
+        return response
+
+    def get_success_url(self):
+        return reverse('inspections:inspection_list')
+
 
 class NotificationListView(LoginRequiredMixin, ListView):
     model = InspectionNotification

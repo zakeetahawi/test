@@ -5,12 +5,17 @@ app_name = 'inspections'
 
 urlpatterns = [
     # Dashboard
-    path('', views.DashboardView.as_view(), name='dashboard'),
     path('', views.InspectionListView.as_view(), name='inspection_list'),
+    path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
+    path('completed-details/', views.CompletedInspectionsDetailView.as_view(), name='completed_details'),
+    path('cancelled-details/', views.CancelledInspectionsDetailView.as_view(), name='cancelled_details'),
+    path('pending-details/', views.PendingInspectionsDetailView.as_view(), name='pending_details'),
     # alias for compatibility
     path('inspections/', views.InspectionListView.as_view(), name='inspections_list'),
-    path('list/', views.InspectionListView.as_view(), name='inspection_list'),
+
+
     path('create/', views.InspectionCreateView.as_view(), name='inspection_create'),
+    path('report/create/', views.InspectionReportCreateView.as_view(), name='inspection_report_create'),
     path('<int:pk>/', views.InspectionDetailView.as_view(), name='inspection_detail'),
     path('<int:pk>/update/', views.InspectionUpdateView.as_view(), name='inspection_update'),
     path('<int:pk>/delete/', views.InspectionDeleteView.as_view(), name='inspection_delete'),

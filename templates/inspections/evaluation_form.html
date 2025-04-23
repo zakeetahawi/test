@@ -38,52 +38,41 @@
                         </div>
                         {% endif %}
 
-                        <!-- Criteria Field -->
+                        <!-- Multiple Criteria Ratings -->
                         <div class="form-group mb-4">
-                            <label for="{{ form.criteria.id_for_label }}" class="form-label fw-bold">
-                                {% trans 'معيار التقييم' %}
-                            </label>
-                            {% render_field form.criteria class="form-select" %}
-                            {% if form.criteria.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.criteria.errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
+                            <label class="form-label fw-bold">{% trans 'تقييم كل معيار' %}</label>
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans 'المعيار' %}</th>
+                                        <th>{% trans 'التقييم' %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>{{ form.location.label }}</td>
+                                        <td>{% for radio in form.location %}<span class="me-2">{{ radio.tag }} {{ radio.choice_label }}</span>{% endfor %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>{{ form.condition.label }}</td>
+                                        <td>{% for radio in form.condition %}<span class="me-2">{{ radio.tag }} {{ radio.choice_label }}</span>{% endfor %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>{{ form.suitability.label }}</td>
+                                        <td>{% for radio in form.suitability %}<span class="me-2">{{ radio.tag }} {{ radio.choice_label }}</span>{% endfor %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>{{ form.safety.label }}</td>
+                                        <td>{% for radio in form.safety %}<span class="me-2">{{ radio.tag }} {{ radio.choice_label }}</span>{% endfor %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>{{ form.accessibility.label }}</td>
+                                        <td>{% for radio in form.accessibility %}<span class="me-2">{{ radio.tag }} {{ radio.choice_label }}</span>{% endfor %}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
 
-                        <!-- Rating Field with Stars -->
-                        <div class="form-group mb-4">
-                            <label class="form-label fw-bold">{% trans 'التقييم' %}</label>
-                            <div class="rating-stars mb-2">
-                                {% for value, label in form.fields.rating.choices %}
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" name="rating" value="{{ value }}" 
-                                           class="form-check-input" id="rating_{{ value }}"
-                                           {% if form.rating.value|stringformat:"i" == value|stringformat:"i" %}checked{% endif %}>
-                                    <label class="form-check-label" for="rating_{{ value }}">
-                                        {% for i in "12345"|make_list %}
-                                            {% if forloop.counter <= value %}
-                                            <i class="fas fa-star text-warning"></i>
-                                            {% else %}
-                                            <i class="far fa-star"></i>
-                                            {% endif %}
-                                        {% endfor %}
-                                        {{ label }}
-                                    </label>
-                                </div>
-                                <br>
-                                {% endfor %}
-                            </div>
-                            {% if form.rating.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.rating.errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
 
                         <!-- Notes Field -->
                         <div class="form-group mb-4">

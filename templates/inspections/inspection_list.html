@@ -7,12 +7,70 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>{% trans 'المعاينات' %}</h2>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'inspections:inspection_report_create' %}" class="btn btn-success">
+                <i class="fas fa-file-alt"></i> تقرير جديد
+            </a>
             <a href="{% url 'inspections:inspection_create' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> {% trans 'إضافة معاينة' %}
             </a>
         </div>
     </div>
+
+    <!-- Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <a href="{% url 'inspections:inspection_list' %}" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-primary dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-list-alt fa-2x text-primary mb-2"></i>
+                        <h5 class="card-title">{% trans 'إجمالي المعاينات' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.total_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'inspections:completed_details' %}" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-success dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                        <h5 class="card-title">{% trans 'الناجحة' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.successful_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'inspections:pending_details' %}" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-warning dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-hourglass-half fa-2x text-warning mb-2"></i>
+                        <h5 class="card-title">{% trans 'قيد الانتظار' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.pending_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'inspections:cancelled_details' %}" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-danger dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                        <h5 class="card-title">{% trans 'الملغاة' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.cancelled_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    <style>
+    .dashboard-card-hover:hover {
+        box-shadow: 0 0 0 0.2rem #0d6efd33;
+        transform: scale(1.03);
+        transition: 0.2s;
+    }
+    </style>
 
     <!-- Search and Filter Form -->
     <div class="card mb-4">

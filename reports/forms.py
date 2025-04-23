@@ -6,6 +6,14 @@ import json
 from .models import Report, ReportSchedule
 
 class ReportForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        allowed_types = [
+            ('sales', _('تقرير المبيعات')),
+            ('inspection', _('تقرير المعاينات')),
+        ]
+        self.fields['report_type'].choices = allowed_types
+
     class Meta:
         model = Report
         fields = ['title', 'report_type', 'description', 'parameters']

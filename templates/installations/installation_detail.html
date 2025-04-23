@@ -9,7 +9,7 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'home' %}">{% trans "الرئيسية" %}</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'installations:installation_list' %}">{% trans "التركيبات" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'installations:dashboard' %}">{% trans "التركيبات" %}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{% trans "تفاصيل التركيب" %} #{{ installation.id }}</li>
         </ol>
     </nav>

@@ -34,7 +34,7 @@ class Command(BaseCommand):
             },
             'installations': {
                 'name': 'التركيبات',
-                'url_name': 'installations:installation_list',
+                'url_name': 'installations:dashboard',
                 'icon': 'fas fa-tools'
             },
             'reports': {

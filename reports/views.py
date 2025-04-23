@@ -14,13 +14,21 @@ from factory.models import ProductionOrder
 from inventory.models import Product
 from customers.models import Customer
 
+from django.contrib.auth.decorators import permission_required
+from django.utils.decorators import method_decorator
+
 class ReportListView(LoginRequiredMixin, ListView):
     model = Report
     template_name = 'reports/report_list.html'
     context_object_name = 'reports'
-    
+
+    @method_decorator(permission_required('reports.view_report', raise_exception=True))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
     def get_queryset(self):
-        return Report.objects.filter(created_by=self.request.user)
+        # عرض جميع التقارير للجميع ممن لديهم الصلاحية
+        return Report.objects.all()
 
 class ReportCreateView(LoginRequiredMixin, CreateView):
     model = Report
@@ -76,14 +84,25 @@ class ReportDetailView(LoginRequiredMixin, DetailView):
         # Get report data based on type
         if report.report_type == 'sales':
             context['report_data'] = self.generate_sales_report(report)
-        elif report.report_type == 'production':
-            context['report_data'] = self.generate_production_report(report)
-        elif report.report_type == 'inventory':
-            context['report_data'] = self.generate_inventory_report(report)
-        elif report.report_type == 'financial':
-            context['report_data'] = self.generate_financial_report(report)
+        elif report.report_type == 'inspection':
+            context['report_data'] = self.generate_inspection_report(report)
+        # أنواع التقارير الأخرى معطلة حالياً
         
         return context
+    
+    def generate_inspection_report(self, report):
+        """تقرير إحصائي للمعاينات"""
+        from inspections.models import Inspection
+        date_range = report.parameters.get('date_range', 30)
+        start_date = datetime.now() - timedelta(days=date_range)
+        inspections = Inspection.objects.filter(request_date__gte=start_date)
+        data = {
+            'total_inspections': inspections.count(),
+            'successful_inspections': inspections.filter(result='passed').count(),
+            'pending_inspections': inspections.filter(status='pending').count(),
+            'cancelled_inspections': inspections.filter(status='cancelled').count(),
+        }
+        return data
     
     def generate_sales_report(self, report):
         """Generate sales report data"""
@@ -125,8 +144,8 @@ class ReportDetailView(LoginRequiredMixin, DetailView):
                 'production_line__name'
             ).annotate(count=Count('id')),
             'quality_issues': production_orders.filter(
-                quality_checks__result='failed'
-            ).count()
+                issues__isnull=False
+            ).distinct().count()
         }
         return data
     
@@ -179,12 +198,8 @@ def save_report_result(request, pk):
         # Get the report data
         if report.report_type == 'sales':
             data = ReportDetailView.generate_sales_report(None, report)
-        elif report.report_type == 'production':
-            data = ReportDetailView.generate_production_report(None, report)
-        elif report.report_type == 'inventory':
-            data = ReportDetailView.generate_inventory_report(None, report)
-        elif report.report_type == 'financial':
-            data = ReportDetailView.generate_financial_report(None, report)
+        elif report.report_type == 'inspection':
+            data = ReportDetailView.generate_inspection_report(None, report)
         
         # Save the result
         SavedReport.objects.create(

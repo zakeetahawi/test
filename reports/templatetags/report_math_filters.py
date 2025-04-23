@@ -23,6 +23,16 @@ def mul(value, arg):
         return 0
 
 @register.filter
+def multiply(value, arg):
+    """
+    Multiplies the value by the argument (alias for mul)
+    """
+    try:
+        return float(value) * float(arg)
+    except ValueError:
+        return 0
+
+@register.filter
 def sub(value, arg):
     """
     Subtracts the argument from the value

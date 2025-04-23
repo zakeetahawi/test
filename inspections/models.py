@@ -22,7 +22,7 @@ class InspectionEvaluation(models.Model):
         (5, _('ممتاز')),
     ]
 
-    inspection = models.OneToOneField('Inspection', on_delete=models.CASCADE, related_name='evaluation', verbose_name=_('المعاينة'))
+    inspection = models.ForeignKey('Inspection', on_delete=models.CASCADE, related_name='evaluations', verbose_name=_('المعاينة'))
     criteria = models.CharField(_('معيار التقييم'), max_length=20, choices=CRITERIA_CHOICES)
     rating = models.IntegerField(_('التقييم'), choices=RATING_CHOICES)
     notes = models.TextField(_('ملاحظات التقييم'), blank=True)

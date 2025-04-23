@@ -10,20 +10,35 @@ from .models import (
     InspectionNotification
 )
 
-class InspectionEvaluationForm(forms.ModelForm):
-    class Meta:
-        model = InspectionEvaluation
-        fields = ['criteria', 'rating', 'notes']
-        widgets = {
-            'notes': forms.Textarea(attrs={'rows': 4}),
-        }
+class InspectionEvaluationForm(forms.Form):
+    # عرض جميع معايير التقييم دفعة واحدة
+    CRITERIA_CHOICES = [
+        ('location', _('الموقع')),
+        ('condition', _('الحالة')),
+        ('suitability', _('الملاءمة')),
+        ('safety', _('السلامة')),
+        ('accessibility', _('سهولة الوصول')),
+    ]
+    RATING_CHOICES = [
+        (1, _('ضعيف')),
+        (2, _('مقبول')),
+        (3, _('جيد')),
+        (4, _('جيد جداً')),
+        (5, _('ممتاز')),
+    ]
+    notes = forms.CharField(label=_('ملاحظات التقييم'), required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    # إضافة حقل تقييم لكل معيار
+    location = forms.ChoiceField(label=_('الموقع'), choices=RATING_CHOICES, widget=forms.RadioSelect)
+    condition = forms.ChoiceField(label=_('الحالة'), choices=RATING_CHOICES, widget=forms.RadioSelect)
+    suitability = forms.ChoiceField(label=_('الملاءمة'), choices=RATING_CHOICES, widget=forms.RadioSelect)
+    safety = forms.ChoiceField(label=_('السلامة'), choices=RATING_CHOICES, widget=forms.RadioSelect)
+    accessibility = forms.ChoiceField(label=_('سهولة الوصول'), choices=RATING_CHOICES, widget=forms.RadioSelect)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields:
-            self.fields[field].widget.attrs.update({
-                'class': 'form-control'
-            })
+            if field != 'notes':
+                self.fields[field].widget.attrs.update({'class': 'form-check-input'})
 
 class InspectionReportForm(forms.ModelForm):
     class Meta:

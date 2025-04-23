@@ -178,6 +178,12 @@
                 </div>
             </div>
         </div>
+    {% if can_evaluate %}
+    <div class="text-center my-4">
+        <a href="{% url 'inspections:evaluation_create' inspection.pk %}" class="btn btn-outline-success btn-lg">
+            <i class="fas fa-star"></i> {% trans 'إضافة تقييم المعاينة' %}
+        </a>
     </div>
+    {% endif %}
 </div>
 {% endblock %}

@@ -1,7 +1,25 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
-from .models import User, Branch, Department, CompanyInfo, FormField
+from .models import User, Branch, Department, CompanyInfo, FormField, SystemDBImportPermission
+
+class SystemDBImportPermissionForm(forms.ModelForm):
+    class Meta:
+        model = SystemDBImportPermission
+        fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        users = cleaned_data.get('users')
+        # تحقق من وجود كائن واحد فقط
+        qs = SystemDBImportPermission.objects.all()
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError('لا يمكن إضافة أكثر من صلاحية واحدة لاستيراد قاعدة البيانات. الرجاء تعديل الصلاحية الحالية فقط.')
+        if users and users.count() > 2:
+            raise forms.ValidationError('يسمح فقط باختيار مستخدمين اثنين كحد أقصى لاستيراد قاعدة البيانات!')
+        return cleaned_data
 
 class CustomAuthenticationForm(AuthenticationForm):
     """

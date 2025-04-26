@@ -50,13 +50,8 @@ class Product(models.Model):
         related_name='products',
         verbose_name=_('الفئة')
     )
+    unit = models.CharField(_('الوحدة'), max_length=20, choices=UNIT_CHOICES)
     description = models.TextField(_('الوصف'), blank=True)
-    unit = models.CharField(
-        _('وحدة القياس'),
-        max_length=10,
-        choices=UNIT_CHOICES,
-        default='piece'
-    )
     price = models.DecimalField(
         _('السعر'),
         max_digits=10,
@@ -92,6 +87,19 @@ class Product(models.Model):
         """Check if product needs restocking"""
         return self.current_stock <= self.minimum_stock
 
+class StockTransactionReason(models.Model):
+    name = models.CharField(_('السبب'), max_length=50, unique=True)
+    description = models.TextField(_('الوصف'), blank=True)
+
+    class Meta:
+        verbose_name = _('سبب حركة المخزون')
+        verbose_name_plural = _('أسباب حركات المخزون')
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class StockTransaction(models.Model):
     """
     Model for tracking stock movements
@@ -120,10 +128,11 @@ class StockTransaction(models.Model):
         max_length=3,
         choices=TRANSACTION_TYPES
     )
-    reason = models.CharField(
-        _('السبب'),
-        max_length=20,
-        choices=TRANSACTION_REASONS
+    reason = models.ForeignKey(
+        StockTransactionReason,
+        on_delete=models.SET_NULL,
+        null=True,
+        verbose_name=_('السبب')
     )
     quantity = models.PositiveIntegerField(_('الكمية'))
     date = models.DateTimeField(_('التاريخ'), auto_now_add=True)

@@ -4,99 +4,195 @@ from django.contrib import messages
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
-from django.db.models import F, Sum
+from django.db.models import F, Sum, Q
 from .models import Product, Category, PurchaseOrder
 
-# لوحة تحكم المخزون الرئيسية
 class InventoryDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'inventory/dashboard.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['total_products'] = Product.objects.count()
-        # احسب المنتجات منخفضة المخزون يدويًا لأن current_stock خاصية وليست حقل قاعدة بيانات
+        
+        # Get all products
         products = Product.objects.all()
-        context['low_stock_count'] = sum(1 for p in products if p.current_stock <= p.minimum_stock and p.current_stock > 0)
-        context['purchase_orders_count'] = PurchaseOrder.objects.filter(status='ordered').count()
-        context['inventory_value'] = sum(p.current_stock * p.price for p in products)
-        context['recent_products'] = Product.objects.order_by('-created_at')[:10]
+        
+        # Basic statistics
+        context['total_products'] = products.count()
+        context['total_categories'] = Category.objects.count()
+        
+        # Low stock products
+        low_stock_products = [p for p in products if p.current_stock <= p.minimum_stock and p.current_stock > 0]
+        context['low_stock_products_count'] = len(low_stock_products)
+        
+        # Recent products with all related data
+        context['recent_products'] = products.select_related('category').order_by('-created_at')[:10]
+        
+        # Additional statistics
+        context['out_of_stock_count'] = sum(1 for p in products if p.current_stock == 0)
+        context['total_value'] = sum(p.current_stock * p.price for p in products)
+        
         return context
 
-# عرض قائمة المنتجات مع الترقيم
 @login_required
 def product_list(request):
-    products = Product.objects.all().order_by('-created_at')
+    # Base queryset
+    products = Product.objects.all().select_related('category')
+    categories = Category.objects.all()
+
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(code__icontains=search_query) |
+            Q(description__icontains=search_query)
+        )
+
+    # Category filter
+    category_id = request.GET.get('category', '')
+    if category_id:
+        try:
+            products = products.filter(category_id=int(category_id))
+        except ValueError:
+            pass
+
+    # Stock status filter
+    filter_type = request.GET.get('filter', '')
+    if filter_type == 'low_stock':
+        products = [p for p in products if p.current_stock <= p.minimum_stock and p.current_stock > 0]
+    elif filter_type == 'out_of_stock':
+        products = [p for p in products if p.current_stock == 0]
+
+    # Sorting
+    sort_by = request.GET.get('sort', '-created_at')
+    if hasattr(Product, sort_by.lstrip('-')):
+        products = sorted(products, 
+                        key=lambda x: getattr(x, sort_by.lstrip('-')),
+                        reverse=sort_by.startswith('-'))
+
+    # Pagination
     paginator = Paginator(products, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    return render(request, 'inventory/product_list.html', {'page_obj': page_obj})
 
-# إضافة منتج جديد
+    context = {
+        'page_obj': page_obj,
+        'categories': categories,
+        'search_query': search_query,
+        'selected_category': category_id,
+        'selected_filter': filter_type,
+        'sort_by': sort_by
+    }
+
+    return render(request, 'inventory/product_list.html', context)
+
 @login_required
 def product_create(request):
     if request.method == 'POST':
-        name = request.POST.get('name')
-        code = request.POST.get('code')
-        category_id = request.POST.get('category')
-        description = request.POST.get('description')
-        price = request.POST.get('price')
-        minimum_stock = request.POST.get('minimum_stock')
-        category = get_object_or_404(Category, id=category_id)
-        Product.objects.create(
-            name=name,
-            code=code,
-            category=category,
-            description=description,
-            price=price,
-            minimum_stock=minimum_stock
-        )
-        messages.success(request, 'تم إضافة المنتج بنجاح.')
-        return redirect('product_list')
+        try:
+            name = request.POST.get('name')
+            code = request.POST.get('code')
+            category_id = request.POST.get('category')
+            description = request.POST.get('description')
+            price = request.POST.get('price')
+            minimum_stock = request.POST.get('minimum_stock')
+            
+            # Validation
+            if not all([name, category_id, price, minimum_stock]):
+                raise ValueError("جميع الحقول المطلوبة يجب ملؤها")
+
+            category = get_object_or_404(Category, id=category_id)
+            
+            # Create product
+            Product.objects.create(
+                name=name,
+                code=code,
+                category=category,
+                description=description,
+                price=price,
+                minimum_stock=minimum_stock
+            )
+            
+            messages.success(request, 'تم إضافة المنتج بنجاح.')
+            return redirect('inventory:product_list')
+            
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, 'حدث خطأ أثناء إضافة المنتج.')
+    
     categories = Category.objects.all()
     return render(request, 'inventory/product_form.html', {'categories': categories})
 
-# تعديل منتج
 @login_required
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
-        product.name = request.POST.get('name')
-        product.code = request.POST.get('code')
-        category_id = request.POST.get('category')
-        product.category = get_object_or_404(Category, id=category_id)
-        product.description = request.POST.get('description')
-        product.price = request.POST.get('price')
-        product.minimum_stock = request.POST.get('minimum_stock')
-        product.save()
-        messages.success(request, 'تم تعديل المنتج بنجاح.')
-        return redirect('product_list')
+        try:
+            product.name = request.POST.get('name')
+            product.code = request.POST.get('code')
+            category_id = request.POST.get('category')
+            product.category = get_object_or_404(Category, id=category_id)
+            product.description = request.POST.get('description')
+            product.price = request.POST.get('price')
+            product.minimum_stock = request.POST.get('minimum_stock')
+            
+            # Validation
+            if not all([product.name, product.category, product.price, product.minimum_stock]):
+                raise ValueError("جميع الحقول المطلوبة يجب ملؤها")
+            
+            product.save()
+            messages.success(request, 'تم تحديث المنتج بنجاح.')
+            return redirect('inventory:product_list')
+            
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, 'حدث خطأ أثناء تحديث المنتج.')
+    
     categories = Category.objects.all()
-    return render(request, 'inventory/product_form.html', {'product': product, 'categories': categories})
+    return render(request, 'inventory/product_form.html', {
+        'product': product,
+        'categories': categories
+    })
 
-# حذف منتج
 @login_required
 def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
-        product.delete()
-        messages.success(request, 'تم حذف المنتج بنجاح.')
-        return redirect('product_list')
+        try:
+            product.delete()
+            messages.success(request, 'تم حذف المنتج بنجاح.')
+        except Exception as e:
+            messages.error(request, 'حدث خطأ أثناء حذف المنتج.')
+        return redirect('inventory:product_list')
+    
     return render(request, 'inventory/product_confirm_delete.html', {'product': product})
 
-# عرض تفاصيل منتج
 @login_required
 def product_detail(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    return render(request, 'inventory/product_detail.html', {'product': product})
+    context = {
+        'product': product,
+        'stock_status': (
+            'نفذ من المخزون' if product.current_stock == 0
+            else 'مخزون منخفض' if product.current_stock <= product.minimum_stock
+            else 'متوفر'
+        )
+    }
+    return render(request, 'inventory/product_detail.html', context)
 
-# إنشاء معاملة (فارغة مؤقتاً)
 @login_required
 def transaction_create(request, product_pk):
-    # يمكنك لاحقاً إضافة منطق إنشاء معاملة مخزون هنا
-    return render(request, 'inventory/transaction_form.html', {'product_pk': product_pk})
+    product = get_object_or_404(Product, pk=product_pk)
+    if request.method == 'POST':
+        # Transaction logic will be implemented later
+        pass
+    return render(request, 'inventory/transaction_form.html', {'product': product})
 
-# API: تفاصيل منتج
+# API Endpoints
 from django.http import JsonResponse
+
 @login_required
 def product_api_detail(request, pk):
     try:
@@ -113,32 +209,19 @@ def product_api_detail(request, pk):
         }
         return JsonResponse(data)
     except Product.DoesNotExist:
-        return JsonResponse({'error': 'Product not found'}, status=404)
+        return JsonResponse({'error': 'المنتج غير موجود'}, status=404)
 
-# API: قائمة المنتجات
 @login_required
 def product_api_list(request):
     products = Product.objects.all()
-    data = [
-        {
-            'id': p.id,
-            'name': p.name,
-            'code': p.code,
-            'category': str(p.category),
-            'description': p.description,
-            'price': p.price,
-            'minimum_stock': p.minimum_stock,
-            'current_stock': p.current_stock,
-        }
-        for p in products
-    ]
+    data = [{
+        'id': p.id,
+        'name': p.name,
+        'code': p.code,
+        'category': str(p.category),
+        'description': p.description,
+        'price': p.price,
+        'minimum_stock': p.minimum_stock,
+        'current_stock': p.current_stock,
+    } for p in products]
     return JsonResponse(data, safe=False)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['total_products'] = Product.objects.count()
-        context['low_stock_count'] = sum(1 for p in Product.objects.all() if p.current_stock <= p.minimum_stock and p.current_stock > 0)
-        context['purchase_orders_count'] = PurchaseOrder.objects.filter(status='ordered').count()
-        context['inventory_value'] = sum(p.current_stock * p.price for p in Product.objects.all())
-        context['recent_products'] = Product.objects.order_by('-created_at')[:10]
-        return context

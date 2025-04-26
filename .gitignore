@@ -1,7 +1,23 @@
-venv/
+# Ignore Python bytecode
 __pycache__/
-*.pyc
-db.sqlite3
+*.py[cod]
 
-# Local Netlify folder
-.netlify
+# Ignore virtual environment
+venv/
+
+# Ignore environment files
+.env
+.env.*
+
+# Ignore SQLite database
+*.sqlite3
+*.sqlite3.bak
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore other common files
+*.log
+*.pot
+*.pyc

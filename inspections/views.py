@@ -61,7 +61,6 @@ class CompletedInspectionsDetailView(LoginRequiredMixin, ListView):
             )
         return queryset.select_related('customer', 'inspector', 'branch')
 
-
 class CancelledInspectionsDetailView(LoginRequiredMixin, ListView):
     model = Inspection
     template_name = 'inspections/cancelled_details.html'
@@ -76,7 +75,6 @@ class CancelledInspectionsDetailView(LoginRequiredMixin, ListView):
             )
         return queryset.select_related('customer', 'inspector', 'branch')
 
-
 class PendingInspectionsDetailView(LoginRequiredMixin, ListView):
     model = Inspection
     template_name = 'inspections/pending_details.html'
@@ -90,7 +88,6 @@ class PendingInspectionsDetailView(LoginRequiredMixin, ListView):
                 Q(inspector=self.request.user) | Q(created_by=self.request.user)
             )
         return queryset.select_related('customer', 'inspector', 'branch')
-
 
 class InspectionListView(LoginRequiredMixin, ListView):
     model = Inspection
@@ -117,7 +114,6 @@ class InspectionListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # حساب الأرقام الحقيقية
         inspections = Inspection.objects.all()
         context['dashboard'] = {
             'total_inspections': inspections.count(),
@@ -126,7 +122,6 @@ class InspectionListView(LoginRequiredMixin, ListView):
             'cancelled_inspections': inspections.filter(status='cancelled').count(),
         }
         return context
-
 
 class InspectionCreateView(LoginRequiredMixin, CreateView):
     model = Inspection
@@ -164,7 +159,6 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         inspection = self.get_object()
-        # Allow if user is superuser, created the inspection, or is assigned as inspector
         return (self.request.user.is_superuser or 
                 inspection.created_by == self.request.user or 
                 inspection.inspector == self.request.user)
@@ -179,15 +173,12 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         old_status = self.get_object().status
         new_status = form.cleaned_data['status']
         
-        # If status is changing to completed, set completed_at
         if new_status == 'completed' and old_status != 'completed':
             inspection.completed_at = timezone.now()
             response = super().form_valid(form)
-            # إذا لم يوجد تقييم، أعد التوجيه مباشرة لصفحة التقييم
             if not hasattr(inspection, 'evaluation'):
                 return redirect('inspections:evaluation_create', inspection_pk=inspection.pk)
             return response
-        # If status is changing from completed to something else, clear completed_at
         elif new_status != 'completed' and old_status == 'completed':
             inspection.completed_at = None
         messages.success(self.request, 'تم تحديث المعاينة بنجاح')
@@ -204,7 +195,6 @@ class InspectionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
 
     def test_func(self):
         inspection = self.get_object()
-        # Only allow superusers or the creator to delete
         return self.request.user.is_superuser or inspection.created_by == self.request.user
 
     def delete(self, request, *args, **kwargs):
@@ -215,14 +205,11 @@ class InspectionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         messages.error(self.request, 'ليس لديك صلاحية لحذف هذه المعاينة')
         return redirect('inspections:inspection_list')
 
-from django.db import transaction
-
 class EvaluationCreateView(LoginRequiredMixin, CreateView):
     form_class = InspectionEvaluationForm
     template_name = 'inspections/evaluation_form.html'
 
     def get_form_kwargs(self):
-        # حذف instance من kwargs إذا كان موجوداً
         kwargs = super().get_form_kwargs()
         kwargs.pop('instance', None)
         return kwargs
@@ -273,10 +260,9 @@ class InspectionReportCreateView(LoginRequiredMixin, CreateView):
     def get_success_url(self):
         return reverse('inspections:inspection_list')
 
-
 class NotificationListView(LoginRequiredMixin, ListView):
     model = InspectionNotification
-    template_name = 'inspections/notification_list.html'
+    template_name = 'inspections/notifications/notification_list.html'  # Updated path
     context_object_name = 'notifications'
     paginate_by = 10
 
@@ -288,7 +274,7 @@ class NotificationListView(LoginRequiredMixin, ListView):
 class NotificationCreateView(LoginRequiredMixin, CreateView):
     model = InspectionNotification
     form_class = InspectionNotificationForm
-    template_name = 'inspections/notification_form.html'
+    template_name = 'inspections/notifications/notification_form.html'  # Updated path
 
     def form_valid(self, form):
         inspection = get_object_or_404(Inspection, pk=self.kwargs['inspection_pk'])

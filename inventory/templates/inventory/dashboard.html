@@ -11,17 +11,11 @@
                 <div class="card-body">
                     <h5 class="card-title">إجراءات سريعة</h5>
                     <div class="btn-group" role="group">
-                        <a href="{% url 'inventory:advanced_reports' %}" class="btn btn-dark">
-                            <i class="fas fa-chart-bar"></i> التقارير المتقدمة
-                        </a>
                         <a href="{% url 'inventory:product_create' %}" class="btn btn-primary">
                             <i class="fas fa-plus"></i> إضافة منتج جديد
                         </a>
                         <a href="{% url 'inventory:product_list' %}" class="btn btn-info">
                             <i class="fas fa-list"></i> قائمة المنتجات
-                        </a>
-                        <a href="{% url 'inventory:supply_order_report' %}" class="btn btn-success">
-                            <i class="fas fa-file-alt"></i> تقرير طلبات التوريد
                         </a>
                     </div>
                 </div>
@@ -30,168 +24,35 @@
     </div>
 
     <!-- Statistics Cards -->
-    <style>
-        .stat-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            border: none;
-        }
-        .stat-card:hover {
-            transform: translateY(-6px) scale(1.03);
-            box-shadow: 0 6px 24px rgba(0,0,0,0.11);
-            z-index: 2;
-        }
-        .stat-icon {
-            font-size: 2.2rem;
-            margin-bottom: 5px;
-        }
-        .stat-btn {
-            margin-top: 6px;
-            font-size: 0.95rem;
-        }
-        .stat-number {
-            font-size: 2.1rem;
-            font-weight: bold;
-            direction: ltr;
-        }
-        @media (max-width: 767px) {
-            .stat-card {margin-bottom: 14px;}
-        }
-    </style>
-    <div class="row mb-3">
-        <div class="col-6 col-md-2 mb-2">
-            <div class="card stat-card text-center shadow-sm border-primary">
-                <div class="card-body py-2 px-1">
-                    <div class="stat-icon text-primary"><i class="fas fa-box"></i></div>
-                    <div class="stat-number" data-count="{{ total_products }}">0</div>
-                    <div class="card-title">المنتجات</div>
-                    <a href="{% url 'inventory:product_list' %}" class="btn btn-primary stat-btn">عرض</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2 mb-2">
-            <div class="card stat-card text-center shadow-sm border-secondary">
-                <div class="card-body py-2 px-1">
-                    <div class="stat-icon text-secondary"><i class="fas fa-tags"></i></div>
-                    <div class="stat-number" data-count="{{ total_categories }}">0</div>
-                    <div class="card-title">الفئات</div>
-                    <a href="{% url 'inventory:category_list' %}" class="btn btn-secondary stat-btn">عرض</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2 mb-2">
-            <div class="card stat-card text-center shadow-sm border-info">
-                <div class="card-body py-2 px-1">
-                    <div class="stat-icon text-info"><i class="fas fa-user-tie"></i></div>
-                    <div class="stat-number" data-count="{{ total_suppliers }}">0</div>
-                    <div class="card-title">الموردون</div>
-                    <a href="{% url 'inventory:supplier_list' %}" class="btn btn-info stat-btn">عرض</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2 mb-2">
-            <div class="card stat-card text-center shadow-sm border-success">
-                <div class="card-body py-2 px-1">
-                    <div class="stat-icon text-success"><i class="fas fa-warehouse"></i></div>
-                    <div class="stat-number" data-count="{{ total_warehouses }}">0</div>
-                    <div class="card-title">المخازن</div>
-                    <a href="{% url 'inventory:warehouse_list' %}" class="btn btn-success stat-btn">عرض</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2 mb-2">
-            <div class="card stat-card text-center shadow-sm border-warning">
-                <div class="card-body py-2 px-1">
-                    <div class="stat-icon text-warning"><i class="fas fa-shopping-cart"></i></div>
-                    <div class="stat-number" data-count="{{ purchase_orders_count }}">0</div>
-                    <div class="card-title">طلبات الشراء</div>
-                    <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-warning stat-btn text-white">عرض</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2 mb-2">
-            <div class="card stat-card text-center shadow-sm border-dark">
-                <div class="card-body py-2 px-1">
-                    <div class="stat-icon text-dark"><i class="fas fa-truck-loading"></i></div>
-                    <div class="stat-number" data-count="{{ supply_orders_count }}">0</div>
-                    <div class="card-title">طلبات التوريد</div>
-                    <a href="{% url 'inventory:supply_order_list' %}" class="btn btn-dark stat-btn text-white">عرض</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script>
-        // عداد متحرك للأرقام في البطاقات
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.stat-number').forEach(function(el) {
-                const target = parseInt(el.dataset.count || '0');
-                let current = 0;
-                const step = Math.max(1, Math.ceil(target / 40));
-                const animate = () => {
-                    current += step;
-                    if (current >= target) {
-                        el.textContent = target;
-                    } else {
-                        el.textContent = current;
-                        requestAnimationFrame(animate);
-                    }
-                };
-                animate();
-            });
-        });
-    </script>
-
-    <!-- جداول أحدث العناصر -->
     <div class="row mb-4">
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-info text-white">أحدث الموردين</div>
-                <div class="card-body p-2">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead><tr><th>الاسم</th><th>الهاتف</th><th>الإيميل</th></tr></thead>
-                        <tbody>
-                        {% for supplier in recent_suppliers %}
-                        <tr><td>{{ supplier.name }}</td><td>{{ supplier.phone }}</td><td>{{ supplier.email }}</td></tr>
-                        {% empty %}<tr><td colspan="3" class="text-center">لا يوجد</td></tr>{% endfor %}
-                        </tbody>
-                    </table>
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">إجمالي المنتجات</h5>
+                    <p class="display-6">{{ total_products }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-success text-white">أحدث أوامر الشراء</div>
-                <div class="card-body p-2">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead><tr><th>رقم الطلب</th><th>المورد</th><th>المخزن</th><th>الحالة</th></tr></thead>
-                        <tbody>
-                        {% for order in recent_purchase_orders %}
-                        <tr><td>{{ order.order_number }}</td><td>{{ order.supplier.name }}</td><td>{{ order.warehouse.name }}</td><td>{{ order.get_status_display }}</td></tr>
-                        {% empty %}<tr><td colspan="4" class="text-center">لا يوجد</td></tr>{% endfor %}
-                        </tbody>
-                    </table>
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">منتجات منخفضة المخزون</h5>
+                    <p class="display-6 text-danger">{{ low_stock_products_count }}</p>
+                    {% if low_stock_products_count > 0 %}
+                        <a href="{% url 'inventory:product_list' %}?filter=low_stock" class="btn btn-danger btn-sm">عرض التفاصيل</a>
+                    {% endif %}
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-warning text-white">أحدث طلبات التوريد</div>
-                <div class="card-body p-2">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead><tr><th>رقم الطلب</th><th>المورد</th><th>من مخزن</th><th>إلى مخزن</th><th>الحالة</th></tr></thead>
-                        <tbody>
-                        {% for order in recent_supply_orders %}
-                        <tr><td>{{ order.order_number }}</td><td>{{ order.supplier }}</td><td>{{ order.from_warehouse }}</td><td>{{ order.to_warehouse }}</td><td>{{ order.get_status_display }}</td></tr>
-                        {% empty %}<tr><td colspan="5" class="text-center">لا يوجد</td></tr>{% endfor %}
-                        </tbody>
-                    </table>
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">أصناف</h5>
+                    <p class="display-6">{{ total_categories }}</p>
                 </div>
             </div>
         </div>
     </div>
-    <!-- نهاية تخصيص الداشبورد -->
-
-
 
     <!-- Recent Products -->
     <div class="card mb-4">

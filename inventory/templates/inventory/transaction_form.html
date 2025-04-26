@@ -9,7 +9,7 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'home' %}">{% trans "الرئيسية" %}</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">{% trans "المخزون" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'inventory:inventory_list' %}">{% trans "المخزون" %}</a></li>
             <li class="breadcrumb-item"><a href="{% url 'inventory:product_detail' product.pk %}">{{ product.name }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{% trans "تسجيل حركة مخزون" %}</li>
         </ol>
@@ -74,69 +74,57 @@
 
             <form method="post" novalidate>
                 {% csrf_token %}
-                {% if form.non_field_errors %}
-                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-                {% endif %}
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">اسم المنتج</label>
-                        <input type="text" class="form-control" value="{{ product.name }}" readonly>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="transaction_type" class="form-label">{% trans "نوع الحركة" %} *</label>
+                        <select class="form-select" id="transaction_type" name="transaction_type" required>
+                            <option value="">{% trans "اختر نوع الحركة" %}</option>
+                            {% for type_value, type_name in transaction_types %}
+                                <option value="{{ type_value }}">{{ type_name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">وحدة القياس</label>
-                        <input type="text" class="form-control" value="{{ product.get_unit_display }}" readonly>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        {{ form.transaction_type.label_tag }}
-                        {{ form.transaction_type }}
-                        {% for error in form.transaction_type.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        {{ form.reason.label_tag }}
-                        {{ form.reason }}
-                        {% for error in form.reason.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+                    
+                    <div class="col-md-6 mb-3">
+                        <label for="reason" class="form-label">{% trans "السبب" %} *</label>
+                        <select class="form-select" id="reason" name="reason" required>
+                            <option value="">{% trans "اختر السبب" %}</option>
+                            {% for reason_value, reason_name in transaction_reasons %}
+                                <option value="{{ reason_value }}">{{ reason_name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        <label for="id_warehouse" id="warehouse-label">{{ form.warehouse.label }}</label>
-                        {{ form.warehouse }}
-                        {% for error in form.warehouse.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        {{ form.quantity.label_tag }}
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="quantity" class="form-label">{% trans "الكمية" %} *</label>
                         <div class="input-group">
-                            {{ form.quantity }}
+                            <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
                             <span class="input-group-text">{{ product.get_unit_display }}</span>
                         </div>
-                        {% for error in form.quantity.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="col-md-4">
-                        {{ form.warehouse.label_tag }} <span class="text-danger">*</span>
-                        {{ form.warehouse }}
-                        {% for error in form.warehouse.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-md-4">
-                        {{ form.reference.label_tag }} <span class="text-danger">*</span>
-                        {{ form.reference }}
-                        {% for error in form.reference.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+                    
+                    <div class="col-md-6 mb-3">
+                        <label for="reference" class="form-label">{% trans "المرجع" %}</label>
+                        <input type="text" class="form-control" id="reference" name="reference" 
+                               placeholder="{% trans 'مثال: رقم الفاتورة، رقم الطلب، إلخ' %}">
                     </div>
                 </div>
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        {{ form.notes.label_tag }}
-                        {{ form.notes }}
-                        {% for error in form.notes.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
-                    </div>
+                
+                <div class="mb-3">
+                    <label for="notes" class="form-label">{% trans "ملاحظات" %}</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
                 </div>
-                <div class="d-flex justify-content-end">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> تسجيل الحركة</button>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% trans "تسجيل الحركة" %}
+                    </button>
                 </div>
             </form>
         </div>
@@ -145,70 +133,50 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if form %}
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var transactionType = document.getElementById('id_transaction_type');
-        var warehouseLabel = document.getElementById('warehouse-label');
-        function updateWarehouseLabel() {
-            if (transactionType && warehouseLabel) {
-                if (transactionType.value === 'transfer') {
-                    warehouseLabel.textContent = 'إلى';
-                } else {
-                    warehouseLabel.textContent = 'المخزن';
-                }
-            }
-        }
-        if (transactionType) {
-            transactionType.addEventListener('change', updateWarehouseLabel);
-            updateWarehouseLabel();
-        }
-    });
-</script>
-
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const transactionTypeSelect = document.getElementById('transaction_type');
         const quantityInput = document.getElementById('quantity');
-        const currentStock = parseInt('{{ product.current_stock|default:0 }}');
+        const currentStock = {{ product.current_stock }};
         
-        if (transactionTypeSelect && quantityInput) {
-            // Add validation for outgoing transactions
-            transactionTypeSelect.addEventListener('change', function() {
-                if (this.value === 'out') {
-                    quantityInput.setAttribute('max', currentStock);
-                    // Add validation message
-                    let validationMessage = document.createElement('div');
-                    validationMessage.className = 'form-text text-danger';
-                    validationMessage.id = 'quantity-validation';
-                    validationMessage.textContent = '{% trans "الكمية المتاحة للصرف:" %} ' + currentStock;
-                    // Remove existing message if any
-                    let existingMessage = document.getElementById('quantity-validation');
-                    if (existingMessage) {
-                        existingMessage.remove();
-                    }
-                    // Add message after quantity input
-                    quantityInput.parentNode.after(validationMessage);
-                } else {
-                    // Remove max attribute and validation message for incoming transactions
-                    quantityInput.removeAttribute('max');
-                    let existingMessage = document.getElementById('quantity-validation');
-                    if (existingMessage) {
-                        existingMessage.remove();
-                    }
+        // Add validation for outgoing transactions
+        transactionTypeSelect.addEventListener('change', function() {
+            if (this.value === 'out') {
+                quantityInput.setAttribute('max', currentStock);
+                
+                // Add validation message
+                const validationMessage = document.createElement('div');
+                validationMessage.className = 'form-text text-danger';
+                validationMessage.id = 'quantity-validation';
+                validationMessage.textContent = '{% trans "الكمية المتاحة للصرف:" %} ' + currentStock;
+                
+                // Remove existing message if any
+                const existingMessage = document.getElementById('quantity-validation');
+                if (existingMessage) {
+                    existingMessage.remove();
                 }
-            });
-            // Validate quantity on input
-            quantityInput.addEventListener('input', function() {
-                if (transactionTypeSelect.value === 'out' && parseInt(this.value) > currentStock) {
-                    this.setCustomValidity('{% trans "الكمية المطلوبة أكبر من المخزون المتاح" %}');
-                } else {
-                    this.setCustomValidity('');
+                
+                // Add message after quantity input
+                quantityInput.parentNode.after(validationMessage);
+            } else {
+                // Remove max attribute and validation message for incoming transactions
+                quantityInput.removeAttribute('max');
+                
+                const existingMessage = document.getElementById('quantity-validation');
+                if (existingMessage) {
+                    existingMessage.remove();
                 }
-            });
-        }
+            }
+        });
+        
+        // Validate quantity on input
+        quantityInput.addEventListener('input', function() {
+            if (transactionTypeSelect.value === 'out' && parseInt(this.value) > currentStock) {
+                this.setCustomValidity('{% trans "الكمية المطلوبة أكبر من المخزون المتاح" %}');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
     });
 </script>
-{% endif %}
 {% endblock %}
-

@@ -39,20 +39,6 @@ class Product(models.Model):
         ('meter', _('متر')),
         ('sqm', _('متر مربع')),
         ('kg', _('كيلوجرام')),
-        ('g', _('جرام')),
-        ('ton', _('طن')),
-        ('liter', _('لتر')),
-        ('ml', _('ملليلتر')),
-        ('pack', _('علبة')),
-        ('box', _('صندوق')),
-        ('gallon', _('جالون')),
-        ('dozen', _('دزينة')),
-        ('ft', _('قدم')),
-        ('yd', _('ياردة')),
-        ('cm', _('سنتيمتر')),
-        ('mm', _('ملليمتر')),
-        ('bag', _('كيس')),
-        ('carton', _('كرتون')),
     ]
     
     name = models.CharField(_('اسم المنتج'), max_length=200)
@@ -90,7 +76,7 @@ class Product(models.Model):
         ordering = ['name']
     
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.code})"
     
     @property
     def current_stock(self):
@@ -106,42 +92,6 @@ class Product(models.Model):
         """Check if product needs restocking"""
         return self.current_stock <= self.minimum_stock
 
-def create_default_stock_transaction_reasons():
-    from django.db.utils import IntegrityError
-    default_reasons = [
-        {'name': 'شراء', 'notes': 'إضافة مخزون نتيجة شراء'},
-        {'name': 'بيع', 'notes': 'صرف مخزون نتيجة بيع'},
-        {'name': 'إرجاع مورد', 'notes': 'إرجاع مخزون للمورد'},
-        {'name': 'إرجاع عميل', 'notes': 'إرجاع مخزون من العميل'},
-        {'name': 'تلف', 'notes': 'صرف مخزون نتيجة تلف'},
-        {'name': 'جرد', 'notes': 'تسوية نتيجة جرد'},
-        {'name': 'هدية', 'notes': 'صرف مخزون كهدية'},
-        {'name': 'تعديل رصيد', 'notes': 'تسوية تعديل رصيد يدوي'},
-        {'name': 'تحويل', 'notes': 'تحويل مخزون بين المخازن'},
-        {'name': 'استهلاك داخلي', 'notes': 'صرف مخزون للاستهلاك الداخلي'},
-    ]
-    from .models import StockTransactionReason
-    for reason in default_reasons:
-        try:
-            StockTransactionReason.objects.get_or_create(name=reason['name'], defaults={'notes': reason['notes']})
-        except IntegrityError:
-            continue
-
-class StockTransactionReason(models.Model):
-    """
-    Model for custom stock transaction reasons
-    """
-    name = models.CharField(_('اسم السبب'), max_length=100, unique=True)
-    notes = models.TextField(_('ملاحظات'), blank=True)
-
-    class Meta:
-        verbose_name = _('سبب حركة مخزون')
-        verbose_name_plural = _('أسباب حركة المخزون')
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-
 class StockTransaction(models.Model):
     """
     Model for tracking stock movements
@@ -149,15 +99,14 @@ class StockTransaction(models.Model):
     TRANSACTION_TYPES = [
         ('in', _('وارد')),
         ('out', _('صادر')),
-        ('transfer', _('تحويل')),
-        ('adjustment', _('تسوية')),
-        ('return', _('إرجاع')),
-        ('damage', _('تلف')),
     ]
-    STATUS_CHOICES = [
-        ('pending', _('بانتظار القبول')),
-        ('accepted', _('مقبول')),
-        ('rejected', _('مرفوض')),
+    
+    TRANSACTION_REASONS = [
+        ('purchase', _('شراء')),
+        ('sale', _('بيع')),
+        ('return', _('مرتجع')),
+        ('damage', _('تالف')),
+        ('adjustment', _('تسوية')),
     ]
     
     product = models.ForeignKey(
@@ -168,27 +117,18 @@ class StockTransaction(models.Model):
     )
     transaction_type = models.CharField(
         _('نوع الحركة'),
-        max_length=15,
+        max_length=3,
         choices=TRANSACTION_TYPES
     )
-    reason = models.ForeignKey(
-        StockTransactionReason,
-        on_delete=models.PROTECT,
-        verbose_name=_('السبب'),
-        related_name='transactions',
+    reason = models.CharField(
+        _('السبب'),
+        max_length=20,
+        choices=TRANSACTION_REASONS
     )
     quantity = models.PositiveIntegerField(_('الكمية'))
     date = models.DateTimeField(_('التاريخ'), auto_now_add=True)
     reference = models.CharField(_('المرجع'), max_length=100, blank=True)
     notes = models.TextField(_('ملاحظات'), blank=True)
-    warehouse = models.ForeignKey(
-        'Warehouse',
-        on_delete=models.PROTECT,
-        related_name='stock_transactions',
-        verbose_name=_('المخزن'),
-        null=False,
-        blank=False
-    )
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -196,11 +136,6 @@ class StockTransaction(models.Model):
         related_name='stock_transactions',
         verbose_name=_('تم الإنشاء بواسطة')
     )
-    transfer_permission_number = models.CharField(_('رقم إذن التحويل'), max_length=50, blank=True)
-    actual_transfer_date = models.DateTimeField(_('تاريخ التحويل الفعلي'), null=True, blank=True)
-    invoice_contract_number = models.CharField(_('رقم الفاتورة/العقد'), max_length=50, blank=True)
-    transfer_party = models.CharField(_('جهة التحويل'), max_length=100, blank=True)
-    status = models.CharField(_('حالة الحركة'), max_length=15, choices=STATUS_CHOICES, default='pending')
     
     class Meta:
         verbose_name = _('حركة مخزون')
@@ -208,19 +143,11 @@ class StockTransaction(models.Model):
         ordering = ['-date']
     
     def __str__(self):
-        # تجنب الخطأ إذا لم يكن هناك منتج مرتبط
-        try:
-            product_name = self.product.name
-        except Exception:
-            product_name = 'بدون منتج'
-        return f"{self.get_transaction_type_display()} - {product_name} - {self.quantity}"
-
+        return f"{self.get_transaction_type_display()} - {self.product.name} - {self.quantity}"
+    
     def clean(self):
         """Validate stock transaction"""
-        product = getattr(self, 'product', None)
-        if not product:
-            return
-        if self.transaction_type == 'out' and self.quantity > product.current_stock:
+        if self.transaction_type == 'out' and self.quantity > self.product.current_stock:
             raise ValidationError(_('الكمية المطلوبة غير متوفرة في المخزون'))
 
 class Supplier(models.Model):
@@ -241,7 +168,7 @@ class Supplier(models.Model):
         ordering = ['name']
     
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.code})"
 
 class Warehouse(models.Model):
     """
@@ -273,7 +200,7 @@ class Warehouse(models.Model):
         ordering = ['name']
     
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.code})"
 
 class WarehouseLocation(models.Model):
     """
@@ -558,105 +485,3 @@ class PurchaseOrderItem(models.Model):
     @property
     def is_fully_received(self):
         return self.received_quantity >= self.quantity
-
-# --- SupplyOrder and SupplyOrderItem ---
-
-# --- Audit Log for Operations ---
-class AuditLog(models.Model):
-    ACTION_CHOICES = [
-        ('create', _('إنشاء')),
-        ('update', _('تعديل')),
-        ('delete', _('حذف')),
-        ('view', _('عرض')),
-        ('other', _('أخرى')),
-    ]
-    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='audit_logs', verbose_name=_('المستخدم'))
-    action = models.CharField(_('الإجراء'), max_length=20, choices=ACTION_CHOICES)
-    object_type = models.CharField(_('نوع الكائن'), max_length=50)
-    object_id = models.CharField(_('معرف الكائن'), max_length=100)
-    description = models.TextField(_('الوصف'), blank=True)
-    timestamp = models.DateTimeField(_('التاريخ والوقت'), auto_now_add=True)
-
-    class Meta:
-        verbose_name = _('سجل تدقيق')
-        verbose_name_plural = _('سجلات التدقيق')
-        ordering = ['-timestamp']
-
-    def __str__(self):
-        return f"{self.get_action_display()} - {self.object_type} ({self.object_id}) by {self.user}" if self.user else f"{self.get_action_display()} - {self.object_type} ({self.object_id})"
-
-# --- CustomerOrder and CustomerOrderItem ---
-class CustomerOrder(models.Model):
-    STATUS_CHOICES = [
-        ('new', _('جديد')),
-        ('processing', _('قيد المعالجة')),
-        ('completed', _('مكتمل')),
-        ('cancelled', _('ملغي')),
-    ]
-    order_number = models.CharField(_('رقم طلب العميل'), max_length=50, unique=True)
-    customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_('العميل'))
-    order_date = models.DateTimeField(_('تاريخ الطلب'), auto_now_add=True)
-    status = models.CharField(_('حالة الطلب'), max_length=20, choices=STATUS_CHOICES, default='new')
-    notes = models.TextField(_('ملاحظات'), blank=True)
-    created_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='created_customer_orders', verbose_name=_('تم الإنشاء بواسطة'))
-    verbose_name = _('طلب عميل')
-    verbose_name_plural = _('طلبات العملاء')
-    ordering = ['-order_date']
-
-    def __str__(self):
-        return f"{self.order_number} - {self.customer}"
-
-class CustomerOrderItem(models.Model):
-    customer_order = models.ForeignKey(CustomerOrder, on_delete=models.CASCADE, related_name='items', verbose_name=_('طلب العميل'))
-    product = models.ForeignKey('Product', on_delete=models.CASCADE, verbose_name=_('الصنف'))
-    quantity = models.PositiveIntegerField(_('الكمية'))
-    notes = models.TextField(_('ملاحظات'), blank=True)
-    verbose_name = _('عنصر طلب عميل')
-    verbose_name_plural = _('عناصر طلبات العملاء')
-
-    def __str__(self):
-        return f"{self.product} - {self.quantity}"
-class SupplyOrder(models.Model):
-    ORDER_TYPE_CHOICES = [
-        ('purchase', _('توريد من مورد')),
-        ('customer', _('توريد لعميل')),
-        ('transfer', _('تحويل بين مخازن')),
-    ]
-    order_type = models.CharField(_('نوع الطلب'), choices=ORDER_TYPE_CHOICES, max_length=20)
-    order_number = models.CharField(_('رقم الطلب/الإذن'), max_length=50, unique=True)
-    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
-    actual_transfer_date = models.DateTimeField(_('تاريخ التحويل الفعلي'), null=True, blank=True)
-    from_warehouse = models.ForeignKey('Warehouse', null=True, blank=True, related_name='outgoing_supply_orders', on_delete=models.SET_NULL, verbose_name=_('المخزن المصدر'))
-    to_warehouse = models.ForeignKey('Warehouse', null=True, blank=True, related_name='incoming_supply_orders', on_delete=models.SET_NULL, verbose_name=_('المخزن المستلم'))
-    supplier = models.ForeignKey('Supplier', null=True, blank=True, on_delete=models.SET_NULL, verbose_name=_('المورد'))
-    customer = models.ForeignKey('customers.Customer', null=True, blank=True, on_delete=models.SET_NULL, verbose_name=_('العميل'))
-    customer_invoice_number = models.CharField(_('رقم فاتورة العميل'), max_length=50, blank=True)
-    contract_number = models.CharField(_('رقم العقد'), max_length=50, blank=True)
-    status = models.CharField(_('الحالة'), max_length=20, choices=[('pending', _('بانتظار التنفيذ')), ('accepted', _('مكتمل')), ('rejected', _('مرفوض'))], default='pending')
-    notes = models.TextField(_('ملاحظات'), blank=True)
-    created_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='created_supply_orders', verbose_name=_('تم الإنشاء بواسطة'))
-
-    class Meta:
-        verbose_name = _('طلب التوريد')
-        verbose_name_plural = _('طلبات التوريد')
-        ordering = ['-created_at']
-        permissions = [
-            ("can_execute_supplyorder", "يمكنه تنفيذ طلبات التوريد")
-        ]
-
-    def __str__(self):
-        return f"{self.get_order_type_display()} #{self.order_number}"
-
-class SupplyOrderItem(models.Model):
-    supply_order = models.ForeignKey(SupplyOrder, on_delete=models.CASCADE, related_name='items', verbose_name=_('طلب التوريد'))
-    product = models.ForeignKey('Product', on_delete=models.CASCADE, verbose_name=_('الصنف'))
-    quantity = models.PositiveIntegerField(_('الكمية'))
-    delivered_quantity = models.PositiveIntegerField(_('الكمية المستلمة/المسلمة'), default=0)
-    notes = models.TextField(_('ملاحظات'), blank=True)
-
-    class Meta:
-        verbose_name = _('عنصر طلب توريد')
-        verbose_name_plural = _('عناصر طلبات التوريد')
-
-    def __str__(self):
-        return f"{self.product} ({self.quantity})"

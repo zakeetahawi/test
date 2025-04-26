@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}تأكيد حذف طلب التوريد{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">تأكيد حذف طلب التوريد</h2>
+    <div class="alert alert-warning">
+        هل أنت متأكد أنك تريد حذف طلب التوريد رقم <strong>{{ order.order_number }}</strong>؟ لا يمكن التراجع عن هذه العملية.
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+        <a href="{% url 'inventory:supply_order_detail' order.pk %}" class="btn btn-secondary">إلغاء</a>
+    </form>
+</div>
+{% endblock %}

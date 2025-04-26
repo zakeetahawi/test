@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-body">
+            <h4 class="mb-3">تأكيد حذف</h4>
+            <p>هل أنت متأكد أنك تريد حذف هذا السجل؟ لا يمكن التراجع عن هذه العملية.</p>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+                <a href="javascript:history.back()" class="btn btn-secondary">إلغاء</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

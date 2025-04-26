@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}تفاصيل طلب التوريد{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">تفاصيل طلب التوريد</h2>
+    <div class="mb-3">
+        <a href="{% url 'inventory:supply_order_list' %}" class="btn btn-secondary">
+            <i class="fas fa-list"></i> جميع الطلبات
+        </a>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4"><strong>رقم الطلب:</strong> {{ order.order_number }}</div>
+                <div class="col-md-4"><strong>النوع:</strong> {{ order.get_order_type_display }}</div>
+                <div class="col-md-4"><strong>الحالة:</strong> {{ order.get_status_display }}</div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-4"><strong>المورد:</strong> {{ order.supplier }}</div>
+                <div class="col-md-4"><strong>العميل:</strong> {{ order.customer }}</div>
+                <div class="col-md-4"><strong>من المخزن:</strong> {{ order.from_warehouse }}</div>
+                <div class="col-md-4"><strong>إلى المخزن:</strong> {{ order.to_warehouse }}</div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-12"><strong>ملاحظات:</strong> {{ order.notes }}</div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-12"><strong>تاريخ الإنشاء:</strong> {{ order.created_at|date:'Y-m-d H:i' }}</div>
+            </div>
+        </div>
+    </div>
+    {% if can_execute and user_can_execute %}
+        <form method="post" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" name="execute_order" class="btn btn-success">
+                <i class="fas fa-check"></i> تنفيذ الطلب وإنشاء حركات المخزون
+            </button>
+        </form>
+    {% elif can_execute and not user_can_execute %}
+        <div class="alert alert-warning mt-2">ليس لديك صلاحية تنفيذ طلبات التوريد. يرجى التواصل مع مدير النظام.</div>
+    {% endif %}
+    <h5>العناصر</h5>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>الصنف</th>
+                <th>الكمية المطلوبة</th>
+                <th>الكمية المستلمة/المسلمة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.product }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.delivered_quantity }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center">لا توجد عناصر</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if transactions and transactions.exists %}
+    <h5 class="mt-4">سجل حركات المخزون المرتبطة بالطلب</h5>
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>التاريخ</th>
+                <th>الصنف</th>
+                <th>نوع الحركة</th>
+                <th>الكمية</th>
+                <th>المخزن</th>
+                <th>ملاحظات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in transactions %}
+            <tr>
+                <td>{{ tx.date|date:'Y-m-d H:i' }}</td>
+                <td>{{ tx.product }}</td>
+                <td>{{ tx.get_transaction_type_display }}</td>
+                <td>{{ tx.quantity }}</td>
+                <td>{{ tx.warehouse }}</td>
+                <td>{{ tx.notes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endblock %}

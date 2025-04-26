@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}حذف طلب الشراء{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="card-title mb-0">تأكيد حذف طلب الشراء</h2>
+                </div>
+                <div class="card-body">
+                    <p>هل أنت متأكد أنك تريد حذف طلب الشراء رقم <strong>{{ order.order_number }}</strong>؟</p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">حذف</button>
+                        <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-secondary">إلغاء</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

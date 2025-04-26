@@ -1,8 +1,2 @@
-from django import template
-
-register = template.Library()
-
-@register.filter
-def endswith(value, arg):
-    """Returns True if value ends with arg"""
-    return str(value).endswith(arg)
+# تم تعطيل هذا الملف لتفادي تعارض الفلاتر مع inventory/templatetags/custom_filters.py
+# إذا احتجت فلاتر إضافية، ضعها في ملف آخر باسم مختلف

@@ -1,8 +1,8 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import (
-    Category, Product, StockTransaction, Supplier, PurchaseOrder, PurchaseOrderItem,
-    Warehouse, WarehouseLocation, ProductBatch, InventoryAdjustment, StockAlert
+    Category, Product, StockTransaction, Supplier, PurchaseOrder, PurchaseOrderItem, SupplyOrder, SupplyOrderItem,
+    Warehouse, WarehouseLocation, ProductBatch, InventoryAdjustment, StockAlert, StockTransactionReason
 )
 from data_import_export.admin import AdminMultiSheetImportExportMixin
 
@@ -31,6 +31,11 @@ class ProductAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+@admin.register(StockTransactionReason)
+class StockTransactionReasonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'notes')
+    search_fields = ('name', 'notes')
 
 @admin.register(StockTransaction)
 class StockTransactionAdmin(admin.ModelAdmin):

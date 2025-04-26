@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-3">إنشاء طلب عميل جديد</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="card mb-3">
+            <div class="card-body">
+                {{ form.non_field_errors }}
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="id_order_number">رقم الطلب</label>
+                        {{ form.order_number }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="id_customer">العميل</label>
+                        {{ form.customer }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="id_status">الحالة</label>
+                        {{ form.status }}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="id_notes">ملاحظات</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </div>
+        <h5 class="mb-2">عناصر الطلب</h5>
+        <div id="order-items">
+            {{ formset.management_form }}
+            {% for item_form in formset.forms %}
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-5">
+                                {{ item_form.product.label_tag }}
+                                {{ item_form.product }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ item_form.quantity.label_tag }}
+                                {{ item_form.quantity }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ item_form.notes.label_tag }}
+                                {{ item_form.notes }}
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                {% if formset.can_delete %}
+                                    {{ item_form.DELETE }}
+                                    <span class="btn btn-danger btn-sm remove-item">حذف</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-secondary mb-3" id="add-item">إضافة صنف</button>
+        <button type="submit" class="btn btn-success">حفظ الطلب</button>
+        <a href="{% url 'inventory:customer_order_list' %}" class="btn btn-outline-secondary">إلغاء</a>
+    </form>
+</div>
+<script>
+    // نسخ عنصر الطلب لإضافة المزيد ديناميكياً
+    document.getElementById('add-item').addEventListener('click', function() {
+        var orderItems = document.getElementById('order-items');
+        var formsCount = orderItems.querySelectorAll('.card').length;
+        var totalForms = document.getElementById('id_form-TOTAL_FORMS');
+        var newForm = orderItems.querySelector('.card').cloneNode(true);
+        // إعادة تعيين القيم
+        newForm.querySelectorAll('input, select, textarea').forEach(function(el) {
+            if (el.type !== 'hidden') el.value = '';
+        });
+        orderItems.appendChild(newForm);
+        totalForms.value = parseInt(totalForms.value) + 1;
+    });
+    // حذف عنصر
+    document.querySelectorAll('.remove-item').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            this.closest('.card').remove();
+        });
+    });
+</script>
+{% endblock %}

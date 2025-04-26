@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+{% block title %}إضافة طلب توريد{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">إضافة طلب توريد</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">نوع الطلب</label>
+                <select name="order_type" class="form-select" required>
+                    <option value="purchase" {% if is_update and order.order_type == 'purchase' %}selected{% endif %}>توريد من مورد</option>
+                    <option value="customer" {% if is_update and order.order_type == 'customer' %}selected{% endif %}>توريد لعميل</option>
+                    <option value="transfer" {% if is_update and order.order_type == 'transfer' %}selected{% endif %}>تحويل بين مخازن</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">رقم الطلب</label>
+                <input type="text" name="order_number" class="form-control" required value="{% if is_update %}{{ order.order_number }}{% endif %}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">ملاحظات</label>
+                <input type="text" name="notes" class="form-control" value="{% if is_update %}{{ order.notes }}{% endif %}">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <label class="form-label">المورد</label>
+                <select name="supplier" class="form-select">
+                    <option value="">---</option>
+                    {% for supplier in suppliers %}
+                    <option value="{{ supplier.id }}" {% if is_update and order.supplier and order.supplier.id == supplier.id %}selected{% endif %}>{{ supplier.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">العميل</label>
+                <select name="customer" class="form-select">
+                    <option value="">---</option>
+                    {% for customer in customers %}
+                    <option value="{{ customer.id }}" {% if is_update and order.customer and order.customer.id == customer.id %}selected{% endif %}>{{ customer.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">من المخزن</label>
+                <select name="from_warehouse" class="form-select">
+                    <option value="">---</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}" {% if is_update and order.from_warehouse and order.from_warehouse.id == warehouse.id %}selected{% endif %}>{{ warehouse.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">إلى المخزن</label>
+                <select name="to_warehouse" class="form-select">
+                    <option value="">---</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}" {% if is_update and order.to_warehouse and order.to_warehouse.id == warehouse.id %}selected{% endif %}>{{ warehouse.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <h5 class="mt-4">العناصر</h5>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>الصنف</th>
+                    <th>الكمية</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if is_update %}
+                    {% for i in items|length|get_range:20 %}
+                    <tr>
+                        <td>
+                            <select name="product_{{ forloop.counter0 }}" class="form-select">
+                                <option value="">---</option>
+                                {% for product in products %}
+                                <option value="{{ product.id }}" {% if items|length > forloop.counter0 and items|index:forloop.counter0 and items|index:forloop.counter0.product.id == product.id %}selected{% endif %}>{{ product.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" name="quantity_{{ forloop.counter0 }}" class="form-control" min="0" value="{% if items|length > forloop.counter0 and items|index:forloop.counter0 %}{{ items|index:forloop.counter0.quantity }}{% endif %}"></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    {% for i in 0|get_range:20 %}
+                    <tr>
+                        <td>
+                            <select name="product_{{ i }}" class="form-select">
+                                <option value="">---</option>
+                                {% for product in products %}
+                                <option value="{{ product.id }}">{{ product.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" name="quantity_{{ i }}" class="form-control" min="0"></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-primary">{% if is_update %}تحديث الطلب{% else %}حفظ الطلب{% endif %}</button>
+        <a href="{% url 'inventory:supply_order_list' %}" class="btn btn-secondary">إلغاء</a>
+    </form>
+</div>
+{% endblock %}

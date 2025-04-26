@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-3">طلبات العملاء</h2>
+    <a href="{% url 'inventory:customer_order_create' %}" class="btn btn-primary mb-3">إضافة طلب عميل جديد</a>
+    <table class="table table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>رقم الطلب</th>
+                <th>العميل</th>
+                <th>تاريخ الطلب</th>
+                <th>الحالة</th>
+                <th>إجمالي الأصناف</th>
+                <th>إجراءات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order.order_number }}</td>
+                <td>{{ order.customer }}</td>
+                <td>{{ order.order_date|date:"Y-m-d H:i" }}</td>
+                <td>{{ order.get_status_display }}</td>
+                <td>{{ order.items.count }}</td>
+                <td>
+                    <a href="{% url 'inventory:customer_order_detail' order.id %}" class="btn btn-sm btn-info">عرض</a>
+                    <a href="{% url 'inventory:customer_order_update' order.id %}" class="btn btn-sm btn-warning">تعديل</a>
+                    <a href="{% url 'inventory:customer_order_delete' order.id %}" class="btn btn-sm btn-danger">حذف</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">لا توجد طلبات عملاء.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

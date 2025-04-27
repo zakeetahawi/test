@@ -25,7 +25,7 @@
                     </h3>
                 </div>
                 <div class="card-body">
-                    <form method="post" novalidate>
+                    <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
                         
                         {% if form.non_field_errors %}
@@ -148,6 +148,45 @@
                             {% endif %}
                         </div>
                         {% endif %}
+
+                        {% if inspection.order %}
+                        <div class="alert alert-warning mb-3">
+                            <h5 class="mb-2">{% trans 'ملاحظات الطلب' %}</h5>
+                            <p class="mb-0">{{ inspection.order.notes|default:"لا توجد ملاحظات" }}</p>
+                        </div>
+                        {% endif %}
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.inspection_file.id_for_label }}" class="form-label">{% trans 'ملف المعاينة' %}</label>
+                                    {% render_field form.inspection_file class="form-control" accept=".pdf" %}
+                                    {% if form.inspection_file.help_text %}
+                                        <small class="text-muted">{{ form.inspection_file.help_text }}</small>
+                                    {% endif %}
+                                    {% if form.inspection_file.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.inspection_file.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.windows_count.id_for_label }}" class="form-label">{% trans 'عدد الشبابيك' %}</label>
+                                    {% render_field form.windows_count class="form-control" type="number" min="0" %}
+                                    {% if form.windows_count.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.windows_count.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="form-group mb-3">
                             <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans 'ملاحظات' %}</label>

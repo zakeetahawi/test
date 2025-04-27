@@ -58,13 +58,13 @@ class BranchAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('username', 'email', 'branch', 'first_name', 'last_name', 'is_staff')
-    list_filter = ('is_staff', 'is_superuser', 'is_active', 'branch')
+    list_display = ('username', 'email', 'branch', 'first_name', 'last_name', 'is_staff', 'is_inspection_technician')
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'branch', 'is_inspection_technician')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         (_('معلومات شخصية'), {'fields': ('first_name', 'last_name', 'email', 'phone', 'branch', 'departments')}),
         (_('الصلاحيات'), {
-            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'is_inspection_technician', 'groups', 'user_permissions'),
         }),
         (_('تواريخ مهمة'), {'fields': ('last_login', 'date_joined')}),
     )
@@ -195,5 +195,3 @@ class FormFieldAdmin(admin.ModelAdmin):
     list_filter = ('form_type', 'field_type', 'required', 'enabled')
     search_fields = ('field_name', 'field_label')
     ordering = ['form_type', 'order']
-    
-

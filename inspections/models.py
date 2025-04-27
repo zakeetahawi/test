@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from customers.models import Customer
@@ -107,6 +108,7 @@ class InspectionReport(models.Model):
 class Inspection(models.Model):
     STATUS_CHOICES = [
         ('pending', _('قيد الانتظار')),
+        ('scheduled', _('مجدول')),
         ('completed', _('مكتملة')),
         ('cancelled', _('ملغية')),
     ]
@@ -140,6 +142,9 @@ class Inspection(models.Model):
         related_name='assigned_inspections',
         verbose_name=_('المعاين')
     )
+    is_from_orders = models.BooleanField(_('من قسم الطلبات'), default=False)
+    windows_count = models.IntegerField(_('عدد الشبابيك'), null=True, blank=True)
+    inspection_file = models.FileField(_('ملف المعاينة'), upload_to='inspections/files/', null=True, blank=True)
     request_date = models.DateField(_('تاريخ طلب المعاينة'))
     scheduled_date = models.DateField(_('تاريخ تنفيذ المعاينة'))
     status = models.CharField(
@@ -157,11 +162,19 @@ class Inspection(models.Model):
     )
     notes = models.TextField(_('ملاحظات'), blank=True)
     created_by = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='inspections_created',
+        related_name='created_inspections',
         verbose_name=_('تم الإنشاء بواسطة')
+    )
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inspections',
+        verbose_name=_('الطلب المرتبط')
     )
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
     updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
@@ -202,10 +215,15 @@ class Inspection(models.Model):
     def get_status_color(self):
         status_colors = {
             'pending': 'warning',
+            'scheduled': 'info',
             'completed': 'success',
             'cancelled': 'danger'
         }
         return status_colors.get(self.status, 'secondary')
+
+    @property
+    def is_scheduled(self):
+        return self.status == 'scheduled'
 
     @property
     def is_pending(self):

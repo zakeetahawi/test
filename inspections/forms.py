@@ -133,6 +133,8 @@ class InspectionForm(forms.ModelForm):
             'branch',
             'request_date',
             'scheduled_date',
+            'windows_count',
+            'inspection_file',
             'status',
             'result',
             'notes'
@@ -141,13 +143,17 @@ class InspectionForm(forms.ModelForm):
             'request_date': forms.DateInput(attrs={'type': 'date'}),
             'scheduled_date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 4}),
+            'inspection_file': forms.FileInput(attrs={'accept': '.pdf'}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Set inspector queryset to show only active users
-        self.fields['inspector'].queryset = User.objects.filter(is_active=True)
+        # Set inspector queryset to show only active inspection technicians
+        self.fields['inspector'].queryset = User.objects.filter(
+            is_active=True,
+            is_inspection_technician=True
+        )
         
         # Set default branch if user is not superuser
         if user and not user.is_superuser:
@@ -178,6 +184,9 @@ class InspectionForm(forms.ModelForm):
         self.fields['status'].label = _('الحالة')
         self.fields['result'].label = _('النتيجة')
         self.fields['notes'].label = _('ملاحظات')
+        self.fields['windows_count'].label = _('عدد الشبابيك')
+        self.fields['inspection_file'].label = _('ملف المعاينة')
+        self.fields['inspection_file'].help_text = _('يمكنك رفع ملف PDF فقط')
 
     def clean(self):
         cleaned_data = super().clean()

@@ -19,7 +19,7 @@
 
     <!-- Dashboard -->
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col">
             <a href="{% url 'inspections:inspection_list' %}" class="text-decoration-none">
                 <div class="card text-center shadow-sm border-primary dashboard-card-hover">
                     <div class="card-body">
@@ -30,7 +30,29 @@
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col">
+            <a href="{% url 'inspections:inspection_list' %}?status=pending&from_orders=1" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-warning dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-file-alt fa-2x text-warning mb-2"></i>
+                        <h5 class="card-title">{% trans 'المعاينات الجديدة' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.new_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col">
+            <a href="{% url 'inspections:inspection_list' %}?status=scheduled" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-info dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-calendar-check fa-2x text-info mb-2"></i>
+                        <h5 class="card-title">{% trans 'المعاينات المجدولة' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.scheduled_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col">
             <a href="{% url 'inspections:completed_details' %}" class="text-decoration-none">
                 <div class="card text-center shadow-sm border-success dashboard-card-hover">
                     <div class="card-body">
@@ -41,18 +63,7 @@
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
-            <a href="{% url 'inspections:pending_details' %}" class="text-decoration-none">
-                <div class="card text-center shadow-sm border-warning dashboard-card-hover">
-                    <div class="card-body">
-                        <i class="fas fa-hourglass-half fa-2x text-warning mb-2"></i>
-                        <h5 class="card-title">{% trans 'قيد الانتظار' %}</h5>
-                        <span class="display-6 fw-bold">{{ dashboard.pending_inspections|default:0 }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-3">
+        <div class="col">
             <a href="{% url 'inspections:cancelled_details' %}" class="text-decoration-none">
                 <div class="card text-center shadow-sm border-danger dashboard-card-hover">
                     <div class="card-body">
@@ -76,15 +87,28 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <input type="text" name="search" class="form-control" placeholder="{% trans 'بحث...' %}" 
                            value="{{ request.GET.search }}">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <select name="branch" class="form-select">
+                        <option value="">{% trans 'كل الفروع' %}</option>
+                        {% for branch in branches %}
+                        <option value="{{ branch.id }}" {% if branch.id|stringformat:'s' == request.GET.branch|stringformat:'s' %}selected{% endif %}>
+                            {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <select name="status" class="form-select">
                         <option value="">{% trans 'كل الحالات' %}</option>
                         <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>
                             {% trans 'قيد الانتظار' %}
+                        </option>
+                        <option value="scheduled" {% if request.GET.status == 'scheduled' %}selected{% endif %}>
+                            {% trans 'مجدول' %}
                         </option>
                         <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>
                             {% trans 'مكتملة' %}
@@ -94,7 +118,7 @@
                         </option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <button type="submit" class="btn btn-secondary">
                         <i class="fas fa-search"></i> {% trans 'بحث' %}
                     </button>
@@ -116,6 +140,8 @@
                     <th>{% trans 'العميل' %}</th>
                     <th>{% trans 'تاريخ الطلب' %}</th>
                     <th>{% trans 'تاريخ التنفيذ' %}</th>
+                    <th>{% trans 'عدد الشبابيك' %}</th>
+                    <th>{% trans 'ملف المعاينة' %}</th>
                     <th>{% trans 'الحالة' %}</th>
                     <th>{% trans 'النتيجة' %}</th>
                     <th>{% trans 'الإجراءات' %}</th>
@@ -128,8 +154,19 @@
                     <td>{{ inspection.customer|default:"عميل جديد" }}</td>
                     <td>{{ inspection.request_date }}</td>
                     <td>{{ inspection.scheduled_date }}</td>
+                    <td>{{ inspection.windows_count|default:"-" }}</td>
+                    <td>
+                        {% if inspection.inspection_file %}
+                            <a href="{{ inspection.inspection_file.url }}" class="btn btn-sm btn-primary" target="_blank">
+                                <i class="fas fa-file-pdf"></i> عرض
+                            </a>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
                     <td>
                         <span class="badge {% if inspection.status == 'pending' %}bg-warning
+                                         {% elif inspection.status == 'scheduled' %}bg-info
                                          {% elif inspection.status == 'completed' %}bg-success
                                          {% else %}bg-danger{% endif %}">
                             {{ inspection.get_status_display }}
@@ -174,7 +211,7 @@
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}">
                     <i class="fas fa-chevron-right"></i>
                 </a>
             </li>
@@ -182,7 +219,7 @@
             
             {% for num in page_obj.paginator.page_range %}
             <li class="page-item {% if num == page_obj.number %}active{% endif %}">
-                <a class="page-link" href="?page={{ num }}&search={{ request.GET.search }}&status={{ request.GET.status }}">
+                <a class="page-link" href="?page={{ num }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}">
                     {{ num }}
                 </a>
             </li>
@@ -190,7 +227,7 @@
             
             {% if page_obj.has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}&branch={{ request.GET.branch }}">
                     <i class="fas fa-chevron-left"></i>
                 </a>
             </li>

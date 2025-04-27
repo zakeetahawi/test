@@ -4,6 +4,7 @@ from django.urls import reverse_lazy
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q
 from .models import Inspection, InspectionReport, InspectionNotification, InspectionEvaluation
 from .forms import InspectionForm, InspectionReportForm, InspectionNotificationForm, InspectionEvaluationForm
@@ -99,28 +100,51 @@ class InspectionListView(LoginRequiredMixin, ListView):
         queryset = Inspection.objects.all() if self.request.user.is_superuser else Inspection.objects.filter(
             Q(inspector=self.request.user) | Q(created_by=self.request.user)
         )
+        
+        # Branch filter
+        branch_id = self.request.GET.get('branch')
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+
+        # Status and other filters
         status = self.request.GET.get('status')
-        overdue = self.request.GET.get('overdue')
+        from_orders = self.request.GET.get('from_orders')
         today = timezone.now().date()
-        if status == 'new':
-            queryset = queryset.filter(status='pending', scheduled_date__gt=today)
-        elif status == 'in_progress':
-            queryset = queryset.filter(status='pending', scheduled_date=today)
-        elif status == 'completed':
-            queryset = queryset.filter(status='completed')
-        elif overdue == '1':
-            queryset = queryset.filter(status='pending', scheduled_date__lt=today)
+        
+        if status == 'pending' and from_orders == '1':
+            queryset = queryset.filter(status='pending', is_from_orders=True)
+        elif status:
+            queryset = queryset.filter(status=status)
+
         return queryset.select_related('customer', 'inspector', 'branch')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from accounts.models import Branch
+        
+        # Get base queryset for stats
         inspections = Inspection.objects.all()
+        if not self.request.user.is_superuser:
+            inspections = inspections.filter(
+                Q(inspector=self.request.user) | Q(created_by=self.request.user)
+            )
+        
+        # Branch filter for stats
+        branch_id = self.request.GET.get('branch')
+        if branch_id:
+            inspections = inspections.filter(branch_id=branch_id)
+        
+        # Get counts for all inspection types
         context['dashboard'] = {
             'total_inspections': inspections.count(),
+            'new_inspections': inspections.filter(status='pending').count(),
+            'scheduled_inspections': inspections.filter(status='scheduled').count(),
             'successful_inspections': inspections.filter(status='completed').count(),
-            'pending_inspections': inspections.filter(status='pending').count(),
             'cancelled_inspections': inspections.filter(status='cancelled').count(),
         }
+        
+        # Add branches for filter
+        context['branches'] = Branch.objects.all()
         return context
 
 class InspectionCreateView(LoginRequiredMixin, CreateView):
@@ -173,16 +197,40 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         old_status = self.get_object().status
         new_status = form.cleaned_data['status']
         
+        # Save inspection first to ensure it exists
+        response = super().form_valid(form)
+        
+        # Try to get order if it exists
+        try:
+            if inspection.order:
+                if new_status == 'completed':
+                    inspection.order.tracking_status = 'processing'
+                elif new_status == 'scheduled':
+                    inspection.order.tracking_status = 'processing'
+                elif new_status == 'cancelled':
+                    inspection.order.tracking_status = 'pending'
+                else:  # pending
+                    inspection.order.tracking_status = 'pending'
+                
+                inspection.order.save()
+                messages.success(self.request, 'تم تحديث حالة المعاينة والطلب المرتبط')
+                return redirect('orders:order_detail', inspection.order.pk)
+        except AttributeError:
+            # No order associated with this inspection
+            pass
+        
+        # Handle completion status
         if new_status == 'completed' and old_status != 'completed':
             inspection.completed_at = timezone.now()
-            response = super().form_valid(form)
+            inspection.save()
             if not hasattr(inspection, 'evaluation'):
                 return redirect('inspections:evaluation_create', inspection_pk=inspection.pk)
-            return response
         elif new_status != 'completed' and old_status == 'completed':
             inspection.completed_at = None
-        messages.success(self.request, 'تم تحديث المعاينة بنجاح')
-        return super().form_valid(form)
+            inspection.save()
+            
+        messages.success(self.request, 'تم تحديث حالة المعاينة بنجاح')
+        return response
 
     def handle_no_permission(self):
         messages.error(self.request, 'ليس لديك صلاحية لتعديل هذه المعاينة')

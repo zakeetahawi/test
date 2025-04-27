@@ -10,6 +10,7 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, verbose_name=_('رقم الهاتف'), blank=True)
     branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='users', verbose_name=_('الفرع'))
     departments = models.ManyToManyField('Department', blank=True, related_name='users', verbose_name=_('الأقسام'))
+    is_inspection_technician = models.BooleanField(default=False, verbose_name=_('فني معاينة'))
     
     class Meta:
         verbose_name = _('مستخدم')

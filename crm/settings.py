@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     'inventory',
     'orders',
     'reports',
-    'data_import_export',
+    'data_import_export.apps.DataImportExportConfig',
     'corsheaders',
 ]
 

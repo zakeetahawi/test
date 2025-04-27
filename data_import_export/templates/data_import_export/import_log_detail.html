@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load i18n %}
+{% load custom_filters %}
 
 {% block title %}{{ title }} - نظام الخواجه{% endblock %}
 
@@ -132,8 +133,7 @@
                 </div>
                 <div class="card-body">
                     <div class="text-center mb-3">
-                        {% load data_import_export.templatetags.custom_filters %}
-{% if log.file_name|endswith:'.xlsx' %}
+                        {% if log.file_name|endswith:'.xlsx' %}
                             <i class="fas fa-file-excel fa-5x text-success"></i>
                         {% elif log.file_name|endswith:'.csv' %}
                             <i class="fas fa-file-csv fa-5x text-primary"></i>

@@ -3,6 +3,14 @@
 
 {% block title %}{{ title }} - نظام الخواجه{% endblock %}
 
+{% block extra_css %}
+<style>
+    .notes-field {
+        min-height: 150px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -53,9 +61,7 @@
         
         <!-- Hidden fields for form submission -->
         <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-        <input type="hidden" name="order_type_hidden" id="order_type_hidden" value="">
-        <input type="hidden" name="service_types_hidden" id="service_types_hidden" value="">
-        <input type="hidden" name="product_types_hidden" id="product_types_hidden" value="">
+        <input type="hidden" name="selected_types_hidden" id="selected_types_hidden" value="">
         <input type="hidden" name="selected_products" id="selected_products" value="">
         <input type="hidden" name="tracking_status" value="pending">
         
@@ -68,7 +74,7 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <!-- Customer Selection -->
                                 <div class="mb-3">
                                     <label for="{{ form.customer.id_for_label }}" class="form-label">العميل *</label>
@@ -109,141 +115,147 @@
                                         <span class="text-danger">*</span>
                                     </label>
                                     {{ form.invoice_number }}
-                                    <div class="form-text">
+                                    <div class="form-text text-danger" id="invoice_help">
                                         مطلوب لجميع أنواع الطلبات
                                     </div>
                                     {% if form.invoice_number.errors %}
                                     <div class="alert alert-danger mt-2">
-                                        {{ form.invoice_number.errors }}
+                                        {% for error in form.invoice_number.errors %}
+                                            {{ error }}
+                                        {% endfor %}
                                     </div>
                                     {% endif %}
                                 </div>
+
                             </div>
                             
                             <div class="col-md-6">
+                                <!-- Order Types -->
+                                <div class="mb-4 {% if form.selected_types.errors %}border border-danger rounded p-3{% endif %}">
+                                    <h5 class="mb-3">نوع الطلب *</h5>
+                                    {% if form.selected_types.errors %}
+                                    <div class="alert alert-danger">
+                                        {% for error in form.selected_types.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    <div class="d-flex flex-wrap gap-3 mb-3">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="selected_types" id="order_type_fabric" value="fabric">
+                                            <label class="form-check-label" for="order_type_fabric">
+                                                <i class="fas fa-tshirt me-2"></i> أقمشة
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="selected_types" id="order_type_accessory" value="accessory">
+                                            <label class="form-check-label" for="order_type_accessory">
+                                                <i class="fas fa-gem me-2"></i> إكسسوارات
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="selected_types" id="order_type_installation" value="installation">
+                                            <label class="form-check-label" for="order_type_installation">
+                                                <i class="fas fa-tools me-2"></i> تركيب
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="selected_types" id="order_type_inspection" value="inspection">
+                                            <label class="form-check-label" for="order_type_inspection">
+                                                <i class="fas fa-eye me-2"></i> معاينة
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="selected_types" id="order_type_transport" value="transport">
+                                            <label class="form-check-label" for="order_type_transport">
+                                                <i class="fas fa-truck me-2"></i> نقل
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" name="selected_types" id="order_type_tailoring" value="tailoring">
+                                            <label class="form-check-label" for="order_type_tailoring">
+                                                <i class="fas fa-cut me-2"></i> تفصيل
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-text text-muted">
+                                        يمكنك اختيار أكثر من نوع طلب في نفس الوقت
+                                    </div>
+                                </div>
+                                
                                 <!-- Contract Number -->
                                 <div class="mb-3 contract-field" style="display: none;">
                                     <label for="{{ form.contract_number.id_for_label }}" class="form-label">
                                         رقم العقد
-                                        <span class="text-danger contract-required" style="display: none;">*</span>
+                                        <span class="text-danger">*</span>
                                     </label>
                                     {{ form.contract_number }}
-                                    <div class="form-text contract-help" style="display: none;">
-                                        مطلوب لخدمات التفصيل
+                                    <div class="form-text text-danger">
+                                        مطلوب عند اختيار خدمة التفصيل
+                                    </div>
+                                    {% if form.contract_number.errors %}
+                                    <div class="alert alert-danger mt-2">
+                                        {% for error in form.contract_number.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Delivery Options -->
+                                <div class="mb-4">
+                                    <h5 class="mb-3">خيارات التسليم *</h5>
+                                    <div class="d-flex flex-wrap gap-3 mb-3">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="delivery_option" id="delivery_option_home" value="home">
+                                            <label class="form-check-label" for="delivery_option_home">
+                                                <i class="fas fa-home me-2"></i> توصيل للمنزل
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="delivery_option" id="delivery_option_branch" value="branch">
+                                            <label class="form-check-label" for="delivery_option_branch">
+                                                <i class="fas fa-store me-2"></i> استلام من الفرع
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
-                                
+
+                                <!-- Customer Address (for home delivery) -->
+                                <div class="mb-3 customer-address-field" style="display: none;">
+                                    <label class="form-label">عنوان التوصيل *</label>
+                                    <textarea name="delivery_address" class="form-control" rows="2"></textarea>
+                                </div>
+
+                                <!-- Branch Selection (for branch pickup) -->
+                                <div class="mb-3 branch-selection-field" style="display: none;">
+                                    <label for="{{ form.branch.id_for_label }}" class="form-label">الفرع *</label>
+                                    {{ form.branch }}
+                                    {% if form.branch.errors %}
+                                    <div class="alert alert-danger mt-2">
+                                        {{ form.branch.errors }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
                                 <!-- Notes -->
-                                <div class="mb-3">
+                                <div class="mb-4">
                                     <label for="{{ form.notes.id_for_label }}" class="form-label">ملاحظات</label>
-                                    {{ form.notes }}
+                                    <textarea name="notes" id="{{ form.notes.id_for_label }}" class="form-control notes-field" rows="6">{{ form.notes.value|default:'' }}</textarea>
+                                    <div class="form-text">
+                                        يمكنك إضافة معلومات العميل وتفاصيل الطلب هنا
+                                    </div>
+                                    <!-- Debug Information -->
+                                    {% if debug %}
+                                    <div class="alert alert-info mt-2">
+                                        <strong>معلومات التصحيح:</strong><br>
+                                        {{ form.errors }}<br>
+                                        {{ form.non_field_errors }}
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Order Type -->
-                        <div class="mb-4">
-                            <h5 class="mb-3">نوع الطلب *</h5>
-                            <div class="d-flex flex-wrap gap-3 mb-3">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="order_type" id="order_type_product" value="product">
-                                    <label class="form-check-label" for="order_type_product">
-                                        <i class="fas fa-box-open me-2"></i> سلعة
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="order_type" id="order_type_service" value="service">
-                                    <label class="form-check-label" for="order_type_service">
-                                        <i class="fas fa-tools me-2"></i> خدمة
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- Service Types -->
-                        <div class="mb-4 service-fields" style="display: none;">
-                            <h5 class="mb-3">أنواع الخدمات *</h5>
-                            <div class="d-flex flex-wrap gap-3 mb-3">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" name="service_types" id="service_type_installation" value="installation">
-                                    <label class="form-check-label" for="service_type_installation">
-                                        <i class="fas fa-wrench me-2"></i> تركيب
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" name="service_types" id="service_type_inspection" value="inspection">
-                                    <label class="form-check-label" for="service_type_inspection">
-                                        <i class="fas fa-search me-2"></i> معاينة
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" name="service_types" id="service_type_transport" value="transport">
-                                    <label class="form-check-label" for="service_type_transport">
-                                        <i class="fas fa-truck me-2"></i> نقل
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" name="service_types" id="service_type_tailoring" value="tailoring">
-                                    <label class="form-check-label" for="service_type_tailoring">
-                                        <i class="fas fa-cut me-2"></i> تفصيل
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Product Types -->
-                        <div class="mb-4 product-fields" style="display: none;">
-                            <h5 class="mb-3">أنواع المنتجات *</h5>
-                            <div class="d-flex flex-wrap gap-3 mb-3">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" name="product_type" id="product_type_fabric" value="fabric">
-                                    <label class="form-check-label" for="product_type_fabric">
-                                        <i class="fas fa-scroll me-2"></i> أقمشة
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" name="product_type" id="product_type_accessory" value="accessory">
-                                    <label class="form-check-label" for="product_type_accessory">
-                                        <i class="fas fa-gem me-2"></i> إكسسوارات
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Delivery Options -->
-                        <div class="mb-4">
-                            <h5 class="mb-3">خيارات التسليم *</h5>
-                            <div class="d-flex flex-wrap gap-3 mb-3">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="delivery_option" id="delivery_option_home" value="home">
-                                    <label class="form-check-label" for="delivery_option_home">
-                                        <i class="fas fa-home me-2"></i> توصيل للمنزل
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="delivery_option" id="delivery_option_branch" value="branch">
-                                    <label class="form-check-label" for="delivery_option_branch">
-                                        <i class="fas fa-store me-2"></i> استلام من الفرع
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Customer Address (for home delivery) -->
-                        <div class="mb-3 customer-address-field" style="display: none;">
-                            <label class="form-label">عنوان التوصيل *</label>
-                            <textarea name="delivery_address" class="form-control" rows="2"></textarea>
-                        </div>
-
-                        <!-- Branch Selection (for branch pickup) -->
-                        <div class="mb-3 branch-selection-field" style="display: none;">
-                            <label for="{{ form.branch.id_for_label }}" class="form-label">الفرع *</label>
-                            {{ form.branch }}
-                            {% if form.branch.errors %}
-                            <div class="alert alert-danger mt-2">
-                                {{ form.branch.errors }}
-                            </div>
-                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -300,17 +312,11 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Get DOM elements
         const orderForm = document.getElementById('orderForm');
-        const serviceFields = document.querySelector('.service-fields');
-        const productFields = document.querySelector('.product-fields');
         const productSelectionSection = document.getElementById('product-selection-section');
         const contractField = document.querySelector('.contract-field');
         const customerAddressField = document.querySelector('.customer-address-field');
         const branchSelectionField = document.querySelector('.branch-selection-field');
         const customerSelect = document.getElementById('{{ form.customer.id_for_label }}');
-        
-        // Order type radio buttons
-        const orderTypeProduct = document.getElementById('order_type_product');
-        const orderTypeService = document.getElementById('order_type_service');
         
         // Add event listener for customer select
         if (customerSelect) {
@@ -323,39 +329,13 @@
             });
         }
         
-        // Service type checkboxes
-        const serviceTypeTailoring = document.getElementById('service_type_tailoring');
-        const serviceTypeInspection = document.getElementById('service_type_inspection');
-        
         // Delivery option radio buttons
         const deliveryOptionHome = document.getElementById('delivery_option_home');
         const deliveryOptionBranch = document.getElementById('delivery_option_branch');
         
-        // Add event listeners
-        if (orderTypeProduct) {
-            orderTypeProduct.addEventListener('change', handleOrderTypeChange);
-        }
-        
-        if (orderTypeService) {
-            orderTypeService.addEventListener('change', handleOrderTypeChange);
-        }
-        
-        if (serviceTypeTailoring) {
-            serviceTypeTailoring.addEventListener('change', handleServiceTypeChange);
-        }
-        
-        if (serviceTypeInspection) {
-            serviceTypeInspection.addEventListener('change', handleServiceTypeChange);
-        }
-        
-        // Add event listeners for all service type checkboxes
-        document.querySelectorAll('input[name="service_types"]').forEach(checkbox => {
-            checkbox.addEventListener('change', handleServiceTypeChange);
-        });
-        
-        // Add event listeners for all product type checkboxes
-        document.querySelectorAll('input[name="product_type"]').forEach(checkbox => {
-            checkbox.addEventListener('change', handleProductTypeChange);
+        // Add event listeners for all order type checkboxes
+        document.querySelectorAll('input[name="selected_types"]').forEach(checkbox => {
+            checkbox.addEventListener('change', handleOrderTypeChange);
         });
         
         if (deliveryOptionHome) {
@@ -391,17 +371,14 @@
                     return;
                 }
                 
-                // Update all hidden fields before submitting
-                if (orderTypeProduct && orderTypeProduct.checked) {
-                    document.getElementById('order_type_hidden').value = 'product';
-                    handleProductTypeChange();
-                } else if (orderTypeService && orderTypeService.checked) {
-                    document.getElementById('order_type_hidden').value = 'service';
-                    handleServiceTypeChange();
-                }
+                // Update hidden fields before submitting
+            const selectedOrderTypes = Array.from(document.querySelectorAll('input[name="selected_types"]:checked'));
+                document.getElementById('selected_types_hidden').value = JSON.stringify(selectedOrderTypes.map(type => type.value));
                 
-                // Update selected products input
-                updateSelectedProductsInput();
+                // Update selected products input if fabric or accessory is selected
+                if (selectedOrderTypes.some(type => ['fabric', 'accessory'].includes(type.value))) {
+                    updateSelectedProductsInput();
+                }
                 
                 // Submit the form
                 orderForm.submit();
@@ -419,25 +396,41 @@
                 highlightError(customerSelect);
             }
             
-            // Check order type
-            if (!orderTypeProduct.checked && !orderTypeService.checked) {
+            // Check order types
+            const selectedOrderTypes = Array.from(document.querySelectorAll('input[name="selected_types"]:checked'));
+            if (selectedOrderTypes.length === 0) {
                 isValid = false;
                 // Highlight order type section
-                const orderTypeSection = document.querySelector('.mb-4:has(#order_type_product)');
+                const orderTypeSection = document.querySelector('.mb-4:has([name="selected_types"])');
                 if (orderTypeSection) {
                     orderTypeSection.classList.add('border', 'border-danger', 'p-2', 'rounded');
                 }
-            }
-            
-            // Check service types if service is selected
-            if (orderTypeService && orderTypeService.checked) {
-                const serviceTypesChecked = document.querySelectorAll('input[name="service_types"]:checked').length > 0;
-                if (!serviceTypesChecked) {
+            } else {
+                // Check contract number if tailoring is selected
+                if (selectedOrderTypes.some(type => type.value === 'tailoring')) {
+                    const contractInput = document.getElementById('{{ form.contract_number.id_for_label }}');
+                    if (contractInput && !contractInput.value.trim()) {
+                        isValid = false;
+                        highlightError(contractInput);
+                    }
+                }
+
+                // Check invoice number - required for all types
+                const invoiceInput = document.getElementById('{{ form.invoice_number.id_for_label }}');
+                if (invoiceInput && !invoiceInput.value.trim()) {
                     isValid = false;
-                    // Highlight service types section
-                    const serviceTypesSection = document.querySelector('.service-fields');
-                    if (serviceTypesSection) {
-                        serviceTypesSection.classList.add('border', 'border-danger', 'p-2', 'rounded');
+                    highlightError(invoiceInput);
+                }
+                
+                // Check product selection if fabric or accessory is selected
+                if (selectedOrderTypes.some(type => ['fabric', 'accessory'].includes(type.value))) {
+                    const selectedProducts = document.querySelectorAll('.product-checkbox:checked');
+                    if (selectedProducts.length === 0) {
+                        isValid = false;
+                        const productSection = document.getElementById('product-selection-section');
+                        if (productSection) {
+                            productSection.classList.add('border', 'border-danger', 'p-2', 'rounded');
+                        }
                     }
                 }
             }
@@ -483,62 +476,39 @@
         
         // Handle order type changes
         function handleOrderTypeChange() {
-            if (orderTypeProduct && orderTypeProduct.checked) {
-                if (serviceFields) serviceFields.style.display = 'none';
-                if (productFields) productFields.style.display = 'block';
-                if (productSelectionSection) productSelectionSection.style.display = 'block';
-                if (contractField) contractField.style.display = 'none';
-                
-                // Update hidden field
-                const orderTypeHidden = document.getElementById('order_type_hidden');
-                if (orderTypeHidden) orderTypeHidden.value = 'product';
-                
-                loadProducts();
-            } else if (orderTypeService && orderTypeService.checked) {
-                if (serviceFields) serviceFields.style.display = 'block';
-                if (productFields) productFields.style.display = 'none';
-                if (productSelectionSection) productSelectionSection.style.display = 'none';
-                
-                // Update hidden field
-                const orderTypeHidden = document.getElementById('order_type_hidden');
-                if (orderTypeHidden) orderTypeHidden.value = 'service';
-                
-                handleServiceTypeChange();
-            }
-        }
-        
-        // Handle service type changes
-        function handleServiceTypeChange() {
-            // Update contract field visibility
-            if (serviceTypeTailoring && serviceTypeTailoring.checked && 
-                !(serviceTypeInspection && serviceTypeInspection.checked)) {
-                // Show contract field only for tailoring service and not for inspection
-                if (contractField) contractField.style.display = 'block';
-            } else {
-                if (contractField) contractField.style.display = 'none';
+            const selectedTypes = Array.from(document.querySelectorAll('input[name="selected_types"]:checked'));
+            
+            // Update the hidden field with JSON array of selected types
+            const orderTypeHidden = document.getElementById('selected_types_hidden');
+            if (orderTypeHidden) {
+                orderTypeHidden.value = JSON.stringify(selectedTypes.map(type => type.value));
             }
             
-            // Update service types hidden field
-            const serviceTypesHidden = document.getElementById('service_types_hidden');
-            if (serviceTypesHidden) {
-                const selectedServiceTypes = Array.from(
-                    document.querySelectorAll('input[name="service_types"]:checked')
-                ).map(checkbox => checkbox.value);
-                
-                serviceTypesHidden.value = selectedServiceTypes.join(',');
+            // Show/hide contract field for tailoring
+            if (contractField) {
+                const hasTailoring = selectedTypes.some(type => type.value === 'tailoring');
+                contractField.style.display = hasTailoring ? 'block' : 'none';
+                if (hasTailoring) {
+                    contractField.querySelector('.contract-required').style.display = 'inline';
+                    contractField.querySelector('.contract-help').style.display = 'block';
+                }
             }
-        }
-        
-        // Handle product type changes
-        function handleProductTypeChange() {
-            // Update product types hidden field
-            const productTypesHidden = document.getElementById('product_types_hidden');
-            if (productTypesHidden) {
-                const selectedProductTypes = Array.from(
-                    document.querySelectorAll('input[name="product_type"]:checked')
-                ).map(checkbox => checkbox.value);
-                
-                productTypesHidden.value = selectedProductTypes.join(',');
+
+            // Set invoice number as required
+            const invoiceInput = document.getElementById('{{ form.invoice_number.id_for_label }}');
+            if (invoiceInput) {
+                invoiceInput.required = true;
+            }
+            
+            // Show/hide product selection for fabric and accessory
+            if (productSelectionSection) {
+                const hasProductTypes = selectedTypes.some(type => ['fabric', 'accessory'].includes(type.value));
+                if (hasProductTypes) {
+                    productSelectionSection.style.display = 'block';
+                    loadProducts();
+                } else {
+                    productSelectionSection.style.display = 'none';
+                }
             }
         }
         

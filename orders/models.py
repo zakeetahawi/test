@@ -1,3 +1,4 @@
+import json
 from django.db import models
 from django.conf import settings
 from customers.models import Customer
@@ -21,12 +22,9 @@ class Order(models.Model):
         ('vip', 'VIP'),
     ]
     
-    ORDER_TYPE_CHOICES = [
-        ('product', 'منتج'),
-        ('service', 'خدمة'),
-    ]
-    
-    SERVICE_TYPE_CHOICES = [
+    ORDER_TYPES = [
+        ('fabric', 'قماش'),
+        ('accessory', 'إكسسوار'),
         ('installation', 'تركيب'),
         ('inspection', 'معاينة'),
         ('transport', 'نقل'),
@@ -62,11 +60,9 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='normal', verbose_name='حالة الطلب')
 
     # Order type fields
-    order_type = models.CharField(
-        max_length=10,
-        choices=ORDER_TYPE_CHOICES,
-        verbose_name='نوع الطلب'
-    )
+    selected_types = models.JSONField(default=list, verbose_name='أنواع الطلب المختارة')
+    # Keep old fields for backward compatibility
+    order_type = models.CharField(max_length=10, choices=[('product', 'منتج'), ('service', 'خدمة')], null=True, blank=True)
     service_types = models.JSONField(default=list, blank=True, verbose_name='أنواع الخدمات')
     tracking_status = models.CharField(
         max_length=20,
@@ -111,34 +107,35 @@ class Order(models.Model):
             # Generate new order number
             self.order_number = f"{self.customer.code}-{next_num:04d}"
         
-        # Debug: اطبع القيم للتشخيص
-        print(f"[Order.save] order_type: {self.order_type}, service_types: {self.service_types}")
-
-        # تأكد أن service_types دائماً قائمة
-        service_types = self.service_types
-        if service_types is None:
-            service_types = []
-        elif isinstance(service_types, str):
-            import json
+        # Validate selected types
+        selected_types = self.selected_types or []
+        if isinstance(selected_types, str):
             try:
-                loaded = json.loads(service_types)
-                if isinstance(loaded, list):
-                    service_types = loaded
-                else:
-                    service_types = [str(loaded)]
-            except Exception:
-                # إذا كانت سلسلة مفصولة بفواصل
-                service_types = [st.strip() for st in service_types.split(',') if st.strip()]
-        elif not isinstance(service_types, list):
-            service_types = [str(service_types)]
-        # الآن service_types قائمة حقيقية دائماً
-        self.service_types = service_types
+                selected_types = json.loads(selected_types)
+            except json.JSONDecodeError:
+                selected_types = [st.strip() for st in selected_types.split(',') if st.strip()]
+        
+        if not selected_types:
+            raise models.ValidationError('يجب اختيار نوع طلب واحد على الأقل')
 
-        # رقم الفاتورة مطلوب فقط إذا كانت الخدمة ليست معاينة فقط
-        if self.order_type == 'service':
-            if not (len(service_types) == 1 and service_types[0] == 'inspection'):
-                if not self.invoice_number:
-                    raise models.ValidationError('رقم الفاتورة مطلوب لطلبات الخدمات')
+        # Contract number validation
+        if 'tailoring' in selected_types and not self.contract_number:
+            raise models.ValidationError('رقم العقد مطلوب لخدمة التفصيل')
+
+        # Invoice number validation - required for all types except inspection alone
+        if not (len(selected_types) == 1 and selected_types[0] == 'inspection'):
+            if not self.invoice_number:
+                raise models.ValidationError('رقم الفاتورة مطلوب')
+
+        # Set legacy fields for backward compatibility
+        has_products = any(t in ['fabric', 'accessory'] for t in selected_types)
+        has_services = any(t in ['installation', 'inspection', 'transport', 'tailoring'] for t in selected_types)
+        
+        if has_products:
+            self.order_type = 'product'
+        if has_services:
+            self.order_type = 'service'
+            self.service_types = [t for t in selected_types if t in ['installation', 'inspection', 'transport', 'tailoring']]
         super().save(*args, **kwargs)
 
 

@@ -214,6 +214,15 @@ def product_api_detail(request, pk):
 @login_required
 def product_api_list(request):
     products = Product.objects.all()
+    
+    # Filter by type
+    product_type = request.GET.get('type')
+    if product_type:
+        if product_type == 'fabric':
+            products = products.filter(category__name='أقمشة')
+        elif product_type == 'accessory':
+            products = products.filter(category__name='اكسسوارات')
+    
     data = [{
         'id': p.id,
         'name': p.name,

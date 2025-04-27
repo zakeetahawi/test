@@ -50,7 +50,7 @@ class Product(models.Model):
         related_name='products',
         verbose_name=_('الفئة')
     )
-    unit = models.CharField(_('الوحدة'), max_length=20, choices=UNIT_CHOICES)
+    unit = models.CharField(_('الوحدة'), max_length=20, choices=UNIT_CHOICES, default='piece')
     description = models.TextField(_('الوصف'), blank=True)
     price = models.DecimalField(
         _('السعر'),

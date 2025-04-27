@@ -11,13 +11,15 @@
             <a href="{% url 'inspections:inspection_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-right"></i> {% trans 'عودة للقائمة' %}
             </a>
-            {% if inspection.status == 'pending' %}
-            <a href="{% url 'inspections:inspection_update' inspection.pk %}" class="btn btn-primary">
-                <i class="fas fa-edit"></i> {% trans 'تعديل' %}
-            </a>
-            <a href="{% url 'inspections:inspection_delete' inspection.pk %}" class="btn btn-danger">
-                <i class="fas fa-trash"></i> {% trans 'حذف' %}
-            </a>
+            {% if not inspection.status == 'completed' or not inspection.result == 'passed' %}
+                {% if not inspection.status == 'cancelled' or not inspection.result == 'failed' %}
+                    <a href="{% url 'inspections:inspection_update' inspection.pk %}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> {% trans 'تعديل' %}
+                    </a>
+                    <a href="{% url 'inspections:inspection_delete' inspection.pk %}" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> {% trans 'حذف' %}
+                    </a>
+                {% endif %}
             {% endif %}
         </div>
     </div>
@@ -44,6 +46,7 @@
                         </div>
                         <div class="col-sm-8">
                             <span class="badge {% if inspection.status == 'pending' %}bg-warning
+                                       {% elif inspection.status == 'scheduled' %}bg-info
                                        {% elif inspection.status == 'completed' %}bg-success
                                        {% else %}bg-danger{% endif %}">
                                 {{ inspection.get_status_display }}
@@ -82,17 +85,72 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col-sm-4">
-                            <strong>{% trans 'الملاحظات' %}:</strong>
+                            <strong>{% trans 'عدد الشبابيك' %}:</strong>
+                        </div>
+                        <div class="col-sm-8">
+                            {{ inspection.windows_count|default:"-" }}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-sm-4">
+                            <strong>{% trans 'ملف المعاينة' %}:</strong>
+                        </div>
+                        <div class="col-sm-8">
+                            {% if inspection.inspection_file %}
+                                <a href="{{ inspection.inspection_file.url }}" class="btn btn-primary" target="_blank">
+                                    <i class="fas fa-file-pdf"></i> {% trans 'عرض ملف المعاينة' %}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-sm-4">
+                            <strong>{% trans 'ملاحظات المعاينة' %}:</strong>
                         </div>
                         <div class="col-sm-8">
                             {{ inspection.notes|linebreaks|default:"-" }}
                         </div>
                     </div>
+                    
+                    {% if inspection.order %}
+                    <div class="row mb-3">
+                        <div class="col-sm-4">
+                            <strong>{% trans 'ملاحظات الطلب' %}:</strong>
+                        </div>
+                        <div class="col-sm-8">
+                            <div class="alert alert-warning">
+                                {{ inspection.order.notes|linebreaks|default:"لا توجد ملاحظات" }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
+            {% if inspection.order %}
+            <!-- Order Details -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">{% trans 'معلومات الطلب' %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>{% trans 'رقم الطلب' %}:</strong>
+                        <div>{{ inspection.order.order_number }}</div>
+                    </div>
+                    <a href="{% url 'orders:order_detail' inspection.order.pk %}" class="btn btn-info btn-sm">
+                        <i class="fas fa-external-link-alt"></i> {% trans 'عرض الطلب' %}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            
             <!-- Customer Details -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -138,7 +196,7 @@
                 </div>
             </div>
             {% endif %}
-            
+
             <!-- Customer History -->
             {% if inspection.customer and customer_notes %}
             <div class="card mb-4">

@@ -212,6 +212,7 @@
                                     <th>{% trans 'تاريخ التنفيذ' %}</th>
                                     <th>{% trans 'الحالة' %}</th>
                                     <th>{% trans 'النتيجة' %}</th>
+                                    <th>{% trans 'ملف المعاينة' %}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -236,6 +237,15 @@
                                                        {% else %}bg-danger{% endif %}">
                                                 {{ inspection.get_result_display }}
                                             </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if inspection.inspection_file %}
+                                            <a href="{{ inspection.inspection_file.url }}" class="btn btn-sm btn-primary" target="_blank">
+                                                <i class="fas fa-file-pdf"></i>
+                                            </a>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}

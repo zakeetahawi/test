@@ -194,6 +194,20 @@
                             <th>الفرع</th>
                             <td>{{ order.branch.name }}</td>
                         </tr>
+                        {% if 'inspection' in order.service_types and order.inspections.exists %}
+                        <tr>
+                            <th>ملف المعاينة</th>
+                            <td>
+                                {% for inspection in order.inspections.all %}
+                                    {% if inspection.inspection_file %}
+                                        <a href="{{ inspection.inspection_file.url }}" class="btn btn-sm btn-primary mb-1" target="_blank">
+                                            <i class="fas fa-file-pdf"></i> عرض ملف المعاينة {{ forloop.counter }}
+                                        </a><br>
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
                     </table>
                 </div>
             </div>
@@ -249,11 +263,8 @@
     {% if 'inspection' in order.service_types %}
     <!-- Inspection Details -->
     <div class="card mb-4">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <div class="card-header bg-light">
             <h5 class="mb-0">تفاصيل المعاينة</h5>
-            <a href="{% url 'inspections:inspection_list' %}?customer={{ order.customer.pk }}" class="btn btn-sm btn-outline-primary">
-                <i class="fas fa-search"></i> عرض كل المعاينات
-            </a>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -265,6 +276,7 @@
                             <th>تاريخ التنفيذ</th>
                             <th>الحالة</th>
                             <th>النتيجة</th>
+                            <th>ملف المعاينة</th>
                             <th>الإجراءات</th>
                         </tr>
                     </thead>
@@ -292,10 +304,19 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if inspection.inspection_file %}
+                                    <a href="{{ inspection.inspection_file.url }}" class="btn btn-sm btn-primary" target="_blank">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
                                 <a href="{% url 'inspections:inspection_detail' inspection.pk %}" class="btn btn-sm btn-info">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                {% if inspection.status == 'pending' %}
+                                {% if not inspection.status == 'completed' or not inspection.result %}
                                 <a href="{% url 'inspections:inspection_update' inspection.pk %}" class="btn btn-sm btn-primary">
                                     <i class="fas fa-edit"></i>
                                 </a>
@@ -304,7 +325,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center py-3">لم يتم إنشاء معاينة لهذا الطلب بعد</td>
+                            <td colspan="7" class="text-center py-3">لم يتم إنشاء معاينة لهذا الطلب بعد</td>
                         </tr>
                         {% endfor %}
                     </tbody>

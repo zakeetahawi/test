@@ -69,11 +69,6 @@
                             <label class="form-label">{% trans 'عنوان العميل' %}</label>
                             <div class="form-control bg-light" id="customer-address" style="height: auto; min-height: 60px;"></div>
                         </div>
-                        
-                        <div class="form-group mb-3" id="customer-notes-container" style="display: none;">
-                            <label class="form-label">{% trans 'ملاحظات العميل' %}</label>
-                            <div class="form-control bg-warning text-dark" id="customer-notes" style="height: auto; min-height: 80px; font-weight: bold;"></div>
-                        </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
@@ -136,23 +131,33 @@
                         {% if not user.is_superuser %}
                             {{ form.branch.as_hidden }}
                         {% else %}
-                        <div class="form-group mb-3">
-                            <label for="{{ form.branch.id_for_label }}" class="form-label">{% trans 'الفرع' %}</label>
-                            {% render_field form.branch class="form-control select2" %}
-                            {% if form.branch.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.branch.errors %}
-                                    {{ error }}
-                                {% endfor %}
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.branch.id_for_label }}" class="form-label">{% trans 'الفرع' %}</label>
+                                    {% render_field form.branch class="form-control select2" %}
+                                    {% if form.branch.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.branch.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-
-                        {% if inspection.order %}
-                        <div class="alert alert-warning mb-3">
-                            <h5 class="mb-2">{% trans 'ملاحظات الطلب' %}</h5>
-                            <p class="mb-0">{{ inspection.order.notes|default:"لا توجد ملاحظات" }}</p>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.responsible_employee.id_for_label }}" class="form-label">{% trans 'البائع' %}</label>
+                                    {% render_field form.responsible_employee class="form-control select2" %}
+                                    {% if form.responsible_employee.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.responsible_employee.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
 
@@ -188,16 +193,36 @@
                             </div>
                         </div>
 
-                        <div class="form-group mb-3">
-                            <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans 'ملاحظات' %}</label>
-                            {% render_field form.notes class="form-control" rows="4" placeholder="ملاحظات إضافية" %}
-                            {% if form.notes.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.notes.errors %}
-                                    {{ error }}
-                                {% endfor %}
+                        <!-- Notes section -->
+                        <div class="mb-4">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="card-title mb-0">{% trans 'ملاحظات المعاينة' %}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="{{ form.notes.id_for_label }}" class="form-label fw-bold">
+                                            {% trans 'ملاحظات المعاينة' %}:
+                                        </label>
+                                        {{ form.notes|add_class:"form-control" }}
+                                        <small class="text-muted mt-1 d-block">{% trans 'أدخل ملاحظات خاصة بعملية المعاينة هنا' %}</small>
+                                        {% if form.notes.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if inspection.order_notes %}
+                                    <div class="mt-4">
+                                        <div class="alert alert-info">
+                                            <h6 class="alert-heading fw-bold">{% trans 'ملاحظات من الطلب (للعلم فقط)' %}:</h6>
+                                            <hr>
+                                            <p class="mb-0">{{ inspection.order_notes|linebreaks }}</p>
+                                        </div>
+                                        <div class="text-muted small"><i class="fas fa-info-circle"></i> {% trans 'هذه الملاحظات للعلم فقط ولا يمكن تعديلها هنا. يمكن التعديل من صفحة الطلب.' %}</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            {% endif %}
                         </div>
 
                         <div class="d-flex justify-content-between">
@@ -223,96 +248,61 @@
 
 {% block extra_js %}
 <script>
-    $(document).ready(function() {
-        // Initialize Select2 for all select inputs
-        $('.select2').select2({
-            theme: 'bootstrap4',
-            language: 'ar',
-            dir: 'rtl'
-        });
+$(document).ready(function() {
+    // تهيئة Select2 للقوائم المنسدلة فقط
+    $('.select2').select2({
+        theme: 'bootstrap4',
+        language: 'ar',
+        dir: 'rtl'
+    });
 
-        // Handle status change
-        $('#{{ form.status.id_for_label }}').on('change', function() {
-            var status = $(this).val();
-            var resultGroup = $('#result-group');
-            var resultField = $('#{{ form.result.id_for_label }}');
-            
-            if (status === 'completed') {
-                resultGroup.show();
-                resultField.prop('required', true);
-            } else {
-                resultGroup.hide();
-                resultField.prop('required', false);
-                resultField.val('');
-            }
-        }).trigger('change');
+    // التحكم في إظهار حقل النتيجة حسب الحالة
+    $('#{{ form.status.id_for_label }}').on('change', function() {
+        var status = $(this).val();
+        var resultGroup = $('#result-group');
+        var resultField = $('#{{ form.result.id_for_label }}');
         
-        // Handle customer selection change
-        $('#customer-select').on('change', function() {
-            var customerId = $(this).val();
-            if (customerId) {
-                // Fetch customer details
-                $.ajax({
-                    url: '/customers/api/customer/' + customerId + '/',
-                    type: 'GET',
-                    dataType: 'json',
-                    success: function(data) {
-                        // Show customer address
-                        if (data.address) {
-                            $('#customer-address').text(data.address);
-                            $('#customer-address-container').show();
-                        } else {
-                            $('#customer-address').text('لا يوجد عنوان مسجل');
-                            $('#customer-address-container').show();
-                        }
-                        
-                        // Fetch customer notes
-                        $.ajax({
-                            url: '/customers/api/' + customerId + '/notes/',
-                            type: 'GET',
-                            dataType: 'json',
-                            success: function(notesData) {
-                                if (notesData.notes && notesData.notes.length > 0) {
-                                    // Display the most recent notes
-                                    var notesHtml = '';
-                                    for (var i = 0; i < Math.min(3, notesData.notes.length); i++) {
-                                        var note = notesData.notes[i];
-                                        notesHtml += '<div class="mb-2">';
-                                        notesHtml += '<strong>' + note.created_at + '</strong>: ';
-                                        notesHtml += note.note;
-                                        notesHtml += '</div>';
-                                    }
-                                    $('#customer-notes').html(notesHtml);
-                                    $('#customer-notes-container').show();
-                                } else {
-                                    $('#customer-notes').html('لا توجد ملاحظات مسجلة للعميل');
-                                    $('#customer-notes-container').show();
-                                }
-                            },
-                            error: function() {
-                                $('#customer-notes').text('حدث خطأ أثناء جلب ملاحظات العميل');
-                                $('#customer-notes-container').show();
-                            }
-                        });
-                    },
-                    error: function() {
-                        $('#customer-address').text('حدث خطأ أثناء جلب بيانات العميل');
+        if (status === 'completed') {
+            resultGroup.show();
+            resultField.prop('required', true);
+        } else {
+            resultGroup.hide();
+            resultField.prop('required', false);
+            resultField.val('');
+        }
+    }).trigger('change');
+
+    // عرض عنوان العميل فقط
+    $('#customer-select').on('change', function() {
+        var customerId = $(this).val();
+        if (customerId) {
+            $.ajax({
+                url: '/customers/api/customer/' + customerId + '/',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    if (data.address) {
+                        $('#customer-address').text(data.address);
+                        $('#customer-address-container').show();
+                    } else {
+                        $('#customer-address').text('لا يوجد عنوان مسجل');
                         $('#customer-address-container').show();
                     }
-                });
-            } else {
-                $('#customer-address-container').hide();
-                $('#customer-notes-container').hide();
-            }
-        });
-        
-        // Trigger change event on page load if customer is already selected
-        if ($('#customer-select').val()) {
-            $('#customer-select').trigger('change');
+                },
+                error: function() {
+                    $('#customer-address').text('حدث خطأ أثناء جلب بيانات العميل');
+                    $('#customer-address-container').show();
+                }
+            });
+        } else {
+            $('#customer-address-container').hide();
         }
-
-        // Trigger status change on page load
-        $('#{{ form.status.id_for_label }}').trigger('change');
     });
+    
+    // تنفيذ تغيير العميل عند التحميل إذا كان هناك عميل محدد
+    if ($('#customer-select').val()) {
+        $('#customer-select').trigger('change');
+    }
+});
 </script>
 {% endblock %}

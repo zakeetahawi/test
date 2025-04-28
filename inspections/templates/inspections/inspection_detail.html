@@ -11,6 +11,11 @@
             <a href="{% url 'inspections:inspection_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-right"></i> {% trans 'عودة للقائمة' %}
             </a>
+            {% if inspection.status == 'completed' %}
+                <a href="{% url 'inspections:iterate_inspection' inspection.pk %}" class="btn btn-success">
+                    <i class="fas fa-sync-alt"></i> {% trans 'استمرار للتكرار' %}
+                </a>
+            {% endif %}
             {% if not inspection.status == 'completed' or not inspection.result == 'passed' %}
                 {% if not inspection.status == 'cancelled' or not inspection.result == 'failed' %}
                     <a href="{% url 'inspections:inspection_update' inspection.pk %}" class="btn btn-primary">
@@ -107,27 +112,33 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <div class="col-sm-4">
-                            <strong>{% trans 'ملاحظات المعاينة' %}:</strong>
-                        </div>
-                        <div class="col-sm-8">
-                            {{ inspection.notes|linebreaks|default:"-" }}
-                        </div>
-                    </div>
-                    
-                    {% if inspection.order %}
-                    <div class="row mb-3">
-                        <div class="col-sm-4">
-                            <strong>{% trans 'ملاحظات الطلب' %}:</strong>
-                        </div>
-                        <div class="col-sm-8">
-                            <div class="alert alert-warning">
-                                {{ inspection.order.notes|linebreaks|default:"لا توجد ملاحظات" }}
+                    <!-- Inspection Notes Section -->
+                    {% if inspection.notes %}
+                    <div class="mb-4">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="card-title mb-0">{% trans 'ملاحظات المعاينة' %}</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">{{ inspection.notes|linebreaks }}</p>
                             </div>
                         </div>
                     </div>
                     {% endif %}
+                    
+                    <!-- Salesperson Information -->
+                    <div class="row mb-3">
+                        <div class="col-sm-4">
+                            <strong>{% trans 'البائع' %}:</strong>
+                        </div>
+                        <div class="col-sm-8">
+                            {% if inspection.responsible_employee %}
+                                {{ inspection.responsible_employee }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -144,6 +155,17 @@
                         <strong>{% trans 'رقم الطلب' %}:</strong>
                         <div>{{ inspection.order.order_number }}</div>
                     </div>
+
+                    <!-- Fix to correctly display the order notes using order_notes from the inspection -->
+                    {% if inspection.order_notes %}
+                    <div class="mb-3">
+                        <strong>{% trans 'ملاحظات الطلب' %}:</strong>
+                        <div class="alert alert-warning mt-2 mb-3 py-2">
+                            {{ inspection.order_notes|linebreaks }}
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <a href="{% url 'orders:order_detail' inspection.order.pk %}" class="btn btn-info btn-sm">
                         <i class="fas fa-external-link-alt"></i> {% trans 'عرض الطلب' %}
                     </a>
@@ -244,4 +266,13 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- إزالة كل كود JavaScript المتعلق بملاحظات الطلب -->
+<script>
+    $(document).ready(function() {
+        // الاحتفاظ فقط بالوظائف الأساسية
+    });
+</script>
 {% endblock %}

@@ -10,6 +10,8 @@ from .models import Inspection, InspectionReport, InspectionNotification, Inspec
 from .forms import InspectionForm, InspectionReportForm, InspectionNotificationForm, InspectionEvaluationForm
 
 from django.urls import reverse
+from django.contrib.auth.decorators import login_required
+from django.utils.translation import gettext_lazy as _
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'inspections/dashboard.html'
@@ -156,6 +158,14 @@ class InspectionCreateView(LoginRequiredMixin, CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
+        # إضافة الطلب المرتبط إلى النموذج إذا كان موجوداً
+        order_id = self.request.GET.get('order_id')
+        if order_id:
+            from orders.models import Order
+            try:
+                kwargs['order'] = Order.objects.get(id=order_id)
+            except Order.DoesNotExist:
+                pass
         return kwargs
 
     def form_valid(self, form):
@@ -164,8 +174,41 @@ class InspectionCreateView(LoginRequiredMixin, CreateView):
             form.instance.inspector = self.request.user
         if not form.instance.branch and not self.request.user.is_superuser:
             form.instance.branch = self.request.user.branch
+            
+        # حفظ البائع من الطلب المرتبط
+        order_id = self.request.GET.get('order_id')
+        if order_id:
+            from orders.models import Order
+            try:
+                order = Order.objects.get(id=order_id)
+                form.instance.order = order
+                form.instance.is_from_orders = True
+                
+                # تعيين البائع بشكل صريح من الطلب المرتبط
+                if order.salesperson:
+                    form.instance.responsible_employee = order.salesperson
+                    # تأكد من حفظ المعاينة قبل عرضها
+                
+                # نسخ معلومات أخرى من الطلب
+                if not form.instance.customer and order.customer:
+                    form.instance.customer = order.customer
+                if not form.instance.contract_number and order.contract_number:
+                    form.instance.contract_number = order.contract_number
+                    
+            except Order.DoesNotExist:
+                pass
+        
+        # حفظ المعاينة        
         messages.success(self.request, 'تم إنشاء المعاينة بنجاح')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # للتأكد من حفظ معلومات البائع، نقوم بتحديثها مرة أخرى بعد الحفظ إذا كانت من طلب
+        if order_id and hasattr(form.instance, 'order') and form.instance.order and form.instance.order.salesperson:
+            if not form.instance.responsible_employee:
+                form.instance.responsible_employee = form.instance.order.salesperson
+                form.instance.save(update_fields=['responsible_employee'])
+                
+        return response
 
 class InspectionDetailView(LoginRequiredMixin, DetailView):
     model = Inspection
@@ -173,7 +216,24 @@ class InspectionDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'inspection'
 
     def get_queryset(self):
-        return super().get_queryset().select_related('customer', 'inspector', 'branch', 'created_by')
+        return super().get_queryset().select_related('customer', 'inspector', 'branch', 'created_by', 'order')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        inspection = self.get_object()
+        
+        # إضافة ملاحظات العميل إذا كان موجودًا
+        if inspection.customer:
+            from customers.models import CustomerNote
+            context['customer_notes'] = CustomerNote.objects.filter(
+                customer=inspection.customer
+            ).order_by('-created_at')[:5]
+        
+        # تخزين ملاحظات الطلب في سياق الصفحة حتى إذا تم تحميلها بشكل غير متزامن
+        if hasattr(inspection, 'order') and inspection.order:
+            context['order_notes'] = inspection.order.notes
+        
+        return context
 
 class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Inspection
@@ -190,12 +250,20 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
+        
+        # إضافة الطلب المرتبط إلى النموذج إذا كان موجوداً
+        inspection = self.get_object()
+        if hasattr(inspection, 'order') and inspection.order:
+            kwargs['order'] = inspection.order
+            
         return kwargs
 
     def form_valid(self, form):
         inspection = form.instance
         old_status = self.get_object().status
-        new_status = form.cleaned_data['status']
+        
+        # Safely get the new status, falling back to the instance's status if not in form
+        new_status = form.cleaned_data.get('status', inspection.status)
         
         # Save inspection first to ensure it exists
         response = super().form_valid(form)
@@ -342,3 +410,49 @@ def mark_notification_read(request, pk):
         notification.save()
         messages.success(request, 'تم تحديث حالة الإشعار')
     return redirect('inspections:notification_list')
+
+@login_required
+def iterate_inspection(request, pk):
+    """
+    Create a new inspection as an iteration of a completed inspection.
+    This allows for continued follow-up on completed inspections.
+    """
+    try:
+        # Get the original inspection
+        original_inspection = get_object_or_404(Inspection, pk=pk)
+        
+        # Verify the inspection is completed
+        if original_inspection.status != 'completed':
+            messages.error(request, _('يمكن فقط تكرار المعاينات المكتملة.'))
+            return redirect('inspections:inspection_detail', pk=pk)
+        
+        # Create a new inspection based on the original
+        new_inspection = Inspection(
+            customer=original_inspection.customer,
+            branch=original_inspection.branch,
+            inspector=original_inspection.inspector,
+            responsible_employee=original_inspection.responsible_employee,
+            is_from_orders=original_inspection.is_from_orders,
+            windows_count=original_inspection.windows_count,
+            request_date=timezone.now().date(),
+            scheduled_date=timezone.now().date() + timezone.timedelta(days=1),  # Schedule for tomorrow
+            status='pending',
+            notes=_('تكرار من المعاينة رقم: {0}\nملاحظات المعاينة السابقة:\n{1}').format(
+                original_inspection.contract_number,
+                original_inspection.notes
+            ),
+            order_notes=original_inspection.order_notes,
+            created_by=request.user,
+            order=original_inspection.order
+        )
+        
+        # Generate a new contract number
+        new_inspection.contract_number = None  # Will be auto-generated on save
+        new_inspection.save()
+        
+        messages.success(request, _('تم إنشاء معاينة جديدة كتكرار للمعاينة السابقة بنجاح.'))
+        return redirect('inspections:inspection_detail', pk=new_inspection.pk)
+        
+    except Exception as e:
+        messages.error(request, _('حدث خطأ أثناء تكرار المعاينة: {0}').format(str(e)))
+        return redirect('inspections:inspection_detail', pk=pk)

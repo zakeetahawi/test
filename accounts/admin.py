@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import User, Branch, Department, Notification, CompanyInfo, FormField, SystemDBImportPermission
+from .models import User, Branch, Department, Notification, CompanyInfo, FormField, SystemDBImportPermission, Salesperson
 from django.urls import path
 import os
 import shutil
@@ -55,6 +55,24 @@ class BranchAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('code', 'name', 'phone', 'email')
     ordering = ['code']
+
+@admin.register(Salesperson)
+class SalespersonAdmin(admin.ModelAdmin):
+    list_display = ['name', 'employee_number', 'branch', 'phone', 'is_active']
+    list_filter = ['branch', 'is_active']
+    search_fields = ['name', 'employee_number', 'phone', 'email']
+    ordering = ['name']
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if not request.user.is_superuser:
+            qs = qs.filter(branch=request.user.branch)
+        return qs
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "branch" and not request.user.is_superuser:
+            kwargs["queryset"] = Branch.objects.filter(id=request.user.branch.id)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):

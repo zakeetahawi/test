@@ -1,6 +1,7 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from .models import Order, OrderItem, Payment
+from accounts.models import Salesperson, Branch
 
 class OrderItemForm(forms.ModelForm):
     class Meta:
@@ -61,12 +62,20 @@ class OrderForm(forms.ModelForm):
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'})
     )
 
+    salesperson = forms.ModelChoiceField(
+        queryset=Salesperson.objects.filter(is_active=True),
+        label='البائع',
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+
     class Meta:
         model = Order
         fields = [
             'customer', 'status', 'invoice_number', 
             'contract_number', 'branch', 'tracking_status', 
-            'notes', 'selected_types', 'delivery_type', 'delivery_address'
+            'notes', 'selected_types', 'delivery_type', 'delivery_address',
+            'salesperson'
         ]
         widgets = {
             'customer': forms.Select(attrs={
@@ -83,8 +92,17 @@ class OrderForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        # Make all fields optional
+        
+        # تقييد البائعين حسب الفرع إذا لم يكن المستخدم مديراً
+        if user and not user.is_superuser and user.branch:
+            self.fields['salesperson'].queryset = Salesperson.objects.filter(
+                is_active=True,
+                branch=user.branch
+            )
+        
+        # Make all fields optional initially
         for field_name in self.fields:
             self.fields[field_name].required = False
             
@@ -104,19 +122,17 @@ class OrderForm(forms.ModelForm):
                 label='رقم الطلب'
             )
         
-        
         # Make invoice_number and contract_number not required initially
         self.fields['invoice_number'].required = False
         self.fields['contract_number'].required = False
         
         # Set branch to user's branch if available
-        if 'initial' in kwargs and 'user' in kwargs['initial']:
-            user = kwargs['initial']['user']
-            if hasattr(user, 'branch') and user.branch:
-                self.fields['branch'].initial = user.branch
-                # If not superuser, limit branch choices to user's branch
-                if not user.is_superuser:
-                    self.fields['branch'].widget.attrs['readonly'] = True
+        if user and hasattr(user, 'branch') and user.branch:
+            self.fields['branch'].initial = user.branch
+            # If not superuser, limit branch choices to user's branch
+            if not user.is_superuser:
+                self.fields['branch'].queryset = Branch.objects.filter(id=user.branch.id)
+                self.fields['branch'].widget.attrs['readonly'] = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -125,7 +141,7 @@ class OrderForm(forms.ModelForm):
         print("[DEBUG] Form Data:", dict(self.data))
 
         # Required fields validation
-        required_fields = ['customer']
+        required_fields = ['customer', 'salesperson']
         for field in required_fields:
             if not cleaned_data.get(field):
                 self.add_error(field, f'هذا الحقل مطلوب')

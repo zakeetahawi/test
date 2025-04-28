@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
-from .models import Order, OrderItem, Payment, Salesperson
+from .models import Order, OrderItem, Payment
 from .extended_models import ExtendedOrder, AccessoryItem, FabricOrder
 from data_import_export.admin import AdminMultiSheetImportExportMixin
 

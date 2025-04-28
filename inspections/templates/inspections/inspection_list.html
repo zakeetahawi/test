@@ -141,6 +141,7 @@
                     <th>{% trans 'تاريخ الطلب' %}</th>
                     <th>{% trans 'تاريخ التنفيذ' %}</th>
                     <th>{% trans 'عدد الشبابيك' %}</th>
+                    <th>{% trans 'البائع' %}</th>
                     <th>{% trans 'ملف المعاينة' %}</th>
                     <th>{% trans 'الحالة' %}</th>
                     <th>{% trans 'النتيجة' %}</th>
@@ -155,6 +156,7 @@
                     <td>{{ inspection.request_date }}</td>
                     <td>{{ inspection.scheduled_date }}</td>
                     <td>{{ inspection.windows_count|default:"-" }}</td>
+                    <td>{% if inspection.responsible_employee %}{{ inspection.responsible_employee }}{% else %}-{% endif %}</td>
                     <td>
                         {% if inspection.inspection_file %}
                             <a href="{{ inspection.inspection_file.url }}" class="btn btn-sm btn-primary" target="_blank">

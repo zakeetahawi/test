@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 
@@ -95,8 +97,6 @@ class Notification(models.Model):
         """
         Mark notification as read by a specific user
         """
-        from django.utils import timezone
-        
         self.is_read = True
         self.read_at = timezone.now()
         self.read_by = user
@@ -188,3 +188,53 @@ class FormField(models.Model):
         verbose_name = 'حقل نموذج'
         verbose_name_plural = 'حقول النماذج'
         unique_together = ('form_type', 'field_name')
+
+class Employee(models.Model):
+    name = models.CharField(max_length=100, verbose_name='اسم الموظف')
+    employee_id = models.CharField(max_length=50, unique=True, verbose_name='رقم الموظف')
+    branch = models.ForeignKey('Branch', on_delete=models.CASCADE, related_name='employees', verbose_name='الفرع')
+    is_active = models.BooleanField(default=True, verbose_name='نشط')
+    
+    class Meta:
+        verbose_name = 'موظف'
+        verbose_name_plural = 'الموظفون'
+        ordering = ['name']
+    
+    def __str__(self):
+        return f'{self.name} ({self.employee_id})'
+
+class Salesperson(models.Model):
+    name = models.CharField(max_length=100, verbose_name=_('اسم البائع'))
+    employee_number = models.CharField(max_length=50, verbose_name=_('الرقم الوظيفي'), blank=True, null=True)
+    branch = models.ForeignKey('Branch', on_delete=models.CASCADE, related_name='salespersons', verbose_name=_('الفرع'))
+    phone = models.CharField(max_length=20, blank=True, verbose_name=_('رقم الهاتف'))
+    email = models.EmailField(blank=True, null=True, verbose_name=_('البريد الإلكتروني'))
+    address = models.TextField(blank=True, null=True, verbose_name=_('العنوان'))
+    is_active = models.BooleanField(default=True, verbose_name=_('نشط'))
+    notes = models.TextField(blank=True, verbose_name=_('ملاحظات'))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('تاريخ الإنشاء'))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_('تاريخ التحديث'))
+    
+    class Meta:
+        verbose_name = _('بائع')
+        verbose_name_plural = _('البائعون')
+        ordering = ['name']
+    
+    def __str__(self):
+        return f'{self.name} ({self.employee_number})' if self.employee_number else self.name
+        
+    def clean(self):
+        if self.branch and not self.branch.is_active:
+            raise ValidationError(_('لا يمكن إضافة بائع لفرع غير نشط'))
+            
+        if self.employee_number and self.branch:
+            exists = Salesperson.objects.filter(
+                employee_number=self.employee_number,
+                branch=self.branch
+            ).exclude(pk=self.pk).exists()
+            if exists:
+                raise ValidationError(_('هذا الرقم الوظيفي مستخدم بالفعل في هذا الفرع'))
+            
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)

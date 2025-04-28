@@ -41,6 +41,10 @@
                             </td>
                         </tr>
                         <tr>
+                            <th>البائع</th>
+                            <td>{% if order.salesperson %}{{ order.salesperson }}{% else %}-{% endif %}</td>
+                        </tr>
+                        <tr>
                             <th>تاريخ الطلب</th>
                             <td>{{ order.order_date|date:"Y-m-d H:i" }}</td>
                         </tr>
@@ -277,6 +281,7 @@
                             <th>الحالة</th>
                             <th>النتيجة</th>
                             <th>ملف المعاينة</th>
+                            <th>البائع</th>
                             <th>الإجراءات</th>
                         </tr>
                     </thead>
@@ -312,6 +317,7 @@
                                     <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
+                            <td>{% if inspection.responsible_employee %}{{ inspection.responsible_employee }}{% else %}-{% endif %}</td>
                             <td>
                                 <a href="{% url 'inspections:inspection_detail' inspection.pk %}" class="btn btn-sm btn-info">
                                     <i class="fas fa-eye"></i>
@@ -325,7 +331,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="text-center py-3">لم يتم إنشاء معاينة لهذا الطلب بعد</td>
+                            <td colspan="8" class="text-center py-3">لم يتم إنشاء معاينة لهذا الطلب بعد</td>
                         </tr>
                         {% endfor %}
                     </tbody>

@@ -142,6 +142,14 @@ class Inspection(models.Model):
         related_name='assigned_inspections',
         verbose_name=_('المعاين')
     )
+    responsible_employee = models.ForeignKey(
+        'accounts.Salesperson',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('البائع'),
+        related_name='inspections'
+    )
     is_from_orders = models.BooleanField(_('من قسم الطلبات'), default=False)
     windows_count = models.IntegerField(_('عدد الشبابيك'), null=True, blank=True)
     inspection_file = models.FileField(_('ملف المعاينة'), upload_to='inspections/files/', null=True, blank=True)
@@ -161,6 +169,7 @@ class Inspection(models.Model):
         blank=True
     )
     notes = models.TextField(_('ملاحظات'), blank=True)
+    order_notes = models.TextField(_('ملاحظات الطلب'), blank=True, help_text=_('نسخة ثابتة من ملاحظات الطلب'))
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -209,6 +218,10 @@ class Inspection(models.Model):
             self.completed_at = timezone.now()
         elif self.status != 'completed':
             self.completed_at = None
+            
+        # نسخ ملاحظات الطلب إلى الحقل الجديد إذا كان الطلب موجودًا
+        if self.order and self.order.notes and not self.order_notes:
+            self.order_notes = self.order.notes
             
         super().save(*args, **kwargs)
 

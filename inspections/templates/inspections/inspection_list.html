@@ -74,6 +74,17 @@
                 </div>
             </a>
         </div>
+        <div class="col">
+            <a href="{% url 'inspections:inspection_list' %}?is_duplicated=1" class="text-decoration-none">
+                <div class="card text-center shadow-sm border-secondary dashboard-card-hover">
+                    <div class="card-body">
+                        <i class="fas fa-copy fa-2x text-secondary mb-2"></i>
+                        <h5 class="card-title">{% trans 'المعاينات المكررة' %}</h5>
+                        <span class="display-6 fw-bold">{{ dashboard.duplicated_inspections|default:0 }}</span>
+                    </div>
+                </div>
+            </a>
+        </div>
     </div>
     <style>
     .dashboard-card-hover:hover {
@@ -126,6 +137,16 @@
                         <i class="fas fa-times"></i> {% trans 'إعادة تعيين' %}
                     </a>
                 </div>
+                {% if request.GET.is_duplicated == '1' %}
+                <div class="col-md-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-filter"></i> {% trans 'تصفية: المعاينات المكررة فقط' %}
+                        <a href="{% url 'inspections:inspection_list' %}" class="btn btn-sm btn-outline-info float-end">
+                            <i class="fas fa-times"></i> {% trans 'إلغاء التصفية' %}
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -141,6 +162,7 @@
                     <th>{% trans 'تاريخ الطلب' %}</th>
                     <th>{% trans 'تاريخ التنفيذ' %}</th>
                     <th>{% trans 'عدد الشبابيك' %}</th>
+                    <th>{% trans 'فني المعاينة' %}</th>
                     <th>{% trans 'البائع' %}</th>
                     <th>{% trans 'ملف المعاينة' %}</th>
                     <th>{% trans 'الحالة' %}</th>
@@ -156,6 +178,17 @@
                     <td>{{ inspection.request_date }}</td>
                     <td>{{ inspection.scheduled_date }}</td>
                     <td>{{ inspection.windows_count|default:"-" }}</td>
+                    <td>
+                        {% if inspection.inspector %}
+                            {% if inspection.inspector.get_full_name %}
+                                {{ inspection.inspector.get_full_name }}
+                            {% else %}
+                                {{ inspection.inspector.username }}
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
                     <td>{% if inspection.responsible_employee %}{{ inspection.responsible_employee }}{% else %}-{% endif %}</td>
                     <td>
                         {% if inspection.inspection_file %}
@@ -198,6 +231,17 @@
                                class="btn btn-sm btn-danger" title="{% trans 'حذف' %}">
                                 <i class="fas fa-trash"></i>
                             </a>
+                            {% endif %}
+                            
+                            {% if inspection.status == 'completed' %}
+                            <button type="button" 
+                                   class="btn btn-sm btn-success duplicate-inspection" 
+                                   data-id="{{ inspection.pk }}" 
+                                   data-contract="{{ inspection.contract_number }}"
+                                   data-customer="{{ inspection.customer }}"
+                                   title="{% trans 'تكرار المعاينة' %}">
+                                <i class="fas fa-copy"></i>
+                            </button>
                             {% endif %}
                         </div>
                     </td>
@@ -244,6 +288,69 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Modal for Duplicate Inspection -->
+<div class="modal fade" id="duplicateInspectionModal" tabindex="-1" aria-labelledby="duplicateInspectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="duplicateInspectionModalLabel">{% trans 'تكرار معاينة' %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="duplicate-inspection-message">{% trans 'هل تريد تكرار المعاينة' %} <span id="inspection-contract"></span> للعميل <span id="inspection-customer"></span>؟</p>
+                <p>{% trans 'سيتم إنشاء معاينة جديدة بنفس بيانات المعاينة المكتملة مع تاريخ تنفيذ جديد.' %}</p>
+                <div class="form-group mb-3">
+                    <label for="scheduled_date" class="form-label">{% trans 'تاريخ التنفيذ الجديد' %}</label>
+                    <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" required>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="duplicate-notes" class="form-label">{% trans 'ملاحظات إضافية' %}</label>
+                    <textarea class="form-control" id="duplicate-notes" rows="3"></textarea>
+                </div>
+                <div class="alert alert-info">
+                    {% trans 'سيتم نقل جميع بيانات المعاينة الأصلية إلى المعاينة الجديدة.' %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans 'إلغاء' %}</button>
+                <button type="button" class="btn btn-success" id="confirm-duplicate">{% trans 'تكرار المعاينة' %}</button>
+            </div>
+            <div class="modal-loading d-none text-center p-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{% trans 'جاري التحميل...' %}</span>
+                </div>
+                <p>{% trans 'جاري إنشاء المعاينة الجديدة...' %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- تنبيه النجاح -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999">
+    <div id="successToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-check-circle me-2"></i>
+                <span id="successToastMessage">{% trans 'تم تكرار المعاينة بنجاح' %}</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="إغلاق"></button>
+        </div>
+    </div>
+</div>
+
+<!-- تنبيه الخطأ -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999">
+    <div id="errorToast" class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <span id="errorToastMessage">{% trans 'حدث خطأ أثناء تكرار المعاينة' %}</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="إغلاق"></button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -251,6 +358,101 @@
     $(document).ready(function() {
         // Enable Bootstrap tooltips
         $('[data-toggle="tooltip"]').tooltip();
+        
+        // Set default scheduled date to tomorrow
+        var tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        var formattedDate = tomorrow.toISOString().split('T')[0];
+        $('#scheduled_date').val(formattedDate);
+        
+        // Handle duplicate inspection button click
+        $('.duplicate-inspection').click(function() {
+            var inspectionId = $(this).data('id');
+            var contractNumber = $(this).data('contract');
+            var customer = $(this).data('customer');
+            
+            $('#inspection-contract').text(contractNumber);
+            $('#inspection-customer').text(customer);
+            
+            // Store inspection ID for later use
+            $('#confirm-duplicate').data('inspection-id', inspectionId);
+            
+            // Show modal
+            $('#duplicateInspectionModal').modal('show');
+        });
+        
+        // Handle confirm duplicate button click
+        $('#confirm-duplicate').click(function() {
+            var inspectionId = $(this).data('inspection-id');
+            var scheduledDate = $('#scheduled_date').val();
+            var notes = $('#duplicate-notes').val();
+            
+            if (!scheduledDate) {
+                showErrorToast('{% trans "الرجاء تحديد تاريخ التنفيذ الجديد" %}');
+                return;
+            }
+            
+            // Show loading spinner
+            $('.modal-loading').removeClass('d-none');
+            $('.modal-footer').addClass('d-none');
+            $('.modal-body').addClass('d-none');
+            
+            // Send AJAX request to duplicate inspection
+            $.ajax({
+                url: '{% url "inspections:ajax_duplicate_inspection" %}',
+                type: 'POST',
+                data: {
+                    'inspection_id': inspectionId,
+                    'scheduled_date': scheduledDate,
+                    'additional_notes': notes,
+                    'csrfmiddlewaretoken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Close modal
+                        $('#duplicateInspectionModal').modal('hide');
+                        
+                        // Show success toast
+                        showSuccessToast('{% trans "تم تكرار المعاينة بنجاح" %}');
+                        
+                        // Reload page after a short delay to show new inspection
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1500);
+                    } else {
+                        // Show error toast
+                        showErrorToast('{% trans "حدث خطأ أثناء تكرار المعاينة" %}: ' + response.error);
+                        
+                        // Hide loading, show buttons
+                        $('.modal-loading').addClass('d-none');
+                        $('.modal-footer').removeClass('d-none');
+                        $('.modal-body').removeClass('d-none');
+                    }
+                },
+                error: function() {
+                    // Show error toast
+                    showErrorToast('{% trans "حدث خطأ أثناء الاتصال بالخادم" %}');
+                    
+                    // Hide loading, show buttons
+                    $('.modal-loading').addClass('d-none');
+                    $('.modal-footer').removeClass('d-none');
+                    $('.modal-body').removeClass('d-none');
+                }
+            });
+        });
+        
+        // Functions for showing toast notifications
+        function showSuccessToast(message) {
+            $('#successToastMessage').text(message);
+            var toast = new bootstrap.Toast($('#successToast'));
+            toast.show();
+        }
+        
+        function showErrorToast(message) {
+            $('#errorToastMessage').text(message);
+            var toast = new bootstrap.Toast($('#errorToast'));
+            toast.show();
+        }
     });
 </script>
 {% endblock %}

@@ -278,6 +278,8 @@
                             <th>رقم المعاينة</th>
                             <th>تاريخ الطلب</th>
                             <th>تاريخ التنفيذ</th>
+                            <th>عدد الشبابيك</th>
+                            <th>فني المعاينة</th>
                             <th>الحالة</th>
                             <th>النتيجة</th>
                             <th>ملف المعاينة</th>
@@ -291,6 +293,18 @@
                             <td>{{ inspection.id }}</td>
                             <td>{{ inspection.request_date|date:"Y-m-d" }}</td>
                             <td>{{ inspection.scheduled_date|date:"Y-m-d" }}</td>
+                            <td>{{ inspection.windows_count|default:"-" }}</td>
+                            <td>
+                                {% if inspection.inspector %}
+                                    {% if inspection.inspector.get_full_name %}
+                                        {{ inspection.inspector.get_full_name }}
+                                    {% else %}
+                                        {{ inspection.inspector.username }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <span class="badge {% if inspection.status == 'pending' %}bg-warning
                                            {% elif inspection.status == 'completed' %}bg-success
@@ -331,7 +345,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="8" class="text-center py-3">لم يتم إنشاء معاينة لهذا الطلب بعد</td>
+                            <td colspan="10" class="text-center py-3">لم يتم إنشاء معاينة لهذا الطلب بعد</td>
                         </tr>
                         {% endfor %}
                     </tbody>

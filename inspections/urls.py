@@ -20,6 +20,7 @@ urlpatterns = [
     path('<int:pk>/update/', views.InspectionUpdateView.as_view(), name='inspection_update'),
     path('<int:pk>/delete/', views.InspectionDeleteView.as_view(), name='inspection_delete'),
     path('<int:pk>/iterate/', views.iterate_inspection, name='iterate_inspection'),
+    path('ajax/duplicate-inspection/', views.ajax_duplicate_inspection, name='ajax_duplicate_inspection'),
     
     # Evaluations
     path('<int:inspection_pk>/evaluate/', views.EvaluationCreateView.as_view(), name='evaluation_create'),

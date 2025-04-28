@@ -5,7 +5,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Count, F
+from django.http import JsonResponse
 from .models import Inspection, InspectionReport, InspectionNotification, InspectionEvaluation
 from .forms import InspectionForm, InspectionReportForm, InspectionNotificationForm, InspectionEvaluationForm
 
@@ -111,12 +112,18 @@ class InspectionListView(LoginRequiredMixin, ListView):
         # Status and other filters
         status = self.request.GET.get('status')
         from_orders = self.request.GET.get('from_orders')
+        is_duplicated = self.request.GET.get('is_duplicated')
         today = timezone.now().date()
         
         if status == 'pending' and from_orders == '1':
             queryset = queryset.filter(status='pending', is_from_orders=True)
         elif status:
             queryset = queryset.filter(status=status)
+            
+        # Filter for duplicated inspections
+        if is_duplicated == '1':
+            # Find inspections where notes contain text indicating they are duplicates
+            queryset = queryset.filter(notes__contains='تكرار من المعاينة رقم:')
 
         return queryset.select_related('customer', 'inspector', 'branch')
 
@@ -137,12 +144,15 @@ class InspectionListView(LoginRequiredMixin, ListView):
             inspections = inspections.filter(branch_id=branch_id)
         
         # Get counts for all inspection types
+        duplicated_inspections = inspections.filter(notes__contains='تكرار من المعاينة رقم:').count()
+        
         context['dashboard'] = {
             'total_inspections': inspections.count(),
             'new_inspections': inspections.filter(status='pending').count(),
             'scheduled_inspections': inspections.filter(status='scheduled').count(),
             'successful_inspections': inspections.filter(status='completed').count(),
             'cancelled_inspections': inspections.filter(status='cancelled').count(),
+            'duplicated_inspections': duplicated_inspections,
         }
         
         # Add branches for filter
@@ -456,3 +466,81 @@ def iterate_inspection(request, pk):
     except Exception as e:
         messages.error(request, _('حدث خطأ أثناء تكرار المعاينة: {0}').format(str(e)))
         return redirect('inspections:inspection_detail', pk=pk)
+
+@login_required
+def ajax_duplicate_inspection(request):
+    """
+    AJAX endpoint for duplicating an inspection from the modal window.
+    """
+    if request.method == 'POST':
+        try:
+            # Get parameters from request
+            inspection_id = request.POST.get('inspection_id')
+            scheduled_date = request.POST.get('scheduled_date')
+            additional_notes = request.POST.get('additional_notes', '')
+            
+            # Validate parameters
+            if not inspection_id or not scheduled_date:
+                return JsonResponse({
+                    'success': False,
+                    'error': _('معلومات ناقصة. الرجاء تحديد المعاينة وتاريخ التنفيذ.')
+                })
+                
+            # Get the original inspection
+            original_inspection = get_object_or_404(Inspection, pk=inspection_id)
+            
+            # Verify the inspection is completed
+            if original_inspection.status != 'completed':
+                return JsonResponse({
+                    'success': False,
+                    'error': _('يمكن فقط تكرار المعاينات المكتملة.')
+                })
+                
+            # Format notes
+            notes = _('تكرار من المعاينة رقم: {0}\nملاحظات المعاينة السابقة:\n{1}').format(
+                original_inspection.contract_number,
+                original_inspection.notes
+            )
+            
+            # Add additional notes if provided
+            if additional_notes:
+                notes += f"\n\n{_('ملاحظات إضافية:')}\n{additional_notes}"
+                
+            # Create a new inspection based on the original
+            with transaction.atomic():
+                new_inspection = Inspection(
+                    customer=original_inspection.customer,
+                    branch=original_inspection.branch,
+                    inspector=original_inspection.inspector,
+                    responsible_employee=original_inspection.responsible_employee,
+                    is_from_orders=original_inspection.is_from_orders,
+                    windows_count=original_inspection.windows_count,
+                    request_date=timezone.now().date(),
+                    scheduled_date=scheduled_date,  # Use the date from the modal
+                    status='pending',
+                    notes=notes,
+                    order_notes=original_inspection.order_notes,
+                    created_by=request.user,
+                    order=original_inspection.order
+                )
+                
+                # Generate a new contract number
+                new_inspection.contract_number = None  # Will be auto-generated on save
+                new_inspection.save()
+            
+            return JsonResponse({
+                'success': True,
+                'inspection_id': new_inspection.id,
+                'message': _('تم إنشاء معاينة جديدة كتكرار للمعاينة السابقة بنجاح.'),
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    else:
+        return JsonResponse({
+            'success': False,
+            'error': _('طريقة الطلب غير مدعومة.')
+        })

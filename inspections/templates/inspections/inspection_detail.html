@@ -11,11 +11,6 @@
             <a href="{% url 'inspections:inspection_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-right"></i> {% trans 'عودة للقائمة' %}
             </a>
-            {% if inspection.status == 'completed' %}
-                <a href="{% url 'inspections:iterate_inspection' inspection.pk %}" class="btn btn-success">
-                    <i class="fas fa-sync-alt"></i> {% trans 'استمرار للتكرار' %}
-                </a>
-            {% endif %}
             {% if not inspection.status == 'completed' or not inspection.result == 'passed' %}
                 {% if not inspection.status == 'cancelled' or not inspection.result == 'failed' %}
                     <a href="{% url 'inspections:inspection_update' inspection.pk %}" class="btn btn-primary">
@@ -111,20 +106,24 @@
                             {% endif %}
                         </div>
                     </div>
-
-                    <!-- Inspection Notes Section -->
-                    {% if inspection.notes %}
-                    <div class="mb-4">
-                        <div class="card">
-                            <div class="card-header bg-primary text-white">
-                                <h5 class="card-title mb-0">{% trans 'ملاحظات المعاينة' %}</h5>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">{{ inspection.notes|linebreaks }}</p>
-                            </div>
+                    
+                    <!-- فني المعاينة -->
+                    <div class="row mb-3">
+                        <div class="col-sm-4">
+                            <strong>{% trans 'فني المعاينة' %}:</strong>
+                        </div>
+                        <div class="col-sm-8">
+                            {% if inspection.inspector %}
+                                {% if inspection.inspector.get_full_name %}
+                                    {{ inspection.inspector.get_full_name }}
+                                {% else %}
+                                    {{ inspection.inspector.username }}
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
                         </div>
                     </div>
-                    {% endif %}
                     
                     <!-- Salesperson Information -->
                     <div class="row mb-3">
@@ -139,6 +138,20 @@
                             {% endif %}
                         </div>
                     </div>
+                    
+                    <!-- Inspection Notes Section - Moved to the end -->
+                    {% if inspection.notes %}
+                    <div class="row mb-3">
+                        <div class="col-sm-4">
+                            <strong>{% trans 'ملاحظات' %}:</strong>
+                        </div>
+                        <div class="col-sm-8">
+                            <div class="p-2 bg-light rounded">
+                                {{ inspection.notes|linebreaks }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

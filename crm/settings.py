@@ -16,7 +16,7 @@ DEBUG = os.environ.get('DEBUG', '0').lower() in ['true', 't', '1']
 
 import os
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,web-production-f91f.up.railway.app').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -77,12 +77,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'crm.wsgi.application'
 
 # Database
-# Database
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': str(BASE_DIR / 'db.sqlite3'),
-    }
+    'default': dj_database_url.config(
+        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
+        conn_max_age=600
+    )
 }
 
 # Password validation
@@ -91,7 +92,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -159,28 +159,4 @@ if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://ewaw.up.railway.app",
-]
-
-CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://ewaw.up.railway.app",
-]
-
-# Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@example.com')
-
-# Required environment variables
-REQUIRED_ENV_VARS = [
-    'SECRET_KEY',
-    'DATABASE_URL',
-    'SITE_URL',
-]
-
-# Validate required environment variables
-for var in REQUIRED_ENV_VARS:
-    if var not in os.environ:
-        raise Exception(f'Required environment variable "{var}" is missing!')
+    "https://ewaw.up.railway.app

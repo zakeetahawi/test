@@ -159,4 +159,5 @@ if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://ewaw.up.railway.app
+    "https://ewaw.up.railway.app"
+]

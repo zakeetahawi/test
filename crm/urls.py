@@ -7,6 +7,7 @@ from .views_health import health_check
 
 urlpatterns = [
     path('health-check/', health_check, name='health_check'),
+    path('health/', health_check, name='health'),  # Add the /health/ endpoint
     path('', views.home, name='home'),
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),

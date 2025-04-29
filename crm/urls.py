@@ -20,6 +20,7 @@ urlpatterns = [
     path('inspections/', include('inspections.urls')),
     path('installations/', include('installations.urls')),
     path('data-import-export/', include('data_import_export.urls')),
+    path('data-backup/', include('data_backup.urls')),  # إضافة مسارات تطبيق المزامنة
     # API endpoints
     path('api/accounts/', include('accounts.urls', namespace='api_accounts')),
     path('api/customers/', include('customers.urls', namespace='api_customers')),

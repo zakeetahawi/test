@@ -36,20 +36,51 @@
                     </li>
                     
                     {% if user.is_superuser %}
-                        <!-- Show all departments for superuser -->
-                        {% for dept in all_departments %}
-                            {% if dept.code == 'factory' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url dept.url_name %}">
+                        <!-- Show all departments for superuser with dropdown navigation -->
+                        {% for dept in parent_departments %}
+                            <!-- Check if department has children or pages -->
+                            {% if dept.children.count > 0 or dept.has_pages %}
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="dept{{ dept.id }}Dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="{{ dept.icon }}"></i> {{ dept.name }}
                                     </a>
+                                    <ul class="dropdown-menu" aria-labelledby="dept{{ dept.id }}Dropdown">
+                                        <!-- Display link to main department page -->
+                                        {% if dept.url_name %}
+                                            <li><a class="dropdown-item" href="{% url dept.url_name %}">
+                                                <i class="fas fa-list"></i> {{ dept.name }} الرئيسية
+                                            </a></li>
+                                        {% endif %}
+                                        
+                                        <!-- Display child departments -->
+                                        {% for child in dept.children.all %}
+                                            {% if child.is_active and child.url_name %}
+                                                <li><a class="dropdown-item" href="{% url child.url_name %}">
+                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
+                                                </a></li>
+                                            {% elif child.is_active %}
+                                                <li><span class="dropdown-item">
+                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
+                                                </span></li>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </ul>
                                 </li>
                             {% else %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url dept.url_name %}">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
+                                <!-- Display department as normal link if no children -->
+                                {% if dept.url_name %}
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url dept.url_name %}">
+                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="nav-item">
+                                        <span class="nav-link">
+                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
+                                        </span>
+                                    </li>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
                         
@@ -61,19 +92,50 @@
                         </li>
                     {% else %}
                         <!-- Show only accessible departments for regular users -->
-                        {% for dept in user_departments %}
-                            {% if dept.code == 'factory' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url dept.url_name %}">
+                        {% for dept in user_parent_departments %}
+                            <!-- Check if department has children or pages -->
+                            {% if dept.children.count > 0 or dept.has_pages %}
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="dept{{ dept.id }}Dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="{{ dept.icon }}"></i> {{ dept.name }}
                                     </a>
+                                    <ul class="dropdown-menu" aria-labelledby="dept{{ dept.id }}Dropdown">
+                                        <!-- Display link to main department page -->
+                                        {% if dept.url_name and dept in user_departments %}
+                                            <li><a class="dropdown-item" href="{% url dept.url_name %}">
+                                                <i class="fas fa-list"></i> {{ dept.name }} الرئيسية
+                                            </a></li>
+                                        {% endif %}
+                                        
+                                        <!-- Display child departments if user has access -->
+                                        {% for child in dept.children.all %}
+                                            {% if child.is_active and child in user_departments and child.url_name %}
+                                                <li><a class="dropdown-item" href="{% url child.url_name %}">
+                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
+                                                </a></li>
+                                            {% elif child.is_active and child in user_departments %}
+                                                <li><span class="dropdown-item">
+                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
+                                                </span></li>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </ul>
                                 </li>
                             {% else %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url dept.url_name %}">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
+                                <!-- Display department as normal link if no children -->
+                                {% if dept.url_name and dept in user_departments %}
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url dept.url_name %}">
+                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
+                                        </a>
+                                    </li>
+                                {% elif dept in user_departments %}
+                                    <li class="nav-item">
+                                        <span class="nav-link">
+                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
+                                        </span>
+                                    </li>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
                     {% endif %}

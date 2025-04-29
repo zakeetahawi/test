@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}استيراد البيانات من Google Sheets{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <h1 class="mb-4 text-center">استيراد البيانات من Google Sheets</h1>
+    
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">استيراد البيانات</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <p><i class="fas fa-info-circle"></i> استخدم هذه الميزة لاستعادة البيانات من النسخة الاحتياطية على Google Sheets في حال تعرض قاعدة البيانات للمشاكل.</p>
+                        <p><strong>تحذير:</strong> استيراد البيانات سيؤدي إلى تحديث السجلات الموجودة أو إنشاء سجلات جديدة. يُرجى التأكد من صحة البيانات قبل الاستيراد.</p>
+                    </div>
+                    
+                    <form action="{% url 'data_backup:import_from_sheets' %}" method="post" class="mt-4">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="model" class="form-label">اختر النموذج للاستيراد:</label>
+                            <select name="model" id="model" class="form-select" required>
+                                <option value="">-- اختر --</option>
+                                {% for model_name, sheet_name, display_name in available_models %}
+                                    <option value="{{ model_name }}">{{ display_name }} ({{ sheet_name }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="sheet_name" class="form-label">اسم ورقة Google Sheet:</label>
+                            <select name="sheet_name" id="sheet_name" class="form-select" required>
+                                <option value="">-- اختر --</option>
+                                {% for model_name, sheet_name, display_name in available_models %}
+                                    <option value="{{ sheet_name }}">{{ sheet_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">اسم الورقة في ملف Google Sheets التي تحتوي على البيانات.</div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <p><i class="fas fa-exclamation-triangle"></i> تأكد من أن بنية الورقة تطابق بنية النموذج المُراد استيراده. يجب أن يكون السطر الأول يحتوي على أسماء الحقول.</p>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-file-import"></i> استيراد البيانات
+                            </button>
+                            <a href="{% url 'data_backup:dashboard' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> العودة للوحة التحكم
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ربط القائمتين المنسدلتين
+    document.addEventListener('DOMContentLoaded', function() {
+        const modelSelect = document.getElementById('model');
+        const sheetSelect = document.getElementById('sheet_name');
+        
+        modelSelect.addEventListener('change', function() {
+            const selectedOption = modelSelect.options[modelSelect.selectedIndex];
+            if (selectedOption.value) {
+                const sheetName = selectedOption.textContent.match(/\((.*?)\)/)[1];
+                
+                // تحديد الخيار المناسب في قائمة اسم الورقة
+                for (let i = 0; i < sheetSelect.options.length; i++) {
+                    if (sheetSelect.options[i].value === sheetName) {
+                        sheetSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

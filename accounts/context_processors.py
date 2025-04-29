@@ -3,21 +3,39 @@ from .utils import get_user_notifications
 
 def departments(request):
     """
-    Context processor to add departments to all templates
+    Context processor to add departments to all templates in a hierarchical structure
     """
+    # Get all active departments
     all_departments = Department.objects.filter(is_active=True).order_by('order')
+    
+    # Create hierarchical structure for parent/child departments
+    parent_departments = all_departments.filter(parent__isnull=True)
     
     # Get user-accessible departments
     user_departments = []
+    user_parent_departments = []
+    
     if request.user.is_authenticated:
         if request.user.is_superuser:
             user_departments = all_departments
+            user_parent_departments = parent_departments
         else:
             user_departments = request.user.departments.filter(is_active=True).order_by('order')
+            # Get unique parent departments
+            user_parent_ids = set()
+            for dept in user_departments:
+                if dept.parent:
+                    user_parent_ids.add(dept.parent.id)
+                else:
+                    user_parent_ids.add(dept.id)
+            
+            user_parent_departments = Department.objects.filter(id__in=user_parent_ids, is_active=True).order_by('order')
     
     return {
         'all_departments': all_departments,
+        'parent_departments': parent_departments,
         'user_departments': user_departments,
+        'user_parent_departments': user_parent_departments,
     }
 
 def notifications(request):

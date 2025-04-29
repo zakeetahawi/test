@@ -43,11 +43,16 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'url_name', 'is_active', 'order')
-    list_filter = ('is_active',)
+    list_display = ('name', 'code', 'department_type', 'parent', 'manager', 'is_active', 'order')
+    list_filter = ('department_type', 'is_active', 'parent')
     search_fields = ('name', 'code', 'description')
-    ordering = ['order', 'name']
+    ordering = ['department_type', 'order', 'name']
     prepopulated_fields = {'code': ('name',)}
+    raw_id_fields = ('parent', 'manager')
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('parent', 'manager')
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):

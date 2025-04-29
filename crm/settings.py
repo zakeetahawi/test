@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'orders',
     'reports',
     'data_import_export.apps.DataImportExportConfig',
+    'data_backup.apps.DataBackupConfig',  # إضافة تطبيق مزامنة البيانات
     'corsheaders',
 ]
 

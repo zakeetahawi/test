@@ -50,20 +50,63 @@ class Branch(models.Model):
         verbose_name_plural = 'الفروع'
 
 class Department(models.Model):
-    name = models.CharField(max_length=100)
-    code = models.CharField(max_length=50, unique=True)
-    description = models.TextField(blank=True, null=True)
-    icon = models.CharField(max_length=50, blank=True, null=True, help_text='Font Awesome icon name')
-    url_name = models.CharField(max_length=100, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    order = models.PositiveIntegerField(default=0)
+    DEPARTMENT_TYPE_CHOICES = [
+        ('administration', 'إدارة'),
+        ('department', 'قسم'),
+        ('unit', 'وحدة'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name='الاسم')
+    code = models.CharField(max_length=50, unique=True, verbose_name='الرمز')
+    department_type = models.CharField(
+        max_length=20, 
+        choices=DEPARTMENT_TYPE_CHOICES, 
+        default='department',
+        verbose_name='النوع'
+    )
+    description = models.TextField(blank=True, null=True, verbose_name='الوصف')
+    icon = models.CharField(max_length=50, blank=True, null=True, help_text='Font Awesome icon name', verbose_name='الأيقونة')
+    url_name = models.CharField(max_length=100, blank=True, null=True, verbose_name='اسم الرابط')
+    is_active = models.BooleanField(default=True, verbose_name='نشط')
+    order = models.PositiveIntegerField(default=0, verbose_name='الترتيب')
+    parent = models.ForeignKey(
+        'self', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True, 
+        related_name='children', 
+        verbose_name='القسم الرئيسي'
+    )
+    has_pages = models.BooleanField(
+        default=False, 
+        verbose_name='يحتوي على صفحات', 
+        help_text='حدد هذا الخيار إذا كان هذا القسم يحتوي على صفحات متعددة'
+    )
+    manager = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_departments',
+        verbose_name='المدير'
+    )
+
+    def get_full_path(self):
+        """إرجاع المسار الكامل للقسم من الأعلى إلى الأسفل"""
+        path = [self.name]
+        current = self.parent
+        while current:
+            path.append(current.name)
+            current = current.parent
+        return ' / '.join(reversed(path))
 
     def __str__(self):
-        return self.name
+        return f"{self.get_department_type_display()} - {self.name}"
 
     class Meta:
         verbose_name = 'قسم'
         verbose_name_plural = 'الأقسام'
+        ordering = ['order', 'name']
 
 class Notification(models.Model):
     PRIORITY_CHOICES = [

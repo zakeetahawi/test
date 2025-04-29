@@ -1,22 +1,52 @@
 # Ignore Python bytecode
 __pycache__/
 *.py[cod]
+*$py.class
 
 # Ignore virtual environment
 venv/
+env/
+ENV/
 
 # Ignore environment files
 .env
 .env.*
 
-# SQLite database backups
-*.sqlite3.bak
+# السماح بملف قاعدة البيانات
+# *.sqlite3
+# *.sqlite3.bak
+# db.sqlite3
+
+# Ignore secret files
+passwords.txt
+*secret*
+*key*
+generate_secret_key.py
+
+# Ignore media files that might contain sensitive data
+media/google_credentials/
+media/imports_exports/
 
 # Ignore OS files
 .DS_Store
 Thumbs.db
 
-# Ignore other common files
+# Ignore logs and caches
 *.log
 *.pot
 *.pyc
+logs/
+.cache/
+
+# Ignore other common files
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Local development settings
+local_settings.py
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/

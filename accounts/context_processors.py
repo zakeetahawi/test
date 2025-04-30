@@ -1,5 +1,7 @@
 from .models import Department, CompanyInfo
 from .utils import get_user_notifications
+from django.utils import timezone
+from accounts.models import FooterSettings
 
 def departments(request):
     """
@@ -61,14 +63,16 @@ def notifications(request):
     }
 
 def company_info(request):
-    """
-    Context processor to add company information to all templates
-    """
-    try:
-        company_info = CompanyInfo.objects.first()
-    except:
-        company_info = None
-    
+    """توفير معلومات الشركة لجميع القوالب"""
+    company_info = CompanyInfo.objects.first()
+    return {'company_info': company_info}
+
+def footer_settings(request):
+    """توفير إعدادات التذييل لجميع القوالب"""
+    footer_settings = FooterSettings.objects.first()
+    if not footer_settings:
+        footer_settings = FooterSettings.objects.create()
     return {
-        'company_info': company_info,
+        'footer_settings': footer_settings, 
+        'current_year': timezone.now().year
     }

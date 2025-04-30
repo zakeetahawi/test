@@ -19,6 +19,11 @@ class GoogleSheetsConfig(models.Model):
     sync_inspections = models.BooleanField(default=True, verbose_name=_('مزامنة المعاينات'))
     sync_installations = models.BooleanField(default=True, verbose_name=_('مزامنة التركيبات'))
     
+    # إضافة خيارات مزامنة جديدة للمعلومات النصية
+    sync_company_info = models.BooleanField(default=True, verbose_name=_('مزامنة معلومات الشركة'))
+    sync_contact_details = models.BooleanField(default=True, verbose_name=_('مزامنة بيانات التواصل'))
+    sync_system_settings = models.BooleanField(default=True, verbose_name=_('مزامنة إعدادات النظام'))
+    
     def __str__(self):
         return f"إعدادات مزامنة جوجل {self.id}"
     
@@ -47,3 +52,26 @@ class SyncLog(models.Model):
         verbose_name = _('سجل المزامنة')
         verbose_name_plural = _('سجلات المزامنة')
         ordering = ['-timestamp']
+
+class SystemConfiguration(models.Model):
+    """إعدادات النظام والبيانات النصية القابلة للمزامنة"""
+    CATEGORY_CHOICES = [
+        ('company_info', _('معلومات الشركة')),
+        ('contact_details', _('بيانات التواصل')),
+        ('system_settings', _('إعدادات النظام')),
+    ]
+    
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, verbose_name=_('القسم'))
+    key = models.CharField(max_length=100, verbose_name=_('المفتاح'))
+    value = models.TextField(blank=True, null=True, verbose_name=_('القيمة'))
+    description = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('الوصف'))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_('تاريخ التحديث'))
+    
+    class Meta:
+        verbose_name = _('إعداد النظام')
+        verbose_name_plural = _('إعدادات النظام')
+        unique_together = ('category', 'key')  # لا يمكن تكرار نفس المفتاح في نفس القسم
+        ordering = ['category', 'key']
+    
+    def __str__(self):
+        return f"{self.get_category_display()}: {self.key}"

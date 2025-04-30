@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import User, Branch, Department, Notification, CompanyInfo, FormField, SystemDBImportPermission, Salesperson
+from .models import User, Branch, Department, Notification, CompanyInfo, FormField, SystemDBImportPermission, Salesperson, ContactFormSettings, FooterSettings, AboutPageSettings
 from django.urls import path
 import os
 import shutil
@@ -185,7 +185,7 @@ class CompanyInfoAdmin(admin.ModelAdmin):
     list_display = ('name', 'phone', 'email', 'website')
     fieldsets = (
         (_('معلومات أساسية'), {
-            'fields': ('name', 'logo', 'address', 'phone', 'email', 'website', 'version', 'release_date', 'working_hours')
+            'fields': ('name', 'logo', 'address', 'phone', 'email', 'website', 'working_hours')
         }),
         (_('عن النظام'), {
             'fields': ('description',)
@@ -200,9 +200,16 @@ class CompanyInfoAdmin(admin.ModelAdmin):
             'fields': ('about', 'vision', 'mission')
         }),
         (_('إعدادات النظام'), {
-            'fields': ('primary_color', 'secondary_color', 'accent_color')
+            'fields': ('primary_color', 'secondary_color', 'accent_color', 'copyright_text')
+        }),
+        (_('معلومات النظام - للعرض فقط'), {
+            'fields': ('developer', 'version', 'release_date'),
+            'classes': ('collapse',),
+            'description': 'هذه المعلومات للعرض فقط ولا يمكن تعديلها إلا من قبل مطور النظام.'
         }),
     )
+    
+    readonly_fields = ('developer', 'version', 'release_date')
     
     def has_add_permission(self, request):
         # Check if there's already an instance
@@ -218,3 +225,67 @@ class FormFieldAdmin(admin.ModelAdmin):
     list_filter = ('form_type', 'field_type', 'required', 'enabled')
     search_fields = ('field_name', 'field_label')
     ordering = ['form_type', 'order']
+
+@admin.register(ContactFormSettings)
+class ContactFormSettingsAdmin(admin.ModelAdmin):
+    fieldsets = (
+        (_('إعدادات الصفحة'), {
+            'fields': ('title', 'description')
+        }),
+        (_('معلومات الاتصال'), {
+            'fields': ('company_name', 'contact_email', 'contact_phone', 'contact_address', 'contact_hours')
+        }),
+        (_('إعدادات النموذج'), {
+            'fields': ('form_title', 'form_success_message', 'form_error_message')
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # التحقق إذا كان هناك صف موجود بالفعل
+        return not ContactFormSettings.objects.exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+@admin.register(FooterSettings)
+class FooterSettingsAdmin(admin.ModelAdmin):
+    fieldsets = (
+        (_('إعدادات العمود الأيسر'), {
+            'fields': ('left_column_title', 'left_column_text')
+        }),
+        (_('إعدادات العمود الأوسط'), {
+            'fields': ('middle_column_title',)
+        }),
+        (_('إعدادات العمود الأيمن'), {
+            'fields': ('right_column_title',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # التحقق إذا كان هناك صف موجود بالفعل
+        return not FooterSettings.objects.exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+@admin.register(AboutPageSettings)
+class AboutPageSettingsAdmin(admin.ModelAdmin):
+    fieldsets = (
+        (_('إعدادات الصفحة'), {
+            'fields': ('title', 'subtitle', 'system_description')
+        }),
+        (_('معلومات النظام - للعرض فقط'), {
+            'fields': ('system_version', 'system_release_date', 'system_developer'),
+            'classes': ('collapse',),
+            'description': 'هذه المعلومات للعرض فقط ولا يمكن تعديلها إلا من قبل مطور النظام.'
+        }),
+    )
+    
+    readonly_fields = ('system_version', 'system_release_date', 'system_developer')
+    
+    def has_add_permission(self, request):
+        # التحقق إذا كان هناك صف موجود بالفعل
+        return not AboutPageSettings.objects.exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        return False

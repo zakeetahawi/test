@@ -128,6 +128,68 @@ class GoogleSheetsService:
             logger.error(f"خطأ في مزامنة نموذج {model_class.__name__}: {str(e)}")
             raise e
     
+    def sync_model_data_with_exclusions(self, spreadsheet_id, model_class, sheet_name=None, excluded_fields=None):
+        """مزامنة بيانات نموذج محدد مع جدول البيانات مع استبعاد حقول معينة"""
+        if sheet_name is None:
+            sheet_name = model_class.__name__
+            
+        if excluded_fields is None:
+            excluded_fields = []
+            
+        try:
+            # الحصول على جميع السجلات والحقول من النموذج - استخدام order_by للتأكد من أن العناصر الجديدة مدرجة
+            objects = model_class.objects.all().order_by('-id')
+            
+            # إذا لم تكن هناك سجلات، قم بمسح الجدول
+            if not objects:
+                # قم بإنشاء جدول فارغ مع الأعمدة فقط
+                fields = [field.name for field in model_class._meta.fields if field.name not in excluded_fields]
+                data = [fields]  # الصف الأول هو العناوين
+                self.create_or_update_sheet(spreadsheet_id, sheet_name, data)
+                logger.warning(f"لا توجد سجلات للمزامنة في نموذج {model_class.__name__}")
+                return 0
+                
+            # استخراج أسماء الحقول مع استبعاد الحقول المطلوب استبعادها
+            fields = [field.name for field in model_class._meta.fields if field.name not in excluded_fields]
+            
+            # تحضير البيانات للتصدير
+            data = [fields]  # الصف الأول هو العناوين
+            
+            for obj in objects:
+                row = []
+                for field in fields:
+                    try:
+                        value = getattr(obj, field)
+                        
+                        # معالجة القيم الخاصة مثل التواريخ والعلاقات
+                        if hasattr(value, 'pk'):
+                            # إذا كان الحقل علاقة، حاول الحصول على اسم الكائن المرتبط
+                            if hasattr(value, 'get_full_name') and callable(value.get_full_name):
+                                value = value.get_full_name()
+                            elif hasattr(value, 'name'):
+                                value = value.name
+                            elif hasattr(value, '__str__'):
+                                value = str(value)
+                            else:
+                                value = f"{value.pk}"
+                        elif isinstance(value, datetime):
+                            value = value.strftime('%Y-%m-%d %H:%M:%S')
+                            
+                        row.append(str(value) if value is not None else '')
+                    except Exception as e:
+                        logger.error(f"خطأ في معالجة الحقل {field} للكائن {obj.pk}: {str(e)}")
+                        row.append('')
+                        
+                data.append(row)
+            
+            # تحديث الجدول بالبيانات الجديدة
+            self.create_or_update_sheet(spreadsheet_id, sheet_name, data)
+            
+            return len(objects)
+        except Exception as e:
+            logger.error(f"خطأ في مزامنة نموذج {model_class.__name__}: {str(e)}")
+            raise e
+    
     def _prepare_field_value(self, model_class, field_name, value):
         """
         معالجة قيمة الحقل للاستيراد بناءً على نوع الحقل
@@ -243,13 +305,19 @@ class GoogleSheetsService:
         # الصف الأول يحتوي على أسماء الحقول
         headers = values[0]
         
+        # التحقق مما إذا كان الجدول هو جدول مجمع لمعلومات النظام
+        is_system_info_sheet = (sheet_name == 'معلومات النظام' and 
+                              len(headers) >= 4 and 
+                              'القسم' in headers and 
+                              'المعرف' in headers)
+        
         # قراءة جميع البيانات من الجدول
         imported_data = []
         for i, row in enumerate(values[1:], start=2):  # نبدأ من 2 لأن الصف الأول للعناوين
             if not row:  # تخطي الصفوف الفارغة
                 continue
                 
-            # توسيع الصف بالقيم الفارغة إذا كان أقصر من الصف العنواني
+            # توسيع الصف بالقيم الفارغة إذا كان أقصر من الصف العناوين
             row = row + [''] * (len(headers) - len(row))
             
             # بناء قاموس من الحقول والقيم
@@ -260,6 +328,10 @@ class GoogleSheetsService:
             
             imported_data.append(data)
         
+        # معالجة البيانات المجمعة لمعلومات النظام
+        if is_system_info_sheet:
+            return self._import_system_info_data(imported_data, replace_all)
+            
         # استخدام المعاملة لضمان تنفيذ جميع العمليات بنجاح أو التراجع عن جميع التغييرات
         with transaction.atomic():
             try:
@@ -298,7 +370,7 @@ class GoogleSheetsService:
                                         # إنشاء سجل جديد
                                         processed_data = {
                                             field: self._prepare_field_value(model_class, field, value) 
-                                            for field, value in data.items()
+                                            for field, value in data.items() if hasattr(model_class, field)
                                         }
                                         # إزالة القيم الفارغة التي ستسبب أخطاء
                                         processed_data = {k: v for k, v in processed_data.items() if v is not None or k in ['notes', 'address', 'email']}
@@ -312,7 +384,7 @@ class GoogleSheetsService:
                                 try:
                                     processed_data = {
                                         field: self._prepare_field_value(model_class, field, value) 
-                                        for field, value in data.items() if field != pk_field or not value
+                                        for field, value in data.items() if (field != pk_field or not value) and hasattr(model_class, field)
                                     }
                                     # إزالة القيم الفارغة التي ستسبب أخطاء
                                     processed_data = {k: v for k, v in processed_data.items() if v is not None or k in ['notes', 'address', 'email']}
@@ -342,14 +414,24 @@ class GoogleSheetsService:
                 
                 for data in imported_data:
                     try:
+                        # تنقية البيانات للتأكد من استخدام حقول موجودة فقط في النموذج
+                        valid_data = {}
+                        for field, value in data.items():
+                            if hasattr(model_class, field):
+                                valid_data[field] = value
+                        
+                        if not valid_data:
+                            errors.append(f"لا توجد حقول صالحة في البيانات: {data}")
+                            continue
+                        
                         # محاولة العثور على السجل الموجود باستخدام الحقل الأساسي
                         pk_field = model_class._meta.pk.name
-                        if pk_field in data and data[pk_field] and data[pk_field] != 'None':
+                        if pk_field in valid_data and valid_data[pk_field] and valid_data[pk_field] != 'None':
                             # حاول التحديث إذا لم نكن في وضع الاستبدال الكامل
                             if not replace_all:
-                                instance = model_class.objects.filter(**{pk_field: data[pk_field]}).first()
+                                instance = model_class.objects.filter(**{pk_field: valid_data[pk_field]}).first()
                                 if instance:
-                                    for field, value in data.items():
+                                    for field, value in valid_data.items():
                                         if hasattr(instance, field) and field != pk_field:
                                             processed_value = self._prepare_field_value(model_class, field, value)
                                             if processed_value is not None or field in ['notes', 'address', 'email']:
@@ -361,7 +443,7 @@ class GoogleSheetsService:
                             # إنشاء كائن جديد بالمعرف المحدد
                             processed_data = {
                                 field: self._prepare_field_value(model_class, field, value) 
-                                for field, value in data.items()
+                                for field, value in valid_data.items()
                             }
                             # إزالة القيم الفارغة التي ستسبب أخطاء
                             processed_data = {k: v for k, v in processed_data.items() if v is not None or k in ['notes', 'address', 'email']}
@@ -371,7 +453,7 @@ class GoogleSheetsService:
                             # إنشاء سجل جديد بدون مفتاح أساسي محدد مسبقًا
                             processed_data = {
                                 field: self._prepare_field_value(model_class, field, value) 
-                                for field, value in data.items() if field != pk_field or not value
+                                for field, value in valid_data.items() if field != pk_field or not value
                             }
                             # إزالة القيم الفارغة التي ستسبب أخطاء
                             processed_data = {k: v for k, v in processed_data.items() if v is not None or k in ['notes', 'address', 'email']}
@@ -392,3 +474,241 @@ class GoogleSheetsService:
                 # إذا حدث أي خطأ، يتم التراجع عن جميع التغييرات بسبب transaction.atomic
                 logger.error(f"حدث خطأ أثناء استيراد البيانات: {str(e)}")
                 raise e
+
+    def _import_system_info_data(self, imported_data, replace_all=False):
+        """
+        استيراد البيانات من صفحة معلومات النظام المجمعة
+        """
+        # تنظيم البيانات حسب النموذج
+        data_by_model = {}
+        
+        # تحديد النماذج المطلوبة
+        from django.apps import apps
+        model_mapping = {
+            'CompanyInfo': apps.get_model('accounts', 'CompanyInfo'),
+            'ContactFormSettings': apps.get_model('accounts', 'ContactFormSettings'),
+            'FooterSettings': apps.get_model('accounts', 'FooterSettings'),
+            'AboutPageSettings': apps.get_model('accounts', 'AboutPageSettings'),
+        }
+        
+        # تنظيم البيانات حسب النموذج
+        for row in imported_data:
+            if 'المعرف' not in row or 'القسم' not in row or 'الاسم' not in row or 'القيمة' not in row:
+                continue
+                
+            model_name = row['المعرف']
+            if model_name not in model_mapping:
+                continue
+                
+            field_name = row['الاسم']
+            field_value = row['القيمة']
+            
+            # إضافة البيانات إلى القاموس المناسب
+            if model_name not in data_by_model:
+                data_by_model[model_name] = {}
+                
+            data_by_model[model_name][field_name] = field_value
+            
+        # استيراد البيانات لكل نموذج
+        total_imported = 0
+        errors = []
+        
+        with transaction.atomic():
+            for model_name, data in data_by_model.items():
+                try:
+                    model_class = model_mapping.get(model_name)
+                    if not model_class:
+                        continue
+                        
+                    # معالجة البيانات للنموذج الحالي
+                    # في الغالب نقوم بتحديث أول سجل موجود أو إنشاء واحد جديد
+                    instance = model_class.objects.first()
+                    if not instance:
+                        instance = model_class()
+                        
+                    # تحديث الحقول المسموح بها فقط
+                    valid_fields = [f.name for f in model_class._meta.fields]
+                    for field, value in data.items():
+                        # البحث عن اسم الحقل الفعلي من خلال verbose_name
+                        actual_field_name = None
+                        for f in model_class._meta.fields:
+                            if f.verbose_name == field:
+                                actual_field_name = f.name
+                                break
+                                
+                        # إذا لم نجد الحقل من خلال verbose_name، نستخدم الاسم كما هو
+                        if not actual_field_name and field in valid_fields:
+                            actual_field_name = field
+                            
+                        if actual_field_name and actual_field_name in valid_fields:
+                            # معالجة القيمة بناءً على نوع الحقل
+                            processed_value = self._prepare_field_value(model_class, actual_field_name, value)
+                            setattr(instance, actual_field_name, processed_value)
+                            
+                    # حفظ التغييرات
+                    instance.save()
+                    total_imported += 1
+                    
+                except Exception as e:
+                    error_msg = f'خطأ في استيراد {model_name}: {str(e)}'
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+                    
+            if errors:
+                raise Exception('\n'.join(errors))
+                
+        return total_imported
+    
+    def sync_system_config_data(self, spreadsheet_id, config_data, sheet_name):
+        """
+        مزامنة بيانات الإعدادات النصية مع جدول البيانات
+        """
+        try:
+            # إذا لم تكن هناك بيانات، قم بإنشاء جدول فارغ مع العناوين فقط
+            if not config_data:
+                headers = ['المعرف', 'القسم', 'المفتاح', 'القيمة', 'الوصف', 'تاريخ التحديث']
+                data = [headers]
+                self.create_or_update_sheet(spreadsheet_id, sheet_name, data)
+                logger.warning(f"لا توجد بيانات للمزامنة في {sheet_name}")
+                return 0
+                
+            # تحضير البيانات للتصدير
+            headers = ['المعرف', 'القسم', 'المفتاح', 'القيمة', 'الوصف', 'تاريخ التحديث']
+            data = [headers]  # الصف الأول هو العناوين
+            
+            for item in config_data:
+                category_display = dict(item._meta.model.CATEGORY_CHOICES).get(item.category, item.category)
+                row = [
+                    str(item.id),
+                    category_display,
+                    item.key,
+                    item.value or '',
+                    item.description or '',
+                    item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '',
+                ]
+                data.append(row)
+            
+            # تحديث الجدول بالبيانات
+            self.create_or_update_sheet(spreadsheet_id, sheet_name, data)
+            
+            return len(config_data)
+        except Exception as e:
+            logger.error(f"خطأ في مزامنة بيانات {sheet_name}: {str(e)}")
+            raise e
+            
+    def import_system_config_data(self, spreadsheet_id, sheet_name, replace_all=False):
+        """
+        استيراد بيانات الإعدادات النصية من جدول البيانات
+        """
+        from ..models import SystemConfiguration
+        
+        sheets = self.service.spreadsheets()
+        
+        # الحصول على بيانات الورقة
+        result = sheets.values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f'{sheet_name}!A:F'
+        ).execute()
+        
+        values = result.get('values', [])
+        if not values or len(values) <= 1:
+            return 0  # لا توجد بيانات أو فقط الصف العنواني
+            
+        # معالجة البيانات المستلمة
+        imported_count = 0
+        
+        # استخدام المعاملة لضمان تنفيذ جميع العمليات بنجاح أو التراجع
+        from django.db import transaction
+        
+        with transaction.atomic():
+            # تحديد القسم استنادًا إلى اسم الورقة
+            category_map = {
+                'معلومات الشركة': 'company_info',
+                'بيانات التواصل': 'contact_details',
+                'إعدادات النظام': 'system_settings',
+            }
+            
+            default_category = category_map.get(sheet_name)
+            if not default_category:
+                # محاولة تحديد القسم من البيانات
+                for row in values[1:]:  # تخطي الصف العنواني
+                    if len(row) > 1:  # تأكد من أن الصف يحتوي على بيانات كافية
+                        for cat_key, cat_name in SystemConfiguration.CATEGORY_CHOICES:
+                            if row[1] == cat_name:  # فحص القيمة في العمود الثاني (القسم)
+                                default_category = cat_key
+                                break
+                        if default_category:
+                            break
+                            
+            if not default_category:
+                raise ValueError(f"تعذر تحديد القسم المناسب لورقة {sheet_name}")
+                
+            # حذف البيانات الموجودة إذا كان مطلوبًا
+            if replace_all:
+                SystemConfiguration.objects.filter(category=default_category).delete()
+                
+            # معالجة البيانات
+            for i, row in enumerate(values[1:], start=2):  # تخطي الصف العنواني
+                if not row or len(row) < 3:  # تأكد من وجود على الأقل معرف، قسم، مفتاح
+                    continue
+                    
+                # استخراج البيانات من الصف
+                config_id = int(row[0]) if row[0].isdigit() else None
+                
+                # تحديد القسم - استخدام القسم من البيانات أو القسم الافتراضي
+                category = None
+                
+                if len(row) > 1:
+                    # البحث عن القسم بناءً على الاسم المعروض
+                    for cat_key, cat_name in SystemConfiguration.CATEGORY_CHOICES:
+                        if row[1] == cat_name:
+                            category = cat_key
+                            break
+                            
+                # إذا لم يتم العثور على القسم، استخدم القسم الافتراضي
+                if not category:
+                    category = default_category
+                    
+                # باقي البيانات
+                key = row[2] if len(row) > 2 else None
+                value = row[3] if len(row) > 3 else None
+                description = row[4] if len(row) > 4 else None
+                    
+                if not key:  # تخطي الصفوف بدون مفتاح
+                    continue
+                    
+                # البحث عن السجل الموجود أو إنشاء سجل جديد
+                try:
+                    if config_id:
+                        config_item = SystemConfiguration.objects.filter(id=config_id).first()
+                    else:
+                        config_item = None
+                        
+                    if not config_item:
+                        # البحث عن السجل باستخدام القسم والمفتاح
+                        config_item = SystemConfiguration.objects.filter(
+                            category=category, key=key
+                        ).first()
+                        
+                    if config_item:
+                        # تحديث السجل الموجود
+                        config_item.value = value
+                        if description:
+                            config_item.description = description
+                        config_item.save()
+                    else:
+                        # إنشاء سجل جديد
+                        SystemConfiguration.objects.create(
+                            category=category,
+                            key=key,
+                            value=value,
+                            description=description
+                        )
+                        
+                    imported_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"خطأ في معالجة الصف {i}: {str(e)}")
+                    raise e
+                    
+        return imported_count

@@ -13,7 +13,8 @@ class GoogleSheetsConfigAdmin(admin.ModelAdmin):
             'fields': ('auto_sync_enabled', 'sync_interval_minutes', 'last_sync')
         }),
         ('البيانات للمزامنة', {
-            'fields': ('sync_customers', 'sync_orders', 'sync_products', 'sync_inspections', 'sync_installations')
+            'fields': ('sync_customers', 'sync_orders', 'sync_products', 'sync_inspections', 'sync_installations',
+                      'sync_company_info', 'sync_contact_details', 'sync_system_settings')
         }),
     )
     readonly_fields = ('last_sync',)

@@ -6,6 +6,7 @@ from customers.models import Customer
 from orders.models import Order
 from factory.models import ProductionOrder
 from inventory.models import Product
+from accounts.models import CompanyInfo, ContactFormSettings, AboutPageSettings, FooterSettings
 import re
 
 from django.http import HttpResponse
@@ -54,8 +55,18 @@ def about(request):
     """
     View for the about page
     """
+    # الحصول على إعدادات صفحة حول النظام أو إنشاء إعداد افتراضي إذا لم يكن موجودًا
+    about_settings = AboutPageSettings.objects.first()
+    if not about_settings:
+        about_settings = AboutPageSettings.objects.create()
+    
     context = {
-        'title': 'عن النظام',
+        'title': about_settings.title,
+        'subtitle': about_settings.subtitle,
+        'system_description': about_settings.system_description,
+        'system_version': about_settings.system_version,
+        'system_release_date': about_settings.system_release_date,
+        'system_developer': about_settings.system_developer,
         'current_year': timezone.now().year,
     }
     return render(request, 'about.html', context)
@@ -64,6 +75,11 @@ def contact(request):
     """
     View for the contact page
     """
+    # الحصول على إعدادات نموذج الاتصال أو إنشاء إعداد افتراضي إذا لم يكن موجودًا
+    contact_settings = ContactFormSettings.objects.first()
+    if not contact_settings:
+        contact_settings = ContactFormSettings.objects.create()
+    
     if request.method == 'POST':
         name = request.POST.get('name')
         email = request.POST.get('email')
@@ -71,17 +87,24 @@ def contact(request):
         message = request.POST.get('message')
         
         if not all([name, email, subject, message]):
-            messages.error(request, 'يرجى ملء جميع الحقول المطلوبة.')
+            messages.error(request, contact_settings.form_error_message)
         elif not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             messages.error(request, 'يرجى إدخال بريد إلكتروني صحيح.')
         else:
             # Here you would typically send the email
             # For now, we'll just show a success message
-            messages.success(request, 'تم إرسال رسالتك بنجاح. سنتواصل معك قريباً.')
+            messages.success(request, contact_settings.form_success_message)
             return redirect('contact')
     
     context = {
-        'title': 'اتصل بنا',
+        'title': contact_settings.title,
+        'description': contact_settings.description,
+        'form_title': contact_settings.form_title,
+        'company_name': contact_settings.company_name,  # إضافة اسم الشركة
+        'contact_email': contact_settings.contact_email,
+        'contact_phone': contact_settings.contact_phone,
+        'contact_address': contact_settings.contact_address,
+        'contact_hours': contact_settings.contact_hours,
         'current_year': timezone.now().year,
     }
     return render(request, 'contact.html', context)

@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from . import views
 from .views_health import health_check
+from accounts.views import admin_logout_view
 
 urlpatterns = [
     path('health-check/', health_check, name='health_check'),
@@ -12,6 +13,7 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),
     path('admin/', admin.site.urls),
+    path('admin/logout/', admin_logout_view, name='admin_logout'),  # Ruta personalizada para logout de admin
     path('accounts/', include('accounts.urls')),
     path('customers/', include('customers.urls')),
     path('factory/', include('factory.urls')),

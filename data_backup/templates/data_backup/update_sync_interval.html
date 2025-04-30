@@ -9,19 +9,19 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">تعديل فترة المزامنة التلقائية</h5>
+                    <h5 class="mb-0">تعديل إعدادات المزامنة</h5>
                 </div>
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
                         
-                        <div class="alert alert-info">
+                        <div class="alert alert-info mb-4">
                             <p><i class="fas fa-info-circle"></i> الوقت المحدد هنا سيطبق على فترة المزامنة التلقائية.</p>
-                            <p>الحد الأدنى للوقت هو دقيقة واحدة (1) والحد الأقصى هو 1440 دقيقة (24 ساعة).</p>
+                            <p class="mb-0">الحد الأدنى للوقت هو دقيقة واحدة (1) والحد الأقصى هو 1440 دقيقة (24 ساعة).</p>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="{{ form.sync_interval_minutes.id_for_label }}" class="form-label">{{ form.sync_interval_minutes.label }}</label>
+                        <div class="mb-4">
+                            <label for="{{ form.sync_interval_minutes.id_for_label }}" class="form-label fw-bold">{{ form.sync_interval_minutes.label }}</label>
                             {{ form.sync_interval_minutes }}
                             {% if form.sync_interval_minutes.errors %}
                                 <div class="alert alert-danger mt-2">
@@ -33,7 +33,61 @@
                             </div>
                         </div>
                         
-                        <div class="d-grid gap-2 d-md-flex">
+                        <h5 class="mb-3">اختر البيانات التي تريد مزامنتها:</h5>
+                        
+                        <div class="row">
+                            <!-- النماذج الأساسية -->
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">البيانات الأساسية</div>
+                                    <div class="card-body">
+                                        <div class="mb-2 form-check">
+                                            {{ form.sync_customers }}
+                                            <label class="form-check-label" for="{{ form.sync_customers.id_for_label }}">{{ form.sync_customers.label }}</label>
+                                        </div>
+                                        <div class="mb-2 form-check">
+                                            {{ form.sync_orders }}
+                                            <label class="form-check-label" for="{{ form.sync_orders.id_for_label }}">{{ form.sync_orders.label }}</label>
+                                        </div>
+                                        <div class="mb-2 form-check">
+                                            {{ form.sync_products }}
+                                            <label class="form-check-label" for="{{ form.sync_products.id_for_label }}">{{ form.sync_products.label }}</label>
+                                        </div>
+                                        <div class="mb-2 form-check">
+                                            {{ form.sync_inspections }}
+                                            <label class="form-check-label" for="{{ form.sync_inspections.id_for_label }}">{{ form.sync_inspections.label }}</label>
+                                        </div>
+                                        <div class="form-check">
+                                            {{ form.sync_installations }}
+                                            <label class="form-check-label" for="{{ form.sync_installations.id_for_label }}">{{ form.sync_installations.label }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- البيانات النصية الجديدة -->
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">البيانات النصية</div>
+                                    <div class="card-body">
+                                        <div class="mb-2 form-check">
+                                            {{ form.sync_company_info }}
+                                            <label class="form-check-label" for="{{ form.sync_company_info.id_for_label }}">{{ form.sync_company_info.label }}</label>
+                                        </div>
+                                        <div class="mb-2 form-check">
+                                            {{ form.sync_contact_details }}
+                                            <label class="form-check-label" for="{{ form.sync_contact_details.id_for_label }}">{{ form.sync_contact_details.label }}</label>
+                                        </div>
+                                        <div class="form-check">
+                                            {{ form.sync_system_settings }}
+                                            <label class="form-check-label" for="{{ form.sync_system_settings.id_for_label }}">{{ form.sync_system_settings.label }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex mt-4">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save"></i> حفظ التغييرات
                             </button>

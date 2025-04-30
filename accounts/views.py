@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.contrib.admin.views.decorators import staff_member_required
+from django.views.decorators.http import require_http_methods
 
 from .models import Notification, CompanyInfo, FormField
 from .utils import get_user_notifications
@@ -60,6 +61,14 @@ def logout_view(request):
     logout(request)
     messages.success(request, 'تم تسجيل الخروج بنجاح.')
     return redirect('home')
+
+def admin_logout_view(request):
+    """
+    View for admin logout that supports GET method
+    """
+    logout(request)
+    messages.success(request, 'تم تسجيل الخروج بنجاح.')
+    return redirect('admin:index')
 
 @login_required
 def profile_view(request):

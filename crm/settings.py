@@ -70,6 +70,7 @@ TEMPLATES = [
                 'accounts.context_processors.departments',
                 'accounts.context_processors.notifications',
                 'accounts.context_processors.company_info',
+                'accounts.context_processors.footer_settings',
             ],
         },
     },

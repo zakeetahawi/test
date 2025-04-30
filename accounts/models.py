@@ -154,11 +154,24 @@ class Notification(models.Model):
         ordering = ['-created_at']
 
 class CompanyInfo(models.Model):
-    version = models.CharField(max_length=50, blank=True, default='', verbose_name='إصدار النظام')
-    release_date = models.CharField(max_length=50, blank=True, default='', verbose_name='تاريخ الإطلاق')
-    developer = models.CharField(max_length=100, blank=True, default='', verbose_name='المطور')
+    # حقول مخصصة للنظام - لا يمكن تغييرها إلا من المبرمج
+    version = models.CharField(max_length=50, blank=True, default='1.0.0', verbose_name='إصدار النظام', editable=False)
+    release_date = models.CharField(max_length=50, blank=True, default='2025-04-30', verbose_name='تاريخ الإطلاق', editable=False)
+    developer = models.CharField(max_length=100, blank=True, default='zakee tahawi', verbose_name='المطور', editable=False)
     working_hours = models.CharField(max_length=100, blank=True, default='', verbose_name='ساعات العمل')
-    name = models.CharField(max_length=200)
+    
+    # اسم الشركة
+    name = models.CharField(max_length=200, default='Elkhawaga', verbose_name='اسم الشركة')
+    
+    # نص حقوق النشر المخصص
+    copyright_text = models.CharField(
+        max_length=255, 
+        default='جميع الحقوق محفوظة لشركة الخواجة للستائر والمفروشات تطوير zakee tahawi', 
+        verbose_name='نص حقوق النشر',
+        blank=True
+    )
+    
+    # باقي الحقول
     logo = models.ImageField(upload_to='company_logos/', null=True, blank=True)
     address = models.TextField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -185,7 +198,6 @@ class CompanyInfo(models.Model):
     class Meta:
         verbose_name = 'معلومات الشركة'
         verbose_name_plural = 'معلومات الشركة'
-
 
 class FormField(models.Model):
     FORM_TYPE_CHOICES = [
@@ -280,4 +292,84 @@ class Salesperson(models.Model):
             
     def save(self, *args, **kwargs):
         self.clean()
+        super().save(*args, **kwargs)
+
+class ContactFormSettings(models.Model):
+    """إعدادات نموذج الاتصال"""
+    title = models.CharField(max_length=100, default='اتصل بنا', verbose_name='عنوان الصفحة')
+    description = models.TextField(blank=True, null=True, verbose_name='وصف الصفحة')
+    
+    # اسم الشركة المعروض في صفحة الاتصال
+    company_name = models.CharField(max_length=200, default='Elkhawaga', verbose_name='اسم الشركة')
+    
+    # معلومات جهات الاتصال
+    contact_email = models.EmailField(default='info@elkhawaga.com', verbose_name='البريد الإلكتروني للاتصال')
+    contact_phone = models.CharField(max_length=20, default='+20 123 456 7890', verbose_name='رقم الهاتف للاتصال')
+    contact_address = models.TextField(blank=True, null=True, verbose_name='عنوان المكتب')
+    contact_hours = models.CharField(max_length=100, default='9 صباحاً - 5 مساءً', verbose_name='ساعات العمل')
+    
+    # إعدادات النموذج
+    form_title = models.CharField(max_length=100, default='نموذج الاتصال', verbose_name='عنوان النموذج')
+    form_success_message = models.CharField(max_length=200, default='تم إرسال رسالتك بنجاح. سنتواصل معك قريباً.', verbose_name='رسالة النجاح')
+    form_error_message = models.CharField(max_length=200, default='يرجى ملء جميع الحقول المطلوبة.', verbose_name='رسالة الخطأ')
+    
+    class Meta:
+        verbose_name = 'إعدادات نموذج الاتصال'
+        verbose_name_plural = 'إعدادات نموذج الاتصال'
+    
+    def __str__(self):
+        return 'إعدادات نموذج الاتصال'
+    
+    def save(self, *args, **kwargs):
+        # نتأكد أن هناك صف واحد فقط من الإعدادات
+        if not self.pk and ContactFormSettings.objects.exists():
+            return  # لا تحفظ إذا كان هناك صف موجود بالفعل
+        super().save(*args, **kwargs)
+
+class FooterSettings(models.Model):
+    """إعدادات تذييل الصفحة"""
+    left_column_title = models.CharField(max_length=100, default='عن الشركة', verbose_name='عنوان العمود الأيسر')
+    left_column_text = models.TextField(default='نظام متكامل لإدارة العملاء والمبيعات والإنتاج والمخزون', verbose_name='نص العمود الأيسر')
+    
+    middle_column_title = models.CharField(max_length=100, default='روابط سريعة', verbose_name='عنوان العمود الأوسط')
+    
+    right_column_title = models.CharField(max_length=100, default='تواصل معنا', verbose_name='عنوان العمود الأيمن')
+    
+    class Meta:
+        verbose_name = 'إعدادات تذييل الصفحة'
+        verbose_name_plural = 'إعدادات تذييل الصفحة'
+    
+    def __str__(self):
+        return 'إعدادات تذييل الصفحة'
+    
+    def save(self, *args, **kwargs):
+        # نتأكد أن هناك صف واحد فقط من الإعدادات
+        if not self.pk and FooterSettings.objects.exists():
+            return  # لا تحفظ إذا كان هناك صف موجود بالفعل
+        super().save(*args, **kwargs)
+
+class AboutPageSettings(models.Model):
+    """إعدادات صفحة عن النظام"""
+    title = models.CharField(max_length=100, default='عن النظام', verbose_name='عنوان الصفحة')
+    subtitle = models.CharField(max_length=200, default='نظام إدارة المصنع والعملاء', verbose_name='العنوان الفرعي')
+    
+    # معلومات النظام - للعرض فقط
+    system_version = models.CharField(max_length=50, default='1.0.0', editable=False, verbose_name='إصدار النظام')
+    system_release_date = models.CharField(max_length=50, default='2025-04-30', editable=False, verbose_name='تاريخ الإطلاق')
+    system_developer = models.CharField(max_length=100, default='zakee tahawi', editable=False, verbose_name='المطور')
+    
+    # وصف النظام - قابل للتعديل
+    system_description = models.TextField(default='نظام متكامل لإدارة العملاء والمبيعات والإنتاج والمخزون', verbose_name='وصف النظام')
+    
+    class Meta:
+        verbose_name = 'إعدادات صفحة عن النظام'
+        verbose_name_plural = 'إعدادات صفحة عن النظام'
+    
+    def __str__(self):
+        return 'إعدادات صفحة عن النظام'
+    
+    def save(self, *args, **kwargs):
+        # نتأكد أن هناك صف واحد فقط من الإعدادات
+        if not self.pk and AboutPageSettings.objects.exists():
+            return  # لا تحفظ إذا كان هناك صف موجود بالفعل
         super().save(*args, **kwargs)

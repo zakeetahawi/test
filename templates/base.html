@@ -260,39 +260,241 @@
     </main>
 
     <!-- Footer -->
-    <footer class="text-white mt-5 py-4" style="background-color: var(--accent);">
+    <footer class="footer-area text-white mt-5 py-4" style="background-color: var(--accent);">
         <div class="container">
             <div class="row">
-                <div class="col-md-6">
-                    <h5>{{ company_info.name|default:"نظام الخواجه لإدارة العملاء" }}</h5>
-                    <p>{{ company_info.description|default:"نظام متكامل لإدارة العملاء والمبيعات والإنتاج والمخزون" }}</p>
-                    
+                <div class="col-md-5">
+                    <h5 class="footer-title">
+                        <i class="fas fa-building me-2"></i>
+                        {{ footer_settings.left_column_title|default:company_info.name }}
+                    </h5>
+                    <p class="footer-description ps-4 border-start border-3 border-light">
+                        {{ footer_settings.left_column_text|default:company_info.description }}
+                    </p>
+                    {% if company_info.facebook or company_info.twitter or company_info.instagram or company_info.linkedin %}
+                    <div class="social-icons mt-3">
+                        {% if company_info.facebook %}
+                        <a href="{{ company_info.facebook }}" class="social-icon me-2" target="_blank" title="Facebook">
+                            <i class="fab fa-facebook-f fa-fw"></i>
+                        </a>
+                        {% endif %}
+                        {% if company_info.twitter %}
+                        <a href="{{ company_info.twitter }}" class="social-icon me-2" target="_blank" title="Twitter">
+                            <i class="fab fa-twitter fa-fw"></i>
+                        </a>
+                        {% endif %}
+                        {% if company_info.instagram %}
+                        <a href="{{ company_info.instagram }}" class="social-icon me-2" target="_blank" title="Instagram">
+                            <i class="fab fa-instagram fa-fw"></i>
+                        </a>
+                        {% endif %}
+                        {% if company_info.linkedin %}
+                        <a href="{{ company_info.linkedin }}" class="social-icon me-2" target="_blank" title="LinkedIn">
+                            <i class="fab fa-linkedin-in fa-fw"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="col-md-3">
-                    <h5>روابط سريعة</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="{% url 'home' %}" class="text-white">الرئيسية</a></li>
-                        <li><a href="{% url 'about' %}" class="text-white">عن النظام</a></li>
-                        <li><a href="{% url 'contact' %}" class="text-white">اتصل بنا</a></li>
+                    <h5 class="footer-title">
+                        <i class="fas fa-link me-2"></i>
+                        {{ footer_settings.middle_column_title|default:"روابط سريعة" }}
+                    </h5>
+                    <ul class="footer-links">
+                        <li>
+                            <a href="{% url 'home' %}" class="footer-link">
+                                <i class="fas fa-home fa-fw me-1"></i> الرئيسية
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'about' %}" class="footer-link">
+                                <i class="fas fa-info-circle fa-fw me-1"></i> عن النظام
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'contact' %}" class="footer-link">
+                                <i class="fas fa-envelope fa-fw me-1"></i> اتصل بنا
+                            </a>
+                        </li>
                     </ul>
                 </div>
-                <div class="col-md-3">
-                    <h5>تواصل معنا</h5>
-                    <ul class="list-unstyled">
-                        <li><i class="fas fa-phone"></i> {{ company_info.phone|default:"+20 123 456 7890" }}</li>
-                        <li><i class="fas fa-envelope"></i> {{ company_info.email|default:"info@elkhawaga.com" }}</li>
+                <div class="col-md-4">
+                    <h5 class="footer-title">
+                        <i class="fas fa-headset me-2"></i>
+                        {{ footer_settings.right_column_title|default:"تواصل معنا" }}
+                    </h5>
+                    <ul class="footer-contact-info">
+                        <li>
+                            <a href="tel:{{ company_info.phone|default:'+20 123 456 7890' }}" class="footer-contact-item">
+                                <span class="icon-circle">
+                                    <i class="fas fa-phone-alt"></i>
+                                </span>
+                                <span>{{ company_info.phone|default:"+20 123 456 7890" }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="mailto:{{ company_info.email|default:'info@elkhawaga.com' }}" class="footer-contact-item">
+                                <span class="icon-circle">
+                                    <i class="fas fa-envelope"></i>
+                                </span>
+                                <span>{{ company_info.email|default:"info@elkhawaga.com" }}</span>
+                            </a>
+                        </li>
                         {% if company_info.address %}
-                        <li><i class="fas fa-map-marker-alt"></i> {{ company_info.address }}</li>
+                        <li>
+                            <div class="footer-contact-item">
+                                <span class="icon-circle">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </span>
+                                <span>{{ company_info.address }}</span>
+                            </div>
+                        </li>
+                        {% endif %}
+                        {% if company_info.working_hours %}
+                        <li>
+                            <div class="footer-contact-item">
+                                <span class="icon-circle">
+                                    <i class="fas fa-clock"></i>
+                                </span>
+                                <span>{{ company_info.working_hours }}</span>
+                            </div>
+                        </li>
                         {% endif %}
                     </ul>
                 </div>
             </div>
-            <hr>
-            <div class="text-center">
-                <p>&copy; {{ current_year }} {{ company_info.name|default:"نظام الخواجه" }}. جميع الحقوق محفوظة. <span class="ms-2">by zakee tahawi</span></p>
+            <hr class="footer-divider">
+            <div class="text-center footer-bottom">
+                <p class="copyright-text mb-0">
+                    <i class="far fa-copyright me-1"></i>
+                    {{ current_year }} 
+                    {{ company_info.copyright_text|default:"جميع الحقوق محفوظة لشركة الخواجة للستائر والمفروشات - تطوير zakee tahawi" }}
+                </p>
             </div>
         </div>
     </footer>
+
+    <style>
+    /* أنماط التذييل الاحترافي */
+    .footer-area {
+        background: linear-gradient(to right, var(--accent), var(--dark));
+    }
+    
+    .footer-title {
+        margin-bottom: 1.5rem;
+        font-weight: 700;
+        position: relative;
+        padding-bottom: 0.5rem;
+    }
+    
+    .footer-title::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        height: 2px;
+        width: 50px;
+        background-color: rgba(255,255,255,0.5);
+    }
+
+    .footer-description {
+        opacity: 0.9;
+        line-height: 1.6;
+    }
+    
+    .social-icons {
+        display: flex;
+    }
+    
+    .social-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        color: white;
+        background-color: rgba(255,255,255,0.1);
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+    
+    .social-icon:hover {
+        background-color: rgba(255,255,255,0.3);
+        color: white;
+        transform: translateY(-3px);
+    }
+    
+    .footer-links {
+        padding: 0;
+        list-style: none;
+    }
+    
+    .footer-links li {
+        margin-bottom: 0.75rem;
+    }
+    
+    .footer-link {
+        color: rgba(255,255,255,0.9);
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: block;
+        padding: 0.35rem 0;
+    }
+    
+    .footer-link:hover {
+        color: white;
+        transform: translateX(-5px);
+    }
+    
+    .footer-contact-info {
+        padding: 0;
+        list-style: none;
+    }
+    
+    .footer-contact-info li {
+        margin-bottom: 1rem;
+    }
+    
+    .footer-contact-item {
+        display: flex;
+        align-items: center;
+        color: rgba(255,255,255,0.9);
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    
+    a.footer-contact-item:hover {
+        color: white;
+    }
+    
+    .icon-circle {
+        width: 36px;
+        height: 36px;
+        background-color: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 0.75rem;
+        flex-shrink: 0;
+    }
+    
+    .footer-divider {
+        margin: 1.5rem 0;
+        border-color: rgba(255,255,255,0.2);
+    }
+    
+    .footer-bottom {
+        padding-top: 1rem;
+    }
+    
+    .copyright-text {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    </style>
 
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>

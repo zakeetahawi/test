@@ -80,6 +80,17 @@
                                 {% if config.sync_installations %}
                                     <li><i class="fas fa-check text-success"></i> التركيبات</li>
                                 {% endif %}
+                                
+                                <!-- إضافة الخيارات الجديدة للمزامنة -->
+                                {% if config.sync_company_info %}
+                                    <li><i class="fas fa-check text-success"></i> معلومات الشركة</li>
+                                {% endif %}
+                                {% if config.sync_contact_details %}
+                                    <li><i class="fas fa-check text-success"></i> بيانات التواصل</li>
+                                {% endif %}
+                                {% if config.sync_system_settings %}
+                                    <li><i class="fas fa-check text-success"></i> إعدادات النظام</li>
+                                {% endif %}
                             </ul>
                         </div>
                         

@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'data_import_export.apps.DataImportExportConfig',
     'data_backup.apps.DataBackupConfig',  # إضافة تطبيق مزامنة البيانات
     'corsheaders',
+    'django_apscheduler', # إضافة مكتبة جدولة المهام
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -161,3 +162,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "https://ewaw.up.railway.app"
 ]
+
+# Django APScheduler settings
+APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
+SCHEDULER_DEFAULT = True

@@ -23,10 +23,11 @@
         <div class="container">
             <a class="navbar-brand" href="{% url 'home' %}">
                 <div class="d-flex align-items-center">
-                    <img src="{% static 'img/logo.png' %}" alt="شعار النظام" class="logo-img" style="width: 40px; height: 40px;">
+                    <img src="{% static 'img/logo.png' %}" alt="شعار النظام" class="logo-img">
+                    <span class="ms-2 d-none d-sm-inline">نظام الخواجه</span>
                 </div>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -84,11 +85,21 @@
                             {% endif %}
                         {% endfor %}
                         
-                        <!-- Data Import/Export Link -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'data_import_export:dashboard' %}">
-                                <i class="fas fa-file-import"></i> استيراد/تصدير البيانات
+                        <!-- Data Management Dropdown -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="dataManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-database"></i> إدارة البيانات
                             </a>
+                            <ul class="dropdown-menu" aria-labelledby="dataManagementDropdown">
+                                <li><a class="dropdown-item" href="{% url 'data_import_export:dashboard' %}">
+                                    <i class="fas fa-file-import"></i> استيراد وتصدير البيانات
+                                </a></li>
+                                {% if user.is_superuser %}
+                                <li><a class="dropdown-item" href="{% url 'data_backup:dashboard' %}">
+                                    <i class="fas fa-sync"></i> مزامنة غوغل
+                                </a></li>
+                                {% endif %}
+                            </ul>
                         </li>
                     {% else %}
                         <!-- Show only accessible departments for regular users -->
@@ -140,11 +151,11 @@
                         {% endfor %}
                     {% endif %}
                 </ul>
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center ms-auto">
                     {% if user.is_authenticated %}
                     <!-- Notifications Dropdown -->
-                    <div class="dropdown me-2">
-                        <button class="btn btn-outline-light position-relative" type="button" id="notificationsDropdown" data-bs-toggle="dropdown">
+                    <div class="dropdown me-3">
+                        <button class="btn btn-outline-light position-relative" type="button" id="notificationsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-bell"></i>
                             {% if notifications_count > 0 %}
                             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
@@ -153,7 +164,7 @@
                             </span>
                             {% endif %}
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end" style="width: 300px;">
+                        <ul class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationsDropdown">
                             <li>
                                 <h6 class="dropdown-header">الإشعارات</h6>
                             </li>
@@ -193,11 +204,11 @@
                     </div>
                     
                     <!-- User Dropdown -->
-                    <div class="dropdown me-2">
-                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user"></i> {{ user.get_full_name|default:user.username }}
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li>
                                 <div class="px-3 py-2">
                                     <select class="form-select" id="themeSelector">

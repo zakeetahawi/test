@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.apps import apps
 from .models import GoogleSheetsConfig, SyncLog
 from .services.google_sheets_service import GoogleSheetsService
+from .forms import SyncIntervalForm
 
 @user_passes_test(lambda u: u.is_staff)
 def backup_dashboard(request):
@@ -180,3 +181,35 @@ def import_from_sheets(request):
     }
     
     return render(request, 'data_backup/import_from_sheets.html', context)
+
+@user_passes_test(lambda u: u.is_staff)
+def update_sync_interval(request):
+    """تحديث فترة المزامنة التلقائية"""
+    config = GoogleSheetsConfig.objects.first()
+    if not config:
+        messages.error(request, 'لم يتم تكوين إعدادات المزامنة بعد.')
+        return redirect('data_backup:dashboard')
+    
+    if request.method == 'POST':
+        form = SyncIntervalForm(request.POST, instance=config)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'تم تحديث فترة المزامنة بنجاح.')
+            
+            # إعادة تسجيل العملية في سجل المزامنة
+            SyncLog.objects.create(
+                status='success',
+                details=f'تم تغيير فترة المزامنة التلقائية إلى {form.cleaned_data["sync_interval_minutes"]} دقيقة',
+                records_synced=0,
+                triggered_by=request.user
+            )
+            
+            return redirect('data_backup:dashboard')
+    else:
+        form = SyncIntervalForm(instance=config)
+    
+    return render(request, 'data_backup/update_sync_interval.html', {
+        'form': form,
+        'config': config,
+        'title': 'تعديل فترة المزامنة'
+    })

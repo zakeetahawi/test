@@ -5,6 +5,9 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from django.conf import settings
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 class GoogleSheetsService:
     """خدمة التعامل مع Google Sheets API"""
@@ -59,35 +62,54 @@ class GoogleSheetsService:
         if sheet_name is None:
             sheet_name = model_class.__name__
             
-        # الحصول على جميع السجلات والحقول من النموذج
-        objects = model_class.objects.all()
-        
-        # إذا لم تكن هناك سجلات، لا داعي للمتابعة
-        if not objects:
-            return 0
+        try:
+            # الحصول على جميع السجلات والحقول من النموذج - استخدام order_by للتأكد من أن العناصر الجديدة مدرجة
+            objects = model_class.objects.all().order_by('-id')
             
-        # استخراج أسماء الحقول
-        fields = [field.name for field in model_class._meta.fields]
-        
-        # تحضير البيانات للتصدير
-        data = [fields]  # الصف الأول هو العناوين
-        
-        for obj in objects:
-            row = []
-            for field in fields:
-                value = getattr(obj, field)
-                # معالجة القيم الخاصة مثل التواريخ والعلاقات
-                if hasattr(value, 'pk'):
-                    value = str(value)
-                elif isinstance(value, datetime):
-                    value = value.strftime('%Y-%m-%d %H:%M:%S')
-                row.append(str(value) if value is not None else '')
-            data.append(row)
-        
-        # تحديث الجدول
-        self.create_or_update_sheet(spreadsheet_id, sheet_name, data)
-        
-        return len(objects)
+            # إذا لم تكن هناك سجلات، لا داعي للمتابعة
+            if not objects:
+                logger.warning(f"لا توجد سجلات للمزامنة في نموذج {model_class.__name__}")
+                return 0
+                
+            # استخراج أسماء الحقول
+            fields = [field.name for field in model_class._meta.fields]
+            
+            # تحضير البيانات للتصدير
+            data = [fields]  # الصف الأول هو العناوين
+            
+            for obj in objects:
+                row = []
+                for field in fields:
+                    try:
+                        value = getattr(obj, field)
+                        # معالجة القيم الخاصة مثل التواريخ والعلاقات
+                        if hasattr(value, 'pk'):
+                            # إذا كان الحقل علاقة، حاول الحصول على اسم الكائن المرتبط
+                            if hasattr(value, 'get_full_name') and callable(value.get_full_name):
+                                value = value.get_full_name()
+                            elif hasattr(value, 'name'):
+                                value = value.name
+                            elif hasattr(value, '__str__'):
+                                value = str(value)
+                            else:
+                                value = f"{value.pk}"
+                        elif isinstance(value, datetime):
+                            value = value.strftime('%Y-%m-%d %H:%M:%S')
+                            
+                        row.append(str(value) if value is not None else '')
+                    except Exception as e:
+                        logger.error(f"خطأ في معالجة الحقل {field} للكائن {obj.pk}: {str(e)}")
+                        row.append('')
+                        
+                data.append(row)
+            
+            # تحديث الجدول
+            self.create_or_update_sheet(spreadsheet_id, sheet_name, data)
+            
+            return len(objects)
+        except Exception as e:
+            logger.error(f"خطأ في مزامنة نموذج {model_class.__name__}: {str(e)}")
+            raise e
 
     def import_data_from_sheet(self, spreadsheet_id, sheet_name, model_class):
         """استيراد البيانات من ورقة جوجل إلى قاعدة البيانات"""

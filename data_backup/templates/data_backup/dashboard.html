@@ -7,6 +7,21 @@
 <div class="container my-4">
     <h1 class="mb-4 text-center">لوحة تحكم النسخ الاحتياطي والمزامنة</h1>
     
+    <!-- إضافة زر واضح لاستيراد البيانات من Google Sheets -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h4 class="mb-3">استيراد البيانات من جداول Google</h4>
+                    <p>يمكنك استيراد البيانات من ملفات جداول Google التي تم مزامنتها مسبقاً.</p>
+                    <a href="{% url 'data_backup:import_from_sheets' %}" class="btn btn-lg btn-success">
+                        <i class="fas fa-file-import fa-lg"></i> استيراد البيانات من Google Sheets
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="row">
         <div class="col-md-6 mb-4">
             <div class="card h-100">
@@ -75,10 +90,6 @@
                                     <i class="fas fa-sync"></i> مزامنة البيانات الآن
                                 </button>
                             </form>
-                            
-                            <a href="{% url 'data_backup:import_from_sheets' %}" class="btn btn-success mb-2">
-                                <i class="fas fa-file-import"></i> استيراد البيانات من Google Sheets
-                            </a>
                         </div>
                     {% else %}
                         <div class="alert alert-warning">
@@ -140,6 +151,43 @@
                             لم تتم أي عمليات مزامنة بعد.
                         </div>
                     {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- قسم منفصل للإجراءات الإضافية -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">خيارات إضافية</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">استيراد البيانات من Google</h5>
+                                    <p class="card-text">استيراد البيانات من جداول Google التي تم حفظها مسبقاً.</p>
+                                    <a href="{% url 'data_backup:import_from_sheets' %}" class="btn btn-success">
+                                        <i class="fas fa-download"></i> استيراد من Google Sheets
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">تعديل إعدادات المزامنة</h5>
+                                    <p class="card-text">تغيير إعدادات المزامنة والنماذج التي يتم مزامنتها.</p>
+                                    <a href="{% url 'admin:data_backup_googlesheetsconfig_changelist' %}" class="btn btn-primary">
+                                        <i class="fas fa-cog"></i> تعديل الإعدادات
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

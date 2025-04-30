@@ -89,7 +89,7 @@ class Customer(models.Model):
         blank=True
     )
     phone = models.CharField(_('رقم الهاتف'), max_length=20)
-    email = models.EmailField(_('البريد الإلكتروني'), blank=True)
+    email = models.EmailField(_('البريد الإلكتروني'), blank=True, null=True)
     address = models.TextField(_('العنوان'))
     status = models.CharField(
         _('الحالة'),

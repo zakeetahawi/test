@@ -21,25 +21,29 @@
                     
                     <form action="{% url 'data_backup:import_from_sheets' %}" method="post" class="mt-4">
                         {% csrf_token %}
+                        
                         <div class="mb-3">
-                            <label for="model" class="form-label">اختر النموذج للاستيراد:</label>
-                            <select name="model" id="model" class="form-select" required>
-                                <option value="">-- اختر --</option>
-                                {% for model_name, sheet_name, display_name in available_models %}
-                                    <option value="{{ model_name }}">{{ display_name }} ({{ sheet_name }})</option>
-                                {% endfor %}
-                            </select>
+                            <label for="{{ form.model_choice.id_for_label }}" class="form-label">اختر النموذج للاستيراد:</label>
+                            {{ form.model_choice }}
+                            <div class="form-text">نوع البيانات التي ترغب في استيرادها</div>
                         </div>
                         
                         <div class="mb-3">
-                            <label for="sheet_name" class="form-label">اسم ورقة Google Sheet:</label>
-                            <select name="sheet_name" id="sheet_name" class="form-select" required>
-                                <option value="">-- اختر --</option>
-                                {% for model_name, sheet_name, display_name in available_models %}
-                                    <option value="{{ sheet_name }}">{{ sheet_name }}</option>
-                                {% endfor %}
-                            </select>
+                            <label for="{{ form.sheet_name.id_for_label }}" class="form-label">اسم ورقة Google Sheet:</label>
+                            {{ form.sheet_name }}
                             <div class="form-text">اسم الورقة في ملف Google Sheets التي تحتوي على البيانات.</div>
+                        </div>
+                        
+                        <div class="mb-3 form-check p-3 border rounded bg-light">
+                            <div class="d-flex align-items-center mb-2">
+                                {{ form.replace_all }}
+                                <label class="form-check-label mx-2 fw-bold" for="{{ form.replace_all.id_for_label }}">
+                                    {{ form.replace_all.label }}
+                                </label>
+                            </div>
+                            <div class="alert alert-danger mb-0 mt-2">
+                                <i class="fas fa-exclamation-circle"></i> تحذير: هذا سيؤدي إلى حذف جميع البيانات الحالية في النموذج المحدد واستبدالها بالبيانات المستوردة فقط!
+                            </div>
                         </div>
                         
                         <div class="alert alert-warning">
@@ -62,22 +66,13 @@
 </div>
 
 <script>
-    // ربط القائمتين المنسدلتين
     document.addEventListener('DOMContentLoaded', function() {
-        const modelSelect = document.getElementById('model');
-        const sheetSelect = document.getElementById('sheet_name');
-        
-        modelSelect.addEventListener('change', function() {
-            const selectedOption = modelSelect.options[modelSelect.selectedIndex];
-            if (selectedOption.value) {
-                const sheetName = selectedOption.textContent.match(/\((.*?)\)/)[1];
-                
-                // تحديد الخيار المناسب في قائمة اسم الورقة
-                for (let i = 0; i < sheetSelect.options.length; i++) {
-                    if (sheetSelect.options[i].value === sheetName) {
-                        sheetSelect.selectedIndex = i;
-                        break;
-                    }
+        // إظهار تحذير عند اختيار استبدال البيانات
+        const replaceAllCheckbox = document.getElementById('{{ form.replace_all.id_for_label }}');
+        replaceAllCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!confirm('تحذير مهم: هذا سيؤدي إلى حذف جميع البيانات الحالية في النموذج المحدد! هل أنت متأكد؟')) {
+                    this.checked = false;
                 }
             }
         });

@@ -56,6 +56,10 @@ def import_data(request):
             model_name = form.cleaned_data['model_name']
             import_log.is_multi_sheet = is_multi_sheet or model_name == 'multi_sheet'
             
+            # Check if we should import only new records
+            new_only = form.cleaned_data.get('new_only', False)
+            import_log.details = 'استيراد البيانات الجديدة فقط' if new_only else 'استيراد وتحديث البيانات'
+            
             # If model_name is 'multi_sheet', set it to a default value temporarily
             # It will be determined automatically during processing
             if model_name == 'multi_sheet':
@@ -74,7 +78,7 @@ def import_data(request):
                 if file_ext == '.xlsx' and import_log.is_multi_sheet:
                     # Process multi-sheet Excel file
                     from .utils import process_multi_sheet_import
-                    success_count, error_count, error_details_list = process_multi_sheet_import(file_path, import_log)
+                    success_count, error_count, error_details_list = process_multi_sheet_import(file_path, import_log, new_only=new_only)
                     error_details = '\n'.join(error_details_list)
                     records_count = success_count + error_count
                     
@@ -107,15 +111,15 @@ def import_data(request):
                 if file_ext == '.xlsx':
                     # Process Excel file
                     df = pd.read_excel(file_path)
-                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class)
+                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class, new_only=new_only)
                 elif file_ext == '.csv':
                     df = pd.read_csv(file_path)
-                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class)
+                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class, new_only=new_only)
                 elif file_ext == '.json':
                     with open(file_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                     df = pd.DataFrame(data)
-                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class)
+                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class, new_only=new_only)
                 else:
                     raise ValueError(f"صيغة الملف غير مدعومة: {file_ext}")
                 
@@ -155,7 +159,7 @@ def import_data(request):
     
     return render(request, 'data_import_export/import_form.html', context)
 
-def process_dataframe(df, model, model_class):
+def process_dataframe(df, model, model_class, new_only=False):
     """
     Process a dataframe for importing data
     
@@ -163,6 +167,7 @@ def process_dataframe(df, model, model_class):
         df: Pandas DataFrame
         model: Model name
         model_class: Model class
+        new_only: Boolean indicating whether to import only new records
         
     Returns:
         Tuple of (records_count, success_count, error_count, error_details)
@@ -198,19 +203,23 @@ def process_dataframe(df, model, model_class):
                 # Handle specific model import logic
                 if model == 'product':
                     # Handle product import
-                    instance = handle_product_import(row_dict)
+                    instance = handle_product_import(row_dict, new_only=new_only)
                 elif model == 'supplier':
                     # Handle supplier import
-                    instance = handle_supplier_import(row_dict)
+                    instance = handle_supplier_import(row_dict, new_only=new_only)
                 elif model == 'customer':
                     # Handle customer import
-                    instance = handle_customer_import(row_dict)
+                    instance = handle_customer_import(row_dict, new_only=new_only)
                 elif model == 'order':
                     # Handle order import
-                    instance = handle_order_import(row_dict)
+                    instance = handle_order_import(row_dict, new_only=new_only)
                 else:
                     # Generic import
-                    instance = model_class.objects.create(**row_dict)
+                    if new_only:
+                        if not model_class.objects.filter(**row_dict).exists():
+                            instance = model_class.objects.create(**row_dict)
+                    else:
+                        instance = model_class.objects.create(**row_dict)
                 
                 success_count += 1
             except Exception as e:
@@ -505,7 +514,7 @@ def download_import_template(request, pk):
 
 # Helper functions for importing specific models
 
-def handle_product_import(data):
+def handle_product_import(data, new_only=False):
     """
     Handle product import
     """
@@ -518,17 +527,30 @@ def handle_product_import(data):
     
     # Create or update product
     if 'code' in data and data['code']:
-        product, created = Product.objects.update_or_create(
-            code=data['code'],
-            defaults={
-                'name': data.get('name', ''),
-                'description': data.get('description', ''),
-                'unit': data.get('unit', 'piece'),
-                'price': data.get('price', 0),
-                'minimum_stock': data.get('minimum_stock', 0),
-                'category': category,
-            }
-        )
+        if new_only:
+            product = Product.objects.filter(code=data['code']).first()
+            if not product:
+                product = Product.objects.create(
+                    code=data['code'],
+                    name=data.get('name', ''),
+                    description=data.get('description', ''),
+                    unit=data.get('unit', 'piece'),
+                    price=data.get('price', 0),
+                    minimum_stock=data.get('minimum_stock', 0),
+                    category=category,
+                )
+        else:
+            product, created = Product.objects.update_or_create(
+                code=data['code'],
+                defaults={
+                    'name': data.get('name', ''),
+                    'description': data.get('description', ''),
+                    'unit': data.get('unit', 'piece'),
+                    'price': data.get('price', 0),
+                    'minimum_stock': data.get('minimum_stock', 0),
+                    'category': category,
+                }
+            )
     else:
         product = Product.objects.create(
             name=data.get('name', ''),
@@ -542,7 +564,7 @@ def handle_product_import(data):
     
     return product
 
-def handle_supplier_import(data):
+def handle_supplier_import(data, new_only=False):
     """
     Handle supplier import
     """
@@ -550,23 +572,36 @@ def handle_supplier_import(data):
     
     # Create or update supplier
     if 'name' in data and data['name']:
-        supplier, created = Supplier.objects.update_or_create(
-            name=data['name'],
-            defaults={
-                'contact_person': data.get('contact_person', ''),
-                'phone': data.get('phone', ''),
-                'email': data.get('email', ''),
-                'address': data.get('address', ''),
-                'tax_number': data.get('tax_number', ''),
-                'notes': data.get('notes', ''),
-            }
-        )
+        if new_only:
+            supplier = Supplier.objects.filter(name=data['name']).first()
+            if not supplier:
+                supplier = Supplier.objects.create(
+                    name=data['name'],
+                    contact_person=data.get('contact_person', ''),
+                    phone=data.get('phone', ''),
+                    email=data.get('email', ''),
+                    address=data.get('address', ''),
+                    tax_number=data.get('tax_number', ''),
+                    notes=data.get('notes', ''),
+                )
+        else:
+            supplier, created = Supplier.objects.update_or_create(
+                name=data['name'],
+                defaults={
+                    'contact_person': data.get('contact_person', ''),
+                    'phone': data.get('phone', ''),
+                    'email': data.get('email', ''),
+                    'address': data.get('address', ''),
+                    'tax_number': data.get('tax_number', ''),
+                    'notes': data.get('notes', ''),
+                }
+            )
     else:
         raise ValueError('Supplier name is required')
     
     return supplier
 
-def handle_customer_import(data):
+def handle_customer_import(data, new_only=False):
     """
     Handle customer import
     """
@@ -590,18 +625,32 @@ def handle_customer_import(data):
     
     # Create or update customer
     if 'code' in data and data['code']:
-        customer, created = Customer.objects.update_or_create(
-            code=data['code'],
-            defaults={
-                'name': data.get('name', ''),
-                'phone': data.get('phone', ''),
-                'email': data.get('email', ''),
-                'address': data.get('address', ''),
-                'customer_type': data.get('customer_type', 'individual'),
-                'category': category,
-                'branch': branch,
-            }
-        )
+        if new_only:
+            customer = Customer.objects.filter(code=data['code']).first()
+            if not customer:
+                customer = Customer.objects.create(
+                    code=data['code'],
+                    name=data.get('name', ''),
+                    phone=data.get('phone', ''),
+                    email=data.get('email', ''),
+                    address=data.get('address', ''),
+                    customer_type=data.get('customer_type', 'individual'),
+                    category=category,
+                    branch=branch,
+                )
+        else:
+            customer, created = Customer.objects.update_or_create(
+                code=data['code'],
+                defaults={
+                    'name': data.get('name', ''),
+                    'phone': data.get('phone', ''),
+                    'email': data.get('email', ''),
+                    'address': data.get('address', ''),
+                    'customer_type': data.get('customer_type', 'individual'),
+                    'category': category,
+                    'branch': branch,
+                }
+            )
     else:
         customer = Customer.objects.create(
             name=data.get('name', ''),
@@ -616,7 +665,7 @@ def handle_customer_import(data):
     
     return customer
 
-def handle_order_import(data):
+def handle_order_import(data, new_only=False):
     """
     Handle order import
     """
@@ -646,16 +695,28 @@ def handle_order_import(data):
     
     # Create or update order
     if 'order_number' in data and data['order_number']:
-        order, created = Order.objects.update_or_create(
-            order_number=data['order_number'],
-            defaults={
-                'customer': customer,
-                'delivery_date': data.get('delivery_date'),
-                'status': data.get('status', 'pending'),
-                'notes': data.get('notes', ''),
-                'created_by': user,
-            }
-        )
+        if new_only:
+            order = Order.objects.filter(order_number=data['order_number']).first()
+            if not order:
+                order = Order.objects.create(
+                    order_number=data['order_number'],
+                    customer=customer,
+                    delivery_date=data.get('delivery_date'),
+                    status=data.get('status', 'pending'),
+                    notes=data.get('notes', ''),
+                    created_by=user,
+                )
+        else:
+            order, created = Order.objects.update_or_create(
+                order_number=data['order_number'],
+                defaults={
+                    'customer': customer,
+                    'delivery_date': data.get('delivery_date'),
+                    'status': data.get('status', 'pending'),
+                    'notes': data.get('notes', ''),
+                    'created_by': user,
+                }
+            )
     else:
         order = Order.objects.create(
             customer=customer,

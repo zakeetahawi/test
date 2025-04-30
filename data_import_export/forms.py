@@ -28,9 +28,17 @@ class ImportForm(forms.ModelForm):
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
     
+    new_only = forms.BooleanField(
+        label=_('استيراد البيانات الجديدة فقط'),
+        help_text=_('عند اختيار هذا الخيار، سيتم استيراد السجلات الجديدة فقط ولن يتم تحديث السجلات الموجودة'),
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    
     class Meta:
         model = ImportExportLog
-        fields = ['model_name', 'file', 'is_multi_sheet']
+        fields = ['model_name', 'file', 'is_multi_sheet', 'new_only']
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -40,7 +48,9 @@ class ImportForm(forms.ModelForm):
             ('multi_sheet', _('ملف متعدد الصفحات (تحديد تلقائي)')),
             ('inventory.product', _('المنتجات')),
             ('inventory.supplier', _('الموردين')),
+            ('inventory.category', _('التصنيفات')),
             ('customers.customer', _('العملاء')),
+            ('customers.customercategory', _('تصنيفات العملاء')),
             ('orders.order', _('الطلبات')),
         ]
         

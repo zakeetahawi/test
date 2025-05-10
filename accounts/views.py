@@ -8,10 +8,11 @@ from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_http_methods
+from django.db.models import Q
 
-from .models import Notification, CompanyInfo, FormField
+from .models import Notification, CompanyInfo, FormField, Department, Salesperson, Branch, Role, UserRole
 from .utils import get_user_notifications
-from .forms import CompanyInfoForm, FormFieldForm
+from .forms import CompanyInfoForm, FormFieldForm, DepartmentForm, SalespersonForm, RoleForm, RoleAssignForm, UserRoleForm
 
 def login_view(request):
     """
@@ -326,3 +327,471 @@ def toggle_form_field(request, pk):
         })
     
     return JsonResponse({'success': False, 'message': 'طريقة غير صالحة.'})
+
+# إدارة الأقسام Department Management Views
+
+@staff_member_required
+def department_list(request):
+    """
+    عرض قائمة الأقسام مع إمكانية البحث والتصفية
+    """
+    search_query = request.GET.get('search', '')
+    parent_filter = request.GET.get('parent', '')
+    
+    # قاعدة البيانات الأساسية
+    departments = Department.objects.all()
+    
+    # تطبيق البحث
+    if search_query:
+        departments = departments.filter(
+            Q(name__icontains=search_query) |
+            Q(code__icontains=search_query) |
+            Q(description__icontains=search_query)
+        )
+    
+    # تصفية حسب القسم الرئيسي
+    if parent_filter:
+        departments = departments.filter(parent_id=parent_filter)
+    
+    # الترتيب
+    departments = departments.order_by('order', 'name')
+    
+    # التقسيم لصفحات
+    paginator = Paginator(departments, 15)  # 15 قسم في كل صفحة
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # جلب قائمة الأقسام الرئيسية للتصفية
+    parent_departments = Department.objects.filter(parent__isnull=True)
+    
+    context = {
+        'page_obj': page_obj,
+        'total_departments': departments.count(),
+        'search_query': search_query,
+        'parent_filter': parent_filter,
+        'parent_departments': parent_departments,
+        'title': 'إدارة الأقسام',
+    }
+    
+    return render(request, 'accounts/department_list.html', context)
+
+@staff_member_required
+def department_create(request):
+    """
+    إنشاء قسم جديد
+    """
+    if request.method == 'POST':
+        form = DepartmentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'تم إضافة القسم بنجاح.')
+            return redirect('accounts:department_list')
+    else:
+        form = DepartmentForm()
+    
+    context = {
+        'form': form,
+        'title': 'إضافة قسم جديد',
+    }
+    
+    return render(request, 'accounts/department_form.html', context)
+
+@staff_member_required
+def department_update(request, pk):
+    """
+    تحديث قسم
+    """
+    department = get_object_or_404(Department, pk=pk)
+    
+    if request.method == 'POST':
+        form = DepartmentForm(request.POST, instance=department)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'تم تحديث القسم بنجاح.')
+            return redirect('accounts:department_list')
+    else:
+        form = DepartmentForm(instance=department)
+    
+    context = {
+        'form': form,
+        'department': department,
+        'title': 'تعديل القسم',
+    }
+    
+    return render(request, 'accounts/department_form.html', context)
+
+@staff_member_required
+def department_delete(request, pk):
+    """
+    حذف قسم
+    """
+    department = get_object_or_404(Department, pk=pk)
+    
+    if request.method == 'POST':
+        # فحص ما إذا كان القسم يحتوي على أقسام فرعية
+        if department.children.exists():
+            messages.error(request, 'لا يمكن حذف القسم لأنه يحتوي على أقسام فرعية.')
+            return redirect('accounts:department_list')
+        
+        department.delete()
+        messages.success(request, 'تم حذف القسم بنجاح.')
+        return redirect('accounts:department_list')
+    
+    context = {
+        'department': department,
+        'title': 'حذف القسم',
+    }
+    
+    return render(request, 'accounts/department_confirm_delete.html', context)
+
+@staff_member_required
+def toggle_department(request, pk):
+    """
+    تفعيل/إيقاف قسم
+    """
+    if request.method == 'POST':
+        department = get_object_or_404(Department, pk=pk)
+        department.is_active = not department.is_active
+        department.save()
+        
+        return JsonResponse({
+            'success': True, 
+            'is_active': department.is_active,
+            'department_id': department.id
+        })
+    
+    return JsonResponse({'success': False, 'message': 'طريقة غير صالحة.'})
+
+# إدارة البائعين Salesperson Management Views
+
+@staff_member_required
+def salesperson_list(request):
+    """
+    عرض قائمة البائعين مع إمكانية البحث والتصفية
+    """
+    search_query = request.GET.get('search', '')
+    branch_filter = request.GET.get('branch', '')
+    is_active = request.GET.get('is_active', '')
+    
+    # قاعدة البيانات الأساسية
+    salespersons = Salesperson.objects.all()
+    
+    # تطبيق البحث
+    if search_query:
+        salespersons = salespersons.filter(
+            Q(name__icontains=search_query) |
+            Q(employee_number__icontains=search_query) |
+            Q(phone__icontains=search_query)
+        )
+    
+    # تصفية حسب الفرع
+    if branch_filter:
+        salespersons = salespersons.filter(branch_id=branch_filter)
+    
+    # تصفية حسب الحالة
+    if is_active:
+        is_active = is_active == 'true'
+        salespersons = salespersons.filter(is_active=is_active)
+    
+    # الترتيب
+    salespersons = salespersons.order_by('name')
+    
+    # التقسيم لصفحات
+    paginator = Paginator(salespersons, 10)  # 10 بائعين في كل صفحة
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # جلب قائمة الفروع للتصفية
+    branches = Branch.objects.all()
+    
+    context = {
+        'page_obj': page_obj,
+        'total_salespersons': salespersons.count(),
+        'search_query': search_query,
+        'branch_filter': branch_filter,
+        'is_active': is_active,
+        'branches': branches,
+        'title': 'قائمة البائعين',
+    }
+    
+    return render(request, 'accounts/salesperson_list.html', context)
+
+@staff_member_required
+def salesperson_create(request):
+    """
+    إنشاء بائع جديد
+    """
+    if request.method == 'POST':
+        form = SalespersonForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'تم إضافة البائع بنجاح.')
+            return redirect('accounts:salesperson_list')
+    else:
+        form = SalespersonForm()
+    
+    context = {
+        'form': form,
+        'title': 'إضافة بائع جديد',
+    }
+    
+    return render(request, 'accounts/salesperson_form.html', context)
+
+@staff_member_required
+def salesperson_update(request, pk):
+    """
+    تحديث بائع
+    """
+    salesperson = get_object_or_404(Salesperson, pk=pk)
+    
+    if request.method == 'POST':
+        form = SalespersonForm(request.POST, instance=salesperson)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'تم تحديث بيانات البائع بنجاح.')
+            return redirect('accounts:salesperson_list')
+    else:
+        form = SalespersonForm(instance=salesperson)
+    
+    context = {
+        'form': form,
+        'salesperson': salesperson,
+        'title': 'تعديل بيانات البائع',
+    }
+    
+    return render(request, 'accounts/salesperson_form.html', context)
+
+@staff_member_required
+def salesperson_delete(request, pk):
+    """
+    حذف بائع
+    """
+    salesperson = get_object_or_404(Salesperson, pk=pk)
+    
+    if request.method == 'POST':
+        try:
+            salesperson.delete()
+            messages.success(request, 'تم حذف البائع بنجاح.')
+        except Exception as e:
+            messages.error(request, 'لا يمكن حذف البائع لارتباطه بسجلات أخرى.')
+        return redirect('accounts:salesperson_list')
+    
+    context = {
+        'salesperson': salesperson,
+        'title': 'حذف البائع',
+    }
+    
+    return render(request, 'accounts/salesperson_confirm_delete.html', context)
+
+@staff_member_required
+def toggle_salesperson(request, pk):
+    """
+    تفعيل/إيقاف بائع
+    """
+    if request.method == 'POST':
+        salesperson = get_object_or_404(Salesperson, pk=pk)
+        salesperson.is_active = not salesperson.is_active
+        salesperson.save()
+        
+        return JsonResponse({
+            'success': True, 
+            'is_active': salesperson.is_active,
+            'salesperson_id': salesperson.id
+        })
+    
+    return JsonResponse({'success': False, 'message': 'طريقة غير صالحة.'})
+
+# إدارة الأدوار Role Management Views
+
+@staff_member_required
+def role_list(request):
+    """
+    عرض قائمة الأدوار مع إمكانية البحث
+    """
+    roles = Role.objects.all()
+    
+    # بحث عن الأدوار
+    search_query = request.GET.get('search', '')
+    if search_query:
+        roles = roles.filter(name__icontains=search_query)
+    
+    # تصفية الأدوار
+    role_type = request.GET.get('type', '')
+    if role_type == 'system':
+        roles = roles.filter(is_system_role=True)
+    elif role_type == 'custom':
+        roles = roles.filter(is_system_role=False)
+    
+    # ترتيب الأدوار
+    roles = roles.order_by('name')
+    
+    # تقسيم الصفحات
+    paginator = Paginator(roles, 10)  # عرض 10 أدوار في كل صفحة
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'role_type': role_type,
+        'title': 'إدارة الأدوار',
+    }
+    
+    return render(request, 'accounts/role_list.html', context)
+
+@staff_member_required
+def role_create(request):
+    """
+    إنشاء دور جديد
+    """
+    if request.method == 'POST':
+        form = RoleForm(request.POST)
+        if form.is_valid():
+            role = form.save()
+            messages.success(request, f'تم إنشاء دور {role.name} بنجاح.')
+            return redirect('accounts:role_list')
+    else:
+        form = RoleForm()
+    
+    context = {
+        'form': form,
+        'title': 'إنشاء دور جديد',
+    }
+    
+    return render(request, 'accounts/role_form.html', context)
+
+@staff_member_required
+def role_update(request, pk):
+    """
+    تحديث دور
+    """
+    role = get_object_or_404(Role, pk=pk)
+    
+    # لا يمكن تحديث أدوار النظام إلا للمشرفين
+    if role.is_system_role and not request.user.is_superuser:
+        messages.error(request, 'لا يمكنك تعديل أدوار النظام الأساسية.')
+        return redirect('accounts:role_list')
+    
+    if request.method == 'POST':
+        form = RoleForm(request.POST, instance=role)
+        if form.is_valid():
+            updated_role = form.save()
+            
+            # تحديث صلاحيات المستخدمين الذين لديهم هذا الدور
+            for user_role in UserRole.objects.filter(role=updated_role):
+                user = user_role.user
+                # إعادة تعيين الصلاحيات من الأدوار
+                user_roles = user.user_roles.all()
+                # إعادة تعيين صلاحيات المستخدم
+                user.user_permissions.clear()
+                for ur in user_roles:
+                    for permission in ur.role.permissions.all():
+                        user.user_permissions.add(permission)
+            
+            messages.success(request, f'تم تحديث دور {role.name} بنجاح.')
+            return redirect('accounts:role_list')
+    else:
+        form = RoleForm(instance=role)
+    
+    context = {
+        'form': form,
+        'role': role,
+        'title': f'تحديث دور {role.name}',
+    }
+    
+    return render(request, 'accounts/role_form.html', context)
+
+@staff_member_required
+def role_delete(request, pk):
+    """
+    حذف دور
+    """
+    role = get_object_or_404(Role, pk=pk)
+    
+    # لا يمكن حذف أدوار النظام
+    if role.is_system_role:
+        messages.error(request, 'لا يمكن حذف أدوار النظام الأساسية.')
+        return redirect('accounts:role_list')
+    
+    if request.method == 'POST':
+        role_name = role.name
+        
+        # حذف علاقات الدور بالمستخدمين
+        UserRole.objects.filter(role=role).delete()
+        
+        # حذف الدور
+        role.delete()
+        
+        messages.success(request, f'تم حذف دور {role_name} بنجاح.')
+        return redirect('accounts:role_list')
+    
+    context = {
+        'role': role,
+        'title': f'حذف دور {role.name}',
+    }
+    
+    return render(request, 'accounts/role_confirm_delete.html', context)
+
+@staff_member_required
+def role_assign(request, pk):
+    """
+    إسناد دور للمستخدمين
+    """
+    role = get_object_or_404(Role, pk=pk)
+    
+    if request.method == 'POST':
+        form = RoleAssignForm(request.POST, role=role)
+        if form.is_valid():
+            users = form.cleaned_data['users']
+            count = 0
+            for user in users:
+                # إنشاء علاقة بين الدور والمستخدم
+                UserRole.objects.get_or_create(user=user, role=role)
+                # إضافة صلاحيات الدور للمستخدم
+                for permission in role.permissions.all():
+                    user.user_permissions.add(permission)
+                count += 1
+            
+            messages.success(request, f'تم إسناد دور {role.name} لـ {count} مستخدمين بنجاح.')
+            return redirect('accounts:role_list')
+    else:
+        form = RoleAssignForm(role=role)
+    
+    context = {
+        'form': form,
+        'role': role,
+        'title': f'إسناد دور {role.name} للمستخدمين',
+    }
+    
+    return render(request, 'accounts/role_assign_form.html', context)
+
+@staff_member_required
+def role_management(request):
+    """
+    الصفحة الرئيسية لإدارة الأدوار
+    """
+    roles = Role.objects.all().prefetch_related('user_roles', 'permissions')
+    users = User.objects.filter(is_active=True).exclude(is_superuser=True).prefetch_related('user_roles')
+    
+    # تصفية الأدوار
+    role_type = request.GET.get('type', '')
+    if role_type == 'system':
+        roles = roles.filter(is_system_role=True)
+    elif role_type == 'custom':
+        roles = roles.filter(is_system_role=False)
+    
+    # تقسيم الصفحات
+    paginator = Paginator(roles, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj,
+        'users': users,
+        'role_type': role_type,
+        'title': 'إدارة الأدوار والصلاحيات',
+        'total_roles': roles.count(),
+        'total_users': users.count(),
+    }
+    
+    return render(request, 'accounts/role_management.html', context)

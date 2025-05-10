@@ -33,6 +33,13 @@ class InspectionEvaluation(models.Model):
     class Meta:
         verbose_name = _('تقييم المعاينة')
         verbose_name_plural = _('تقييمات المعاينات')
+        indexes = [
+            models.Index(fields=['inspection'], name='inspection_eval_insp_idx'),
+            models.Index(fields=['criteria'], name='inspection_eval_criteria_idx'),
+            models.Index(fields=['rating'], name='inspection_eval_rating_idx'),
+            models.Index(fields=['created_by'], name='inspection_eval_creator_idx'),
+            models.Index(fields=['created_at'], name='inspection_eval_created_idx'),
+        ]
 
     def __str__(self):
         return f"تقييم معاينة {self.inspection.contract_number}"
@@ -56,6 +63,13 @@ class InspectionNotification(models.Model):
         verbose_name = _('تنبيه معاينة')
         verbose_name_plural = _('تنبيهات المعاينات')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['inspection'], name='inspection_notif_insp_idx'),
+            models.Index(fields=['type'], name='inspection_notif_type_idx'),
+            models.Index(fields=['is_read'], name='inspection_notif_read_idx'),
+            models.Index(fields=['created_at'], name='inspection_notif_created_idx'),
+            models.Index(fields=['scheduled_for'], name='inspection_notif_scheduled_idx'),
+        ]
 
     def __str__(self):
         return f"تنبيه: {self.message[:50]}..."
@@ -89,20 +103,54 @@ class InspectionReport(models.Model):
         verbose_name = _('تقرير معاينات')
         verbose_name_plural = _('تقارير المعاينات')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['report_type'], name='inspection_report_type_idx'),
+            models.Index(fields=['branch'], name='inspection_report_branch_idx'),
+            models.Index(fields=['date_from'], name='inspection_report_from_idx'),
+            models.Index(fields=['date_to'], name='inspection_report_to_idx'),
+            models.Index(fields=['created_at'], name='inspection_report_created_idx'),
+            models.Index(fields=['created_by'], name='inspection_report_creator_idx'),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.get_report_type_display()}"
 
     def calculate_statistics(self):
-        inspections = Inspection.objects.filter(
-            branch=self.branch,
-            request_date__gte=self.date_from,
-            request_date__lte=self.date_to
-        )
-        self.total_inspections = inspections.count()
-        self.successful_inspections = inspections.filter(result='passed').count()
-        self.pending_inspections = inspections.filter(status='pending').count()
-        self.cancelled_inspections = inspections.filter(status='cancelled').count()
+        from django.core.cache import cache
+        
+        # إنشاء مفتاح تخزين مؤقت فريد بناءً على معلمات التقرير
+        cache_key = f'inspection_report_stats_{self.branch_id}_{self.date_from}_{self.date_to}'
+        
+        # محاولة استرداد النتائج من التخزين المؤقت
+        cached_stats = cache.get(cache_key)
+        
+        if cached_stats is None:
+            # إذا لم تكن النتائج مخزنة مؤقتًا، قم بحساب الإحصائيات من قاعدة البيانات
+            inspections = Inspection.objects.filter(
+                branch=self.branch,
+                request_date__gte=self.date_from,
+                request_date__lte=self.date_to
+            )
+            self.total_inspections = inspections.count()
+            self.successful_inspections = inspections.filter(result='passed').count()
+            self.pending_inspections = inspections.filter(status='pending').count()
+            self.cancelled_inspections = inspections.filter(status='cancelled').count()
+            
+            # حفظ النتائج في التخزين المؤقت لمدة ساعة واحدة (3600 ثانية)
+            cached_stats = {
+                'total': self.total_inspections,
+                'successful': self.successful_inspections,
+                'pending': self.pending_inspections,
+                'cancelled': self.cancelled_inspections
+            }
+            cache.set(cache_key, cached_stats, 3600)
+        else:
+            # استخدام النتائج المخزنة مؤقتًا
+            self.total_inspections = cached_stats['total']
+            self.successful_inspections = cached_stats['successful']
+            self.pending_inspections = cached_stats['pending']
+            self.cancelled_inspections = cached_stats['cancelled']
+            
         self.save()
 
 class Inspection(models.Model):
@@ -193,6 +241,18 @@ class Inspection(models.Model):
         verbose_name = _('معاينة')
         verbose_name_plural = _('المعاينات')
         ordering = ['-request_date']
+        indexes = [
+            models.Index(fields=['contract_number'], name='inspection_contract_idx'),
+            models.Index(fields=['customer'], name='inspection_customer_idx'),
+            models.Index(fields=['branch'], name='inspection_branch_idx'),
+            models.Index(fields=['inspector'], name='inspection_inspector_idx'),
+            models.Index(fields=['status'], name='inspection_status_idx'),
+            models.Index(fields=['result'], name='inspection_result_idx'),
+            models.Index(fields=['request_date'], name='inspection_req_date_idx'),
+            models.Index(fields=['scheduled_date'], name='inspection_sched_date_idx'),
+            models.Index(fields=['order'], name='inspection_order_idx'),
+            models.Index(fields=['created_at'], name='inspection_created_idx'),
+        ]
 
     def __str__(self):
         customer_name = self.customer.name if self.customer else 'عميل جديد'

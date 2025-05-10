@@ -18,37 +18,61 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'inspections/dashboard.html'
 
     def get_context_data(self, **kwargs):
+        from django.core.cache import cache
         from accounts.models import Branch
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
         branch_id = self.request.GET.get('branch')
-        inspections = Inspection.objects.all()
-        if branch_id:
-            try:
-                branch_id = int(branch_id)
-                inspections = inspections.filter(branch_id=branch_id)
-                context['selected_branch'] = branch_id
-            except (ValueError, TypeError):
+        
+        # إنشاء مفتاح تخزين مؤقت فريد
+        cache_key = f'dashboard_stats_{"all" if not branch_id else branch_id}_{today}'
+        dashboard_data = cache.get(cache_key)
+        
+        if dashboard_data is None:
+            # إذا لم تكن البيانات في التخزين المؤقت، قم بحسابها
+            # تحسين الاستعلام باستخدام select_related للعلاقات المستخدمة بكثرة
+            inspections = Inspection.objects.select_related('customer', 'branch', 'inspector')
+            
+            if branch_id:
+                try:
+                    branch_id = int(branch_id)
+                    inspections = inspections.filter(branch_id=branch_id)
+                    context['selected_branch'] = branch_id
+                except (ValueError, TypeError):
+                    context['selected_branch'] = None
+            else:
                 context['selected_branch'] = None
-        else:
-            context['selected_branch'] = None
+            
+            # استخدام filter بدلاً من عمل استعلامات متعددة
+            pending_inspections = inspections.filter(status='pending')
+            
+            # حساب عدد المعاينات بحسب الحالة
+            new_inspections_count = pending_inspections.filter(
+                scheduled_date__gt=today
+            ).count()
+            completed_inspections_count = inspections.filter(
+                status='completed'
+            ).count()
+            in_progress_inspections_count = pending_inspections.filter(
+                scheduled_date=today
+            ).count()
+            overdue_inspections_count = pending_inspections.filter(
+                scheduled_date__lt=today
+            ).count()
+            
+            # تخزين النتائج في كاش لمدة 10 دقائق (600 ثانية)
+            dashboard_data = {
+                'new_inspections_count': new_inspections_count,
+                'completed_inspections_count': completed_inspections_count,
+                'in_progress_inspections_count': in_progress_inspections_count,
+                'overdue_inspections_count': overdue_inspections_count,
+            }
+            cache.set(cache_key, dashboard_data, 600)  # 10 دقائق
         
-        # Count inspections by status
-        pending_inspections = inspections.filter(status='pending')
-        
-        context['new_inspections_count'] = pending_inspections.filter(
-            scheduled_date__gt=today
-        ).count()
-        context['completed_inspections_count'] = inspections.filter(
-            status='completed'
-        ).count()
-        context['in_progress_inspections_count'] = pending_inspections.filter(
-            scheduled_date=today
-        ).count()
-        context['overdue_inspections_count'] = pending_inspections.filter(
-            scheduled_date__lt=today
-        ).count()
+        # إضافة البيانات المخزنة مؤقتاً إلى السياق
+        context.update(dashboard_data)
         context['branches'] = Branch.objects.all()
+        
         return context
 
 class CompletedInspectionsDetailView(LoginRequiredMixin, ListView):
@@ -131,7 +155,10 @@ class InspectionListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         from accounts.models import Branch
         
-        # Get base queryset for stats
+        # تحسين استخدام استعلام واحد لجميع إحصائيات المعاينات باستخدام annotate
+        from django.db.models import Count, Case, When, IntegerField
+        
+        # استخدام قاعدة بيانات بحيث تكون أكثر كفاءة
         inspections = Inspection.objects.all()
         if not self.request.user.is_superuser:
             inspections = inspections.filter(
@@ -143,17 +170,32 @@ class InspectionListView(LoginRequiredMixin, ListView):
         if branch_id:
             inspections = inspections.filter(branch_id=branch_id)
         
-        # Get counts for all inspection types
-        duplicated_inspections = inspections.filter(notes__contains='تكرار من المعاينة رقم:').count()
+        # استخدام طريقة أكثر كفاءة لحساب الإحصائيات - استعلام واحد بدلاً من عدة استعلامات
+        stats = inspections.aggregate(
+            total_inspections=Count('id'),
+            new_inspections=Count(Case(
+                When(status='pending', then=1),
+                output_field=IntegerField(),
+            )),
+            scheduled_inspections=Count(Case(
+                When(status='scheduled', then=1),
+                output_field=IntegerField(),
+            )),
+            successful_inspections=Count(Case(
+                When(status='completed', then=1),
+                output_field=IntegerField(),
+            )),
+            cancelled_inspections=Count(Case(
+                When(status='cancelled', then=1),
+                output_field=IntegerField(),
+            )),
+        )
         
-        context['dashboard'] = {
-            'total_inspections': inspections.count(),
-            'new_inspections': inspections.filter(status='pending').count(),
-            'scheduled_inspections': inspections.filter(status='scheduled').count(),
-            'successful_inspections': inspections.filter(status='completed').count(),
-            'cancelled_inspections': inspections.filter(status='cancelled').count(),
-            'duplicated_inspections': duplicated_inspections,
-        }
+        # حساب المعاينات المكررة
+        duplicated_inspections = inspections.filter(notes__contains='تكرار من المعاينة رقم:').count()
+        stats['duplicated_inspections'] = duplicated_inspections
+        
+        context['dashboard'] = stats
         
         # Add branches for filter
         context['branches'] = Branch.objects.all()

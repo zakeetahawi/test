@@ -103,7 +103,7 @@ class Command(BaseCommand):
                     'name': 'العملاء',
                     'code': 'customers',
                     'department_type': 'department',
-                    'url_name': 'customers:customer_list',
+                    'url_name': 'customers:customer_list',  # تحديث
                     'icon': 'fas fa-users',
                     'order': 1,
                     'description': 'إدارة بيانات وعلاقات العملاء',
@@ -113,7 +113,7 @@ class Command(BaseCommand):
                     'name': 'الطلبات',
                     'code': 'orders',
                     'department_type': 'department',
-                    'url_name': 'orders:order_list',
+                    'url_name': 'orders:order_list',  # تحديث
                     'icon': 'fas fa-shopping-cart',
                     'order': 2,
                     'description': 'إدارة طلبات العملاء',
@@ -134,7 +134,7 @@ class Command(BaseCommand):
                     'name': 'المخزون',
                     'code': 'inventory',
                     'department_type': 'department',
-                    'url_name': 'inventory:dashboard',  # Corregido: antes era inventory:inventory_list
+                    'url_name': 'inventory:dashboard',  # تحديث
                     'icon': 'fas fa-boxes',
                     'order': 1,
                     'description': 'إدارة المخزون والمستودعات',
@@ -144,7 +144,7 @@ class Command(BaseCommand):
                     'name': 'المصنع',
                     'code': 'factory',
                     'department_type': 'department',
-                    'url_name': 'factory:factory_list',
+                    'url_name': 'factory:factory_list',  # تحديث
                     'icon': 'fas fa-industry',
                     'order': 2,
                     'description': 'إدارة عمليات التصنيع والإنتاج',
@@ -154,7 +154,7 @@ class Command(BaseCommand):
                     'name': 'المعاينات',
                     'code': 'inspections',
                     'department_type': 'department',
-                    'url_name': 'inspections:inspection_list',
+                    'url_name': 'inspections:inspection_list',  # تحديث
                     'icon': 'fas fa-clipboard-check',
                     'order': 3,
                     'description': 'إدارة عمليات المعاينة',
@@ -164,7 +164,7 @@ class Command(BaseCommand):
                     'name': 'التركيبات',
                     'code': 'installations',
                     'department_type': 'department',
-                    'url_name': 'installations:dashboard',
+                    'url_name': 'installations:dashboard',  # تحديث
                     'icon': 'fas fa-tools',
                     'order': 4,
                     'description': 'إدارة عمليات التركيب',

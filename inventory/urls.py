@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from .views import InventoryDashboardView
+from .dashboard_view_append import low_stock_report, stock_movement_report, optimized_product_detail
 
 app_name = 'inventory'
 
@@ -16,7 +17,13 @@ urlpatterns = [
     path('product/<int:pk>/delete/', views.product_delete, name='product_delete'),
     path('product/<int:product_pk>/transaction/create/', views.transaction_create, name='transaction_create'),
     
-    # API endpoints
-    path('api/products/<int:pk>/', views.product_api_detail, name='product_api_detail'),
-    path('api/products/', views.product_api_list, name='product_api_list'),
+    # Dashboard reports
+    path('reports/low-stock/', low_stock_report, name='low_stock_report'),
+    path('reports/stock-movement/', stock_movement_report, name='stock_movement_report'),
+    path('product/<int:product_id>/detail/', optimized_product_detail, name='optimized_product_detail'),
+    
+    # تعليق الروابط غير المتوفرة حالياً، يمكن إضافتها لاحقاً عند إنشاء الوظائف المقابلة
+    # path('reports/product-performance/', product_performance, name='product_performance'),
+    # path('reports/expiry/', expiry_report, name='expiry_report'),
 ]
+

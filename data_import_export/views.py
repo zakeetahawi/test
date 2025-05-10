@@ -44,113 +44,132 @@ def import_data(request):
     if request.method == 'POST':
         form = ImportForm(request.POST, request.FILES)
         if form.is_valid():
-            # Create import log
-            import_log = form.save(commit=False)
-            import_log.operation_type = 'import'
-            import_log.file_name = request.FILES['file'].name
-            import_log.status = 'processing'
-            import_log.created_by = request.user
-            
-            # Check if it's a multi-sheet import
-            is_multi_sheet = form.cleaned_data.get('is_multi_sheet', False)
-            model_name = form.cleaned_data['model_name']
-            import_log.is_multi_sheet = is_multi_sheet or model_name == 'multi_sheet'
-            
-            # Check if we should import only new records
-            new_only = form.cleaned_data.get('new_only', False)
-            import_log.details = 'استيراد البيانات الجديدة فقط' if new_only else 'استيراد وتحديث البيانات'
-            
-            # If model_name is 'multi_sheet', set it to a default value temporarily
-            # It will be determined automatically during processing
-            if model_name == 'multi_sheet':
-                import_log.model_name = 'inventory.product'  # Temporary value
-            else:
-                import_log.model_name = model_name
-                
-            import_log.save()
-            
             try:
-                # Process the file
-                file_path = import_log.file.path
-                file_ext = os.path.splitext(file_path)[1].lower()
+                file = request.FILES['file']
                 
-                # Handle multi-sheet Excel file
-                if file_ext == '.xlsx' and import_log.is_multi_sheet:
-                    # Process multi-sheet Excel file
-                    from .utils import process_multi_sheet_import
-                    success_count, error_count, error_details_list = process_multi_sheet_import(file_path, import_log, new_only=new_only)
-                    error_details = '\n'.join(error_details_list)
-                    records_count = success_count + error_count
-                    
-                    # Update import log
-                    import_log.records_count = records_count
-                    import_log.success_count = success_count
-                    import_log.error_count = error_count
-                    import_log.error_details = error_details
-                    import_log.status = 'completed' if error_count == 0 else 'failed'
-                    import_log.completed_at = timezone.now()
-                    import_log.save()
-                    
-                    messages.success(request, f'تم استيراد {success_count} من {records_count} سجل بنجاح من ملف متعدد الصفحات.')
-                    if error_count > 0:
-                        messages.warning(request, f'فشل استيراد {error_count} سجل. راجع سجل الاستيراد للتفاصيل.')
-                    
-                    return redirect('data_import_export:import_log_detail', pk=import_log.pk)
+                # التحقق من حجم الملف (الحد الأقصى 50 ميجابايت)
+                if file.size > 50 * 1024 * 1024:  # 50MB
+                    messages.error(request, 'حجم الملف كبير جداً. الحد الأقصى المسموح به هو 50 ميجابايت.')
+                    return redirect('data_import_export:import_data')
+
+                # التحقق من نوع الملف
+                file_ext = os.path.splitext(file.name)[1].lower()
+                if file_ext not in ['.xlsx', '.csv', '.json']:
+                    messages.error(request, 'نوع الملف غير مدعوم. الأنواع المدعومة هي: XLSX, CSV, JSON')
+                    return redirect('data_import_export:import_data')
+
+                # إنشاء سجل الاستيراد
+                import_log = form.save(commit=False)
+                import_log.operation_type = 'import'
+                import_log.file_name = file.name
+                import_log.status = 'processing'
+                import_log.created_by = request.user
                 
-                # Handle single-model import
-                model_name = import_log.model_name
-                app_label, model = model_name.split('.')
+                # التحقق من استيراد متعدد الصفحات
+                is_multi_sheet = form.cleaned_data.get('is_multi_sheet', False)
+                model_name = form.cleaned_data['model_name']
+                import_log.is_multi_sheet = is_multi_sheet or model_name == 'multi_sheet'
                 
-                # Get the model class
-                model_class = apps.get_model(app_label, model)
-                content_type = ContentType.objects.get_for_model(model_class)
-                import_log.content_type = content_type
-                import_log.save()
-                
-                # Process the file based on its extension
-                if file_ext == '.xlsx':
-                    # Process Excel file
-                    df = pd.read_excel(file_path)
-                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class, new_only=new_only)
-                elif file_ext == '.csv':
-                    df = pd.read_csv(file_path)
-                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class, new_only=new_only)
-                elif file_ext == '.json':
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    df = pd.DataFrame(data)
-                    records_count, success_count, error_count, error_details = process_dataframe(df, model, model_class, new_only=new_only)
+                # التحقق من استيراد السجلات الجديدة فقط
+                new_only = form.cleaned_data.get('new_only', False)
+                import_log.details = 'استيراد البيانات الجديدة فقط' if new_only else 'استيراد وتحديث البيانات'
+
+                # تحديد نوع النموذج
+                if model_name == 'multi_sheet':
+                    import_log.model_name = 'inventory.product'  # قيمة مؤقتة
                 else:
-                    raise ValueError(f"صيغة الملف غير مدعومة: {file_ext}")
+                    import_log.model_name = model_name
                 
-                # Update import log
-                import_log.records_count = records_count
+                import_log.save()
+
+                # معالجة الملف بناءً على نوعه
+                if file_ext == '.xlsx':
+                    if import_log.is_multi_sheet:
+                        success_count, error_count, error_details = process_multi_sheet_import(
+                            import_log.file.path, 
+                            import_log, 
+                            new_only=new_only,
+                            chunk_size=1000  # معالجة البيانات على دفعات
+                        )
+                    else:
+                        df = pd.read_excel(file, chunksize=1000)  # قراءة البيانات على دفعات
+                        success_count = error_count = 0
+                        error_details = []
+                        
+                        for chunk in df:
+                            chunk_success, chunk_error, chunk_details = process_dataframe(
+                                chunk,
+                                model_name.split('.')[1],
+                                apps.get_model(*model_name.split('.')),
+                                new_only=new_only
+                            )
+                            success_count += chunk_success
+                            error_count += chunk_error
+                            error_details.extend(chunk_details if isinstance(chunk_details, list) else [chunk_details])
+
+                elif file_ext == '.csv':
+                    for chunk in pd.read_csv(file, chunksize=1000):
+                        chunk_success, chunk_error, chunk_details = process_dataframe(
+                            chunk,
+                            model_name.split('.')[1],
+                            apps.get_model(*model_name.split('.')),
+                            new_only=new_only
+                        )
+                        success_count += chunk_success
+                        error_count += chunk_error
+                        error_details.extend(chunk_details if isinstance(chunk_details, list) else [chunk_details])
+
+                elif file_ext == '.json':
+                    data = json.load(file)
+                    # معالجة البيانات على دفعات
+                    chunk_size = 1000
+                    chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+                    
+                    success_count = error_count = 0
+                    error_details = []
+                    
+                    for chunk in chunks:
+                        df = pd.DataFrame(chunk)
+                        chunk_success, chunk_error, chunk_details = process_dataframe(
+                            df,
+                            model_name.split('.')[1],
+                            apps.get_model(*model_name.split('.')),
+                            new_only=new_only
+                        )
+                        success_count += chunk_success
+                        error_count += chunk_error
+                        error_details.extend(chunk_details if isinstance(chunk_details, list) else [chunk_details])
+
+                # تحديث سجل الاستيراد
+                total_records = success_count + error_count
+                import_log.records_count = total_records
                 import_log.success_count = success_count
                 import_log.error_count = error_count
-                import_log.error_details = error_details
-                import_log.status = 'completed' if error_count == 0 else 'failed'
+                import_log.error_details = '\n'.join(error_details) if error_details else ''
+                import_log.status = 'completed' if error_count == 0 else 'completed_with_errors'
                 import_log.completed_at = timezone.now()
                 import_log.save()
-                
-                messages.success(request, f'تم استيراد {success_count} من {records_count} سجل بنجاح.')
+
+                # إظهار رسائل النجاح والأخطاء
+                messages.success(request, f'تم استيراد {success_count} من {total_records} سجل بنجاح.')
                 if error_count > 0:
-                    messages.warning(request, f'فشل استيراد {error_count} سجل. راجع سجل الاستيراد للتفاصيل.')
-                
+                    messages.warning(request, f'فشل استيراد {error_count} سجل. يمكنك مراجعة التفاصيل في سجل الاستيراد.')
+
                 return redirect('data_import_export:import_log_detail', pk=import_log.pk)
-            
+
             except Exception as e:
-                import_log.status = 'failed'
-                import_log.error_details = str(e)
-                import_log.completed_at = timezone.now()
-                import_log.save()
-                
-                messages.error(request, f'فشل استيراد البيانات: {str(e)}')
+                messages.error(request, f'حدث خطأ أثناء استيراد البيانات: {str(e)}')
+                if 'import_log' in locals():
+                    import_log.status = 'failed'
+                    import_log.error_details = str(e)
+                    import_log.completed_at = timezone.now()
+                    import_log.save()
+                    return redirect('data_import_export:import_log_detail', pk=import_log.pk)
+
     else:
         form = ImportForm()
-    
-    # Get import templates
+
     templates = ImportTemplate.objects.filter(is_active=True)
-    
     context = {
         'form': form,
         'templates': templates,
@@ -236,131 +255,157 @@ def export_data(request):
     if request.method == 'POST':
         form = ExportForm(request.POST)
         if form.is_valid():
-            # Get form data
-            model_name = form.cleaned_data['model_name']
-            export_format = form.cleaned_data['export_format']
-            
-            # Get the model class
-            app_label, model = model_name.split('.')
-            model_class = apps.get_model(app_label, model)
-            
-            # Get all records
-            queryset = model_class.objects.all()
-            
-            # Create export log
-            export_log = ImportExportLog(
-                operation_type='export',
-                model_name=model_name,
-                file_name=f"{model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{export_format}",
-                status='processing',
-                records_count=queryset.count(),
-                created_by=request.user
-            )
-            
             try:
-                # Convert queryset to DataFrame
-                data = []
-                for obj in queryset:
-                    # Convert model instance to dict
-                    item = {}
-                    for field in model_class._meta.fields:
-                        field_name = field.name
-                        field_value = getattr(obj, field_name)
-                        
-                        # Handle foreign keys
-                        if field.is_relation:
-                            if field_value is not None:
-                                field_value = str(field_value)
-                            else:
-                                field_value = None
-                        
-                        item[field_name] = field_value
-                    
-                    data.append(item)
+                # Get form data
+                model_name = form.cleaned_data['model_name']
+                export_format = form.cleaned_data['export_format']
+                date_range = form.cleaned_data.get('date_range', 'all')
                 
-                df = pd.DataFrame(data)
+                # Get the model class
+                app_label, model = model_name.split('.')
+                model_class = apps.get_model(app_label, model)
                 
-                # Check if multi-sheet export is requested
-                if export_format == 'xlsx' and form.cleaned_data.get('multi_sheet', True):
-                    # Get related models based on the selected model
-                    app_label = model_name.split('.')[0]
-                    related_models = []
+                # Filter queryset based on date range if applicable
+                queryset = model_class.objects.all()
+                if hasattr(model_class, 'created_at') and date_range != 'all':
+                    from django.utils import timezone
+                    from datetime import timedelta
                     
-                    # Define comprehensive model relationships for each app
-                    if app_label == 'inventory':
-                        related_models = [
-                            'inventory.product', 
-                            'inventory.supplier', 
-                            'inventory.category',
-                            'inventory.stocktransaction',
-                            'inventory.purchaseorder'
-                        ]
-                    elif app_label == 'customers':
-                        related_models = [
-                            'customers.customer', 
-                            'customers.customercategory',
-                            'customers.customercontact'
-                        ]
-                    elif app_label == 'orders':
-                        related_models = [
-                            'orders.order', 
-                            'orders.orderitem', 
-                            'orders.payment'
-                        ]
-                    elif model_name == 'multi_sheet':
-                        # Export all main models if multi-sheet option is selected
-                        related_models = [
-                            'inventory.product', 
-                            'inventory.supplier', 
-                            'inventory.category',
-                            'customers.customer', 
-                            'customers.customercategory',
-                            'orders.order', 
-                            'orders.orderitem', 
-                            'orders.payment'
-                        ]
+                    now = timezone.now()
+                    if date_range == 'today':
+                        queryset = queryset.filter(created_at__date=now.date())
+                    elif date_range == 'week':
+                        queryset = queryset.filter(created_at__gte=now - timedelta(days=7))
+                    elif date_range == 'month':
+                        queryset = queryset.filter(created_at__gte=now - timedelta(days=30))
+                    elif date_range == 'year':
+                        queryset = queryset.filter(created_at__year=now.year)
+                
+                # Create export log
+                export_log = ImportExportLog.objects.create(
+                    operation_type='export',
+                    model_name=model_name,
+                    file_name=f"{model}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.{export_format}",
+                    status='processing',
+                    records_count=queryset.count(),
+                    created_by=request.user
+                )
+                
+                try:
+                    # Handle multi-sheet export if requested
+                    if export_format == 'xlsx' and form.cleaned_data.get('multi_sheet', True):
+                        # Get related models
+                        if model_name == 'multi_sheet':
+                            related_models = [
+                                'inventory.product',
+                                'inventory.supplier',
+                                'inventory.category',
+                                'customers.customer',
+                                'customers.customercategory',
+                                'orders.order',
+                                'orders.orderitem',
+                                'orders.payment'
+                            ]
+                        else:
+                            related_models = [model_name]
+                            
+                            # Add related models based on the main model
+                            if model == 'product':
+                                related_models.extend([
+                                    'inventory.category',
+                                    'inventory.supplier',
+                                    'inventory.stocktransaction'
+                                ])
+                            elif model == 'customer':
+                                related_models.extend([
+                                    'customers.customercategory',
+                                    'customers.customercontact',
+                                    'orders.order'
+                                ])
+                            elif model == 'order':
+                                related_models.extend([
+                                    'orders.orderitem',
+                                    'orders.payment'
+                                ])
+                        
+                        # Generate multi-sheet export
+                        from .utils import generate_multi_sheet_export
+                        output = generate_multi_sheet_export(related_models, chunk_size=1000)
+                        
+                        if output:
+                            response = HttpResponse(
+                                output.read(),
+                                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            )
+                            response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
+                        else:
+                            raise Exception('فشل إنشاء ملف Excel')
+                    
                     else:
-                        related_models = [model_name]
-                    
-                    # Generate multi-sheet Excel file
-                    from .utils import generate_multi_sheet_export
-                    output = generate_multi_sheet_export(related_models)
-                    
-                    # Create response
-                    response = HttpResponse(output.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                    response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
-                else:
-                    # Create response based on export format
-                    if export_format == 'xlsx':
-                        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                        response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
-                        df.to_excel(response, index=False)
+                        # Convert queryset to DataFrame
+                        data = []
+                        # Process in chunks to handle large datasets
+                        chunk_size = 1000
+                        for instance in queryset.iterator(chunk_size=chunk_size):
+                            item = {}
+                            for field in model_class._meta.fields:
+                                if field.name in ['created_at', 'updated_at', 'file']:
+                                    continue
+                                    
+                                field_name = field.name
+                                field_value = getattr(instance, field_name)
+                                
+                                # Handle foreign keys and dates
+                                if field.is_relation:
+                                    if field_value is not None:
+                                        if hasattr(field_value, 'name'):
+                                            field_value = field_value.name
+                                        else:
+                                            field_value = str(field_value)
+                                elif isinstance(field_value, (datetime.date, datetime.datetime)):
+                                    field_value = field_value.strftime('%Y-%m-%d %H:%M:%S')
+                                
+                                item[field.verbose_name or field_name] = field_value
+                            
+                            data.append(item)
                         
-                    elif export_format == 'csv':
-                        response = HttpResponse(content_type='text/csv')
-                        response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
-                        df.to_csv(response, index=False)
+                        df = pd.DataFrame(data)
                         
-                    elif export_format == 'json':
-                        response = HttpResponse(content_type='application/json')
-                        response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
-                        df.to_json(response, orient='records')
+                        # Create response based on export format
+                        if export_format == 'xlsx':
+                            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                            response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
+                            df.to_excel(response, index=False, sheet_name=model_class._meta.verbose_name_plural[:31])
+                            
+                        elif export_format == 'csv':
+                            response = HttpResponse(content_type='text/csv')
+                            response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
+                            df.to_csv(response, index=False, encoding='utf-8-sig')  # Use UTF-8 with BOM for Excel compatibility
+                            
+                        elif export_format == 'json':
+                            response = HttpResponse(content_type='application/json')
+                            response['Content-Disposition'] = f'attachment; filename="{export_log.file_name}"'
+                            df.to_json(response, orient='records', force_ascii=False)
+                    
+                    # Update export log
+                    export_log.status = 'completed'
+                    export_log.success_count = queryset.count()
+                    export_log.completed_at = timezone.now()
+                    export_log.save()
+                    
+                    return response
                 
-                # Update export log
-                export_log.status = 'completed'
-                export_log.success_count = queryset.count()
-                export_log.completed_at = timezone.now()
-                export_log.save()
-                
-                return response
+                except Exception as e:
+                    export_log.status = 'failed'
+                    export_log.error_details = str(e)
+                    export_log.completed_at = timezone.now()
+                    export_log.save()
+                    
+                    messages.error(request, f'فشل تصدير البيانات: {str(e)}')
             
             except Exception as e:
-                export_log.status = 'failed'
-                export_log.error_details = str(e)
-                export_log.completed_at = timezone.now()
-                export_log.save()
-                
                 messages.error(request, f'فشل تصدير البيانات: {str(e)}')
+    
     else:
         form = ExportForm()
     

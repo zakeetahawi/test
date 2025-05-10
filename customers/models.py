@@ -8,7 +8,7 @@ from accounts.models import Branch
 User = get_user_model()
 
 class CustomerCategory(models.Model):
-    name = models.CharField(_('اسم التصنيف'), max_length=50)
+    name = models.CharField(_('اسم التصنيف'), max_length=50, db_index=True)
     description = models.TextField(_('وصف التصنيف'), blank=True)
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
 
@@ -16,6 +16,9 @@ class CustomerCategory(models.Model):
         verbose_name = _('تصنيف العملاء')
         verbose_name_plural = _('تصنيفات العملاء')
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['name'], name='customer_cat_name_idx'),
+        ]
 
     def __str__(self):
         return self.name
@@ -41,6 +44,10 @@ class CustomerNote(models.Model):
         verbose_name = _('ملاحظة العميل')
         verbose_name_plural = _('ملاحظات العملاء')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['customer', 'created_at'], name='customer_note_idx'),
+            models.Index(fields=['created_by'], name='customer_note_creator_idx'),
+        ]
 
     def __str__(self):
         return f"{self.customer.name} - {self.created_at.strftime('%Y-%m-%d')}"
@@ -79,7 +86,7 @@ class Customer(models.Model):
         choices=CUSTOMER_TYPE_CHOICES,
         default='retail'
     )
-    name = models.CharField(_('اسم العميل'), max_length=200)
+    name = models.CharField(_('اسم العميل'), max_length=200, db_index=True)
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
@@ -88,14 +95,15 @@ class Customer(models.Model):
         null=True,
         blank=True
     )
-    phone = models.CharField(_('رقم الهاتف'), max_length=20)
+    phone = models.CharField(_('رقم الهاتف'), max_length=20, db_index=True)
     email = models.EmailField(_('البريد الإلكتروني'), blank=True, null=True)
     address = models.TextField(_('العنوان'))
     status = models.CharField(
         _('الحالة'),
         max_length=10,
         choices=STATUS_CHOICES,
-        default='active'
+        default='active',
+        db_index=True
     )
     notes = models.TextField(_('ملاحظات'), blank=True)
     created_by = models.ForeignKey(
@@ -112,6 +120,14 @@ class Customer(models.Model):
         verbose_name = _('عميل')
         verbose_name_plural = _('سجل العملاء')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['name'], name='customer_name_idx'),
+            models.Index(fields=['phone'], name='customer_phone_idx'),
+            models.Index(fields=['status'], name='customer_status_idx'),
+            models.Index(fields=['customer_type'], name='customer_type_idx'),
+            models.Index(fields=['branch', 'status'], name='customer_branch_status_idx'),
+            models.Index(fields=['created_at'], name='customer_created_at_idx'),
+        ]
 
     def __str__(self):
         return f"{self.code} - {self.name}"

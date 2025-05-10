@@ -1,15 +1,24 @@
 from django.shortcuts import render, redirect
 from django.utils import timezone
-from django.db.models import Count
+from django.db.models import Count, Sum, F
 from django.contrib import messages
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from customers.models import Customer
 from orders.models import Order
 from factory.models import ProductionOrder
 from inventory.models import Product
+from inspections.models import Inspection
+from installations.models import Installation
 from accounts.models import CompanyInfo, ContactFormSettings, AboutPageSettings, FooterSettings
 import re
 
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse, Http404
+from django.conf import settings
+import os
+import mimetypes
+from django.utils.encoding import smart_str
 
 def home(request):
     """
@@ -108,3 +117,77 @@ def contact(request):
         'current_year': timezone.now().year,
     }
     return render(request, 'contact.html', context)
+
+def serve_media_file(request, path):
+    """
+    Custom view to serve media files using FileResponse.
+    Securely serves files from MEDIA_ROOT directory.
+    """
+    file_path = os.path.join(settings.MEDIA_ROOT, path)
+    if not os.path.exists(file_path):
+        raise Http404("Media file not found")
+    
+    try:
+        # استخدام mimetypes للكشف عن نوع الملف
+        content_type, encoding = mimetypes.guess_type(file_path)
+        content_type = content_type or 'application/octet-stream'
+        
+        # فتح الملف كـ binary stream
+        file = open(file_path, 'rb')
+        
+        # إنشاء FileResponse مع streaming content
+        response = FileResponse(file, content_type=content_type)
+        
+        # إعداد headers مناسبة للملف
+        filename = os.path.basename(file_path)
+        response['Content-Disposition'] = f'inline; filename="{smart_str(filename)}"'
+        
+        # إضافة headers إضافية للPDF
+        if content_type == 'application/pdf':
+            response['Accept-Ranges'] = 'bytes'
+            response['Content-Length'] = os.path.getsize(file_path)
+            
+        return response
+    except IOError:
+        raise Http404("Error reading file")
+    except Exception as e:
+        if 'file' in locals():
+            file.close()
+        raise Http404(f"Error processing file: {str(e)}")
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_api(request):
+    """API endpoint for dashboard data"""
+    today = timezone.now().date()
+    data = {
+        'customers': {
+            'total': Customer.objects.count(),
+            'active': Customer.objects.filter(status='active').count()
+        },
+        'orders': {
+            'total': Order.objects.count(),
+            'pending': Order.objects.filter(status='pending').count(),
+            'completed': Order.objects.filter(status='completed').count(),
+            'recent': list(Order.objects.select_related('customer')
+                         .order_by('-created_at')[:5]
+                         .values('id', 'customer__name', 'total_amount', 'status'))
+        },
+        'inventory': {
+            'total_products': Product.objects.count(),
+            'low_stock': Product.objects.filter(current_stock__lte=F('minimum_stock')).count()
+        },
+        'production': {
+            'active_orders': ProductionOrder.objects.exclude(status__in=['completed', 'cancelled']).count(),
+            'completed_today': ProductionOrder.objects.filter(completed_at__date=today).count()
+        },
+        'inspections': {
+            'pending': Inspection.objects.filter(status='pending').count(),
+            'completed': Inspection.objects.filter(status='completed').count()
+        },
+        'installations': {
+            'pending': Installation.objects.filter(status='pending').count(),
+            'completed': Installation.objects.filter(status='completed').count()
+        }
+    }
+    return Response(data)

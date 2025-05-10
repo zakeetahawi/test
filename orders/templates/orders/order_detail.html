@@ -90,6 +90,16 @@
                             <th>تاريخ التحديث</th>
                             <td>{{ order.updated_at|date:"Y-m-d H:i" }}</td>
                         </tr>
+                        {% if order.delivery_type == 'home' %}
+                        <tr>
+                            <th>تفاصيل الشحن</th>
+                            <td>
+                                <a href="{% url 'orders:shipping_details' order.id %}" class="btn btn-info btn-sm">
+                                    <i class="fas fa-shipping-fast"></i> عرض تفاصيل الشحن
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
                     </table>
                 </div>
             </div>
@@ -214,6 +224,71 @@
                         {% endif %}
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نموذج تحديث الحالة -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">تحديث حالة الطلب</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'orders:update_status' order.id %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="status" class="form-label">الحالة الجديدة*</label>
+                            <select name="status" id="status" class="form-select" required>
+                                {% for value, label in order.TRACKING_STATUS_CHOICES %}
+                                    <option value="{{ value }}" {% if value == order.tracking_status %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">ملاحظات</label>
+                            <textarea name="notes" id="notes" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> تحديث الحالة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- سجل تغييرات الحالة -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">سجل تغييرات الحالة</h5>
+        </div>
+        <div class="card-body">
+            <div class="timeline">
+                {% for log in order.status_logs.all %}
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <h6 class="mb-0">{{ log.get_new_status_display }}</h6>
+                        <small class="text-muted">
+                            {{ log.created_at|date:"Y-m-d H:i" }} - 
+                            بواسطة {{ log.changed_by.get_full_name|default:log.changed_by.username }}
+                        </small>
+                        {% if log.notes %}
+                        <p class="mb-0 mt-2">{{ log.notes }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted">لا يوجد سجل لتغييرات الحالة</p>
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -415,4 +490,48 @@
         </div>
     </div>
 </div>
+
+{% block extra_css %}
+<style>
+/* Timeline styling */
+.timeline {
+    position: relative;
+    padding: 20px 0;
+}
+
+.timeline-item {
+    position: relative;
+    padding-left: 40px;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #007bff;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #007bff;
+}
+
+.timeline-item:not(:last-child):before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 12px;
+    height: calc(100% + 8px);
+    width: 2px;
+    background-color: #e9ecef;
+}
+
+.timeline-content {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
 {% endblock %}

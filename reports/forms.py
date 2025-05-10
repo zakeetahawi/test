@@ -11,6 +11,10 @@ class ReportForm(forms.ModelForm):
         allowed_types = [
             ('sales', _('تقرير المبيعات')),
             ('inspection', _('تقرير المعاينات')),
+            ('production', _('تقرير الإنتاج')),
+            ('inventory', _('تقرير المخزون')),
+            ('financial', _('تقرير مالي')),
+            ('analytics', _('تقرير تحليلي')),
         ]
         self.fields['report_type'].choices = allowed_types
 

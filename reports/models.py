@@ -11,6 +11,7 @@ class Report(models.Model):
         ('production', _('تقرير الإنتاج')),
         ('inventory', _('تقرير المخزون')),
         ('financial', _('تقرير مالي')),
+        ('analytics', _('تقرير تحليلي')),
         ('custom', _('تقرير مخصص')),
     ]
     

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}تقارير النسخ الاحتياطي - {{ report_type }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">تقارير النسخ الاحتياطي</h5>
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'data_backup:backup_reports' 'daily' %}" class="btn btn-outline-primary {% if report_type == 'daily' %}active{% endif %}">يومي</a>
+                        <a href="{% url 'data_backup:backup_reports' 'storage' %}" class="btn btn-outline-primary {% if report_type == 'storage' %}active{% endif %}">التخزين</a>
+                        <a href="{% url 'data_backup:backup_reports' 'performance' %}" class="btn btn-outline-primary {% if report_type == 'performance' %}active{% endif %}">الأداء</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if report_type == 'daily' %}
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card border">
+                                    <div class="card-body text-center">
+                                        <h5>إجمالي النسخ</h5>
+                                        <h2>{{ report_data.metrics.total_backups }}</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border">
+                                    <div class="card-body text-center">
+                                        <h5>نسبة النجاح</h5>
+                                        <h2>{{ report_data.metrics.success_rate|floatformat:1 }}%</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border">
+                                    <div class="card-body text-center">
+                                        <h5>متوسط الوقت</h5>
+                                        <h2>{{ report_data.metrics.average_duration|floatformat:1 }} ثانية</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border">
+                                    <div class="card-body text-center">
+                                        <h5>الحجم الإجمالي</h5>
+                                        <h2>{{ report_data.metrics.total_size_gb|floatformat:2 }} GB</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">نجاح وفشل النسخ الاحتياطي</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="successFailureChart" style="height: 350px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">حجم النسخ الاحتياطي</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="sizeChart" style="height: 350px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% elif report_type == 'storage' %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">توزيع النسخ حسب نوع التخزين</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="storagePieChart" style="height: 350px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">تفاصيل التخزين</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table">
+                                                <tbody>
+                                                    <tr>
+                                                        <th>آخر نسخة احتياطية:</th>
+                                                        <td>{% if report_data.last_backup %}
+                                                            {{ report_data.last_backup.timestamp|date:"Y-m-d H:i" }}
+                                                            {% else %}
+                                                            لا يوجد
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>إجمالي النسخ:</th>
+                                                        <td>{{ report_data.total_backups|intcomma }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>الحجم الإجمالي:</th>
+                                                        <td>{{ report_data.total_size_gb|floatformat:2 }} GB</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        <h6 class="mt-4">توزيع حسب نوع التخزين</h6>
+                                        <div class="table-responsive">
+                                            <table class="table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>نوع التخزين</th>
+                                                        <th>عدد النسخ</th>
+                                                        <th>الحجم</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for item in report_data.storage_distribution %}
+                                                    <tr>
+                                                        <td>{{ item.storage_type }}</td>
+                                                        <td>{{ item.count }}</td>
+                                                        <td>{{ item.total_size|filesizeformat }}</td>
+                                                    </tr>
+                                                    {% empty %}
+                                                    <tr>
+                                                        <td colspan="3" class="text-center">لا توجد بيانات</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">مقاييس الأداء ({{ report_data.period_days }} أيام)</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table">
+                                                <tbody>
+                                                    <tr>
+                                                        <th>معدل النجاح:</th>
+                                                        <td>{{ report_data.success_rate|floatformat:1 }}%</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>متوسط وقت النسخ:</th>
+                                                        <td>{{ report_data.avg_backup_time|floatformat:1 }} ثانية</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>إجمالي عدد النسخ:</th>
+                                                        <td>{{ report_data.total_backups }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">تحليل أوقات النسخ الاحتياطي</h5>
+                                    </div>
+                                    <div class="card-body text-center p-5">
+                                        <div id="speedometer" style="height: 250px;"></div>
+                                        <h4 class="mt-3">متوسط وقت النسخ الاحتياطي</h4>
+                                        <h2>{{ report_data.avg_backup_time|floatformat:1 }} ثانية</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if report_type == 'daily' %}
+            // رسم بياني للنجاح والفشل
+            var successFailureData = {{ report_data.charts.success_failure|safe }};
+            Plotly.newPlot('successFailureChart', JSON.parse(successFailureData));
+            
+            // رسم بياني للحجم
+            var sizeData = {{ report_data.charts.size|safe }};
+            Plotly.newPlot('sizeChart', JSON.parse(sizeData));
+        {% elif report_type == 'storage' %}
+            // مخطط توزيع التخزين
+            var storagePieData = {{ report_data.charts.storage_pie|safe }};
+            Plotly.newPlot('storagePieChart', JSON.parse(storagePieData));
+        {% else %}
+            // مقياس السرعة
+            var avg_time = {{ report_data.avg_backup_time }};
+            var data = [
+                {
+                    type: "indicator",
+                    mode: "gauge+number",
+                    value: avg_time,
+                    title: { text: "متوسط وقت النسخ (ثانية)" },
+                    gauge: {
+                        axis: { range: [null, Math.max(30, avg_time * 1.5)] },
+                        bar: { color: "#1f77b4" },
+                        bgcolor: "white",
+                        borderwidth: 2,
+                        bordercolor: "#ccc",
+                        steps: [
+                            { range: [0, 5], color: "#d4f7d4" },
+                            { range: [5, 15], color: "#afeaff" },
+                            { range: [15, 30], color: "#ffe6aa" }
+                        ],
+                        threshold: {
+                            line: { color: "red", width: 4 },
+                            thickness: 0.75,
+                            value: 20
+                        }
+                    }
+                }
+            ];
+            
+            var layout = { 
+                width: 320, 
+                height: 250, 
+                margin: { t: 25, r: 25, l: 25, b: 25 },
+                paper_bgcolor: "rgba(0,0,0,0)",
+                font: { color: "#444", family: "Arial" }
+            };
+            
+            Plotly.newPlot('speedometer', data, layout);
+        {% endif %}
+    });
+</script>
+{% endblock %}

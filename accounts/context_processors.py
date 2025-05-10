@@ -64,14 +64,37 @@ def notifications(request):
 
 def company_info(request):
     """توفير معلومات الشركة لجميع القوالب"""
-    company_info = CompanyInfo.objects.first()
-    return {'company_info': company_info}
+    try:
+        company = CompanyInfo.objects.first()
+        if not company:
+            # إنشاء كائن بقيم افتراضية إذا لم يكن موجوداً
+            company = CompanyInfo(
+                name="نظام الخواجه",
+                address="",
+                phone="",
+                email="",
+            )
+            # نحن لا نحفظ الكائن في قاعدة البيانات، لكن نستخدمه فقط لتجنب الأخطاء
+    except Exception:
+        # في حالة حدوث أي خطأ، إنشاء كائن بقيم افتراضية
+        company = CompanyInfo(
+            name="نظام الخواجه",
+            address="",
+            phone="",
+            email="",
+        )
+    return {'company_info': company}
 
 def footer_settings(request):
     """توفير إعدادات التذييل لجميع القوالب"""
-    footer_settings = FooterSettings.objects.first()
-    if not footer_settings:
-        footer_settings = FooterSettings.objects.create()
+    try:
+        footer_settings = FooterSettings.objects.first()
+        if not footer_settings:
+            footer_settings = FooterSettings.objects.create()
+    except Exception:
+        # في حالة حدوث أي خطأ، إنشاء كائن بقيم افتراضية
+        footer_settings = FooterSettings()
+    
     return {
         'footer_settings': footer_settings, 
         'current_year': timezone.now().year

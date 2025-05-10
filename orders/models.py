@@ -7,6 +7,170 @@ from django.utils import timezone
 from customers.models import Customer
 from inventory.models import Product
 from accounts.models import Salesperson
+from accounts.utils import send_notification
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.utils.translation import gettext as _
+from model_utils import FieldTracker
+
+class DynamicPricing(models.Model):
+    RULE_TYPES = [
+        ('seasonal', 'موسمي'),
+        ('quantity', 'كمية'),
+        ('customer_type', 'نوع العميل'),
+        ('special_offer', 'عرض خاص'),
+    ]
+
+    CUSTOMER_TYPES = [
+        ('regular', 'عادي'),
+        ('vip', 'VIP'),
+        ('wholesale', 'جملة'),
+        ('distributor', 'موزع'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name="اسم القاعدة")
+    rule_type = models.CharField(max_length=20, choices=RULE_TYPES, verbose_name="نوع القاعدة")
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="نسبة الخصم")
+    min_quantity = models.IntegerField(null=True, blank=True, verbose_name="الحد الأدنى للكمية")
+    min_amount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True, 
+        verbose_name="الحد الأدنى للمبلغ"
+    )
+    customer_type = models.CharField(
+        max_length=20,
+        choices=CUSTOMER_TYPES,
+        null=True,
+        blank=True,
+        verbose_name="نوع العميل"
+    )
+    start_date = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ البداية")
+    end_date = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ النهاية")
+    is_active = models.BooleanField(default=True, verbose_name="فعال")
+    priority = models.IntegerField(default=0, verbose_name="الأولوية")
+    description = models.TextField(blank=True, verbose_name="الوصف")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="تاريخ التحديث")
+
+    class Meta:
+        verbose_name = "التسعير الديناميكي"
+        verbose_name_plural = "قواعد التسعير الديناميكي"
+        ordering = ['-priority', '-created_at']
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        if self.rule_type == 'quantity' and not self.min_quantity:
+            raise ValidationError({
+                'min_quantity': _('يجب تحديد الحد الأدنى للكمية لقواعد التسعير بالكمية')
+            })
+        if self.rule_type == 'customer_type' and not self.customer_type:
+            raise ValidationError({
+                'customer_type': _('يجب تحديد نوع العميل لقواعد التسعير حسب نوع العميل')
+            })
+        if self.rule_type == 'special_offer' and not self.min_amount:
+            raise ValidationError({
+                'min_amount': _('يجب تحديد الحد الأدنى للمبلغ للعروض الخاصة')
+            })
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError({
+                'end_date': _('تاريخ النهاية يجب أن يكون بعد تاريخ البداية')
+            })
+
+    def is_applicable_to_order(self, order):
+        """التحقق من إمكانية تطبيق القاعدة على الطلب"""
+        if not self.is_active:
+            return False
+            
+        now = timezone.now()
+        if self.start_date and self.start_date > now:
+            return False
+        if self.end_date and self.end_date < now:
+            return False
+
+        if self.rule_type == 'quantity':
+            total_quantity = sum(item.quantity for item in order.items.all())
+            return total_quantity >= (self.min_quantity or 0)
+            
+        elif self.rule_type == 'customer_type':
+            return order.customer and order.customer.customer_type == self.customer_type
+            
+        elif self.rule_type == 'special_offer':
+            total_amount = sum(item.quantity * item.unit_price for item in order.items.all())
+            return total_amount >= (self.min_amount or 0)
+            
+        return True  # للقواعد الموسمية
+
+class ShippingDetails(models.Model):
+    SHIPPING_STATUS_CHOICES = [
+        ('pending', 'قيد الانتظار'),
+        ('scheduled', 'تم جدولة الشحن'),
+        ('picked_up', 'تم استلام الشحنة'),
+        ('in_transit', 'قيد النقل'),
+        ('out_for_delivery', 'خارج للتوصيل'),
+        ('delivered', 'تم التوصيل'),
+        ('failed', 'فشل التوصيل'),
+    ]
+
+    SHIPPING_PROVIDER_CHOICES = [
+        ('internal', 'خدمة التوصيل الداخلية'),
+        ('aramex', 'أرامكس'),
+        ('smsa', 'سمسا'),
+        ('dhl', 'دي إتش إل'),
+    ]
+
+    order = models.OneToOneField('Order', on_delete=models.CASCADE, related_name='shipping_details', verbose_name='الطلب')
+    shipping_provider = models.CharField(
+        max_length=20,
+        choices=SHIPPING_PROVIDER_CHOICES,
+        default='internal',
+        verbose_name='شركة الشحن'
+    )
+    tracking_number = models.CharField(max_length=100, blank=True, verbose_name='رقم التتبع')
+    shipping_status = models.CharField(
+        max_length=20,
+        choices=SHIPPING_STATUS_CHOICES,
+        default='pending',
+        verbose_name='حالة الشحن'
+    )
+    estimated_delivery_date = models.DateTimeField(null=True, blank=True, verbose_name='تاريخ التوصيل المتوقع')
+    actual_delivery_date = models.DateTimeField(null=True, blank=True, verbose_name='تاريخ التوصيل الفعلي')
+    shipping_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='تكلفة الشحن'
+    )
+    recipient_name = models.CharField(max_length=100, verbose_name='اسم المستلم')
+    recipient_phone = models.CharField(max_length=20, verbose_name='رقم هاتف المستلم')
+    shipping_notes = models.TextField(blank=True, verbose_name='ملاحظات الشحن')
+    last_update = models.DateTimeField(auto_now=True, verbose_name='آخر تحديث')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
+
+    class Meta:
+        verbose_name = 'تفاصيل الشحن'
+        verbose_name_plural = 'تفاصيل الشحن'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['order'], name='shipping_order_idx'),
+            models.Index(fields=['shipping_status'], name='shipping_status_idx'),
+            models.Index(fields=['tracking_number'], name='shipping_tracking_idx'),
+        ]
+
+    def __str__(self):
+        return f'شحنة {self.order.order_number} - {self.get_shipping_status_display()}'
+
+    def save(self, *args, **kwargs):
+        # تحديث حالة الطلب عند تغيير حالة الشحن
+        if self.shipping_status == 'delivered':
+            self.actual_delivery_date = timezone.now()
+            self.order.tracking_status = 'delivered'
+            self.order.save()
+        super().save(*args, **kwargs)
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -74,10 +238,45 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التحديث')
 
+    dynamic_pricing_rule = models.ForeignKey(
+        DynamicPricing,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name="قاعدة التسعير"
+    )
+    final_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="السعر النهائي"
+    )
+
+    price_changed = models.BooleanField(default=False, help_text='يشير إلى ما إذا تم تغيير السعر مؤخراً')
+    modified_at = models.DateTimeField(auto_now=True, help_text='آخر تحديث للطلب')
+
+    tracker = FieldTracker(fields=['tracking_status'])
+
     class Meta:
         verbose_name = 'طلب'
         verbose_name_plural = 'الطلبات'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['customer'], name='order_customer_idx'),
+            models.Index(fields=['salesperson'], name='order_salesperson_idx'),
+            models.Index(fields=['tracking_status'], name='order_tracking_status_idx'),
+            models.Index(fields=['order_date'], name='order_date_idx'),
+            models.Index(fields=['branch', 'tracking_status'], name='order_branch_status_idx'),
+            models.Index(fields=['payment_verified'], name='order_payment_verified_idx'),
+            models.Index(fields=['created_at'], name='order_created_at_idx'),
+        ]
+
+    def calculate_final_price(self):
+        """حساب السعر النهائي للطلب باستخدام خدمة التسعير الديناميكي"""
+        from .services.pricing_service import PricingService
+        self.final_price = PricingService.calculate_dynamic_price(self)
+        return self.final_price
 
     def save(self, *args, **kwargs):
         if not self.order_number:
@@ -128,8 +327,91 @@ class Order(models.Model):
         if has_services:
             self.order_type = 'service'
             self.service_types = [t for t in selected_types if t in ['installation', 'inspection', 'transport', 'tailoring']]
+
+        # Validate delivery address for home delivery
+        if self.delivery_type == 'home' and not self.delivery_address:
+            raise models.ValidationError('عنوان التسليم مطلوب لخدمة التوصيل للمنزل')
+
+        # حساب السعر النهائي
+        if not self.final_price:
+            self.calculate_final_price()
+
         super().save(*args, **kwargs)
 
+        # إنشاء تفاصيل الشحن للطلبات الجديدة مع توصيل للمنزل
+        if self.delivery_type == 'home' and not hasattr(self, 'shipping_details'):
+            ShippingDetails.objects.create(
+                order=self,
+                recipient_name=self.customer.name,
+                recipient_phone=self.customer.phone
+            )
+
+    def notify_status_change(self, old_status, new_status, changed_by=None, notes=''):
+        """إرسال إشعار عند تغيير حالة تتبع الطلب"""
+        status_messages = {
+            'pending': _('الطلب في قائمة الانتظار'),
+            'processing': _('جاري معالجة الطلب'),
+            'warehouse': _('الطلب في المستودع'),
+            'factory': _('الطلب في المصنع'),
+            'cutting': _('جاري قص القماش'),
+            'ready': _('الطلب جاهز للتسليم'),
+            'delivered': _('تم تسليم الطلب'),
+        }
+        
+        title = _('تحديث حالة الطلب #{}'.format(self.order_number))
+        message = _('{}\nتم تغيير الحالة من {} إلى {}'.format(
+            status_messages.get(new_status, ''),
+            self.get_tracking_status_display(),
+            dict(self.TRACKING_STATUS_CHOICES)[new_status]
+        ))
+        
+        if notes:
+            message += f'\nملاحظات: {notes}'
+        
+        # إنشاء سجل لتغيير الحالة
+        OrderStatusLog.objects.create(
+            order=self,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=changed_by,
+            notes=notes
+        )
+        
+        # إرسال إشعار للعميل
+        send_notification(
+            title=title,
+            message=message,
+            sender=changed_by or self.created_by,
+            sender_department_code='orders',
+            target_department_code='customers',
+            target_branch=self.branch,
+            priority='high' if new_status in ['ready', 'delivered'] else 'medium',
+            related_object=self
+        )
+
+    def send_status_notification(self):
+        """إرسال إشعار عند تغيير حالة الطلب"""
+        status_messages = {
+            'pending': _('تم إنشاء طلب جديد وهو قيد الانتظار'),
+            'processing': _('تم بدء العمل على الطلب'),
+            'completed': _('تم إكمال الطلب بنجاح'),
+            'cancelled': _('تم إلغاء الطلب')
+        }
+        
+        title = _('تحديث حالة الطلب #{}'.format(self.order_number))
+        message = status_messages.get(self.status, _('تم تحديث حالة الطلب'))
+        
+        # إرسال إشعار للعميل
+        send_notification(
+            title=title,
+            message=message,
+            sender=self.last_modified_by or self.created_by,
+            sender_department_code='orders',
+            target_department_code='customers',
+            target_branch=self.branch,
+            priority='high' if self.status in ['completed', 'cancelled'] else 'medium',
+            related_object=self
+        )
 
     def __str__(self):
         return f'{self.order_number} - {self.customer.name}'
@@ -143,6 +425,20 @@ class Order(models.Model):
     def is_fully_paid(self):
         """Check if order is fully paid"""
         return self.paid_amount >= self.total_amount
+
+    @property
+    def shipping_status(self):
+        """Get shipping status if available"""
+        try:
+            return self.shipping_details.get_shipping_status_display()
+        except ShippingDetails.DoesNotExist:
+            return None
+
+@receiver(post_save, sender=Order)
+def order_post_save(sender, instance, created, **kwargs):
+    """دالة تعمل بعد حفظ الطلب مباشرة"""
+    if not created and instance.tracker.has_changed('status'):
+        instance.send_status_notification()
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items', verbose_name='الطلب')
@@ -166,6 +462,12 @@ class OrderItem(models.Model):
     class Meta:
         verbose_name = 'عنصر الطلب'
         verbose_name_plural = 'عناصر الطلب'
+        indexes = [
+            models.Index(fields=['order'], name='order_item_order_idx'),
+            models.Index(fields=['product'], name='order_item_product_idx'),
+            models.Index(fields=['processing_status'], name='order_item_status_idx'),
+            models.Index(fields=['item_type'], name='order_item_type_idx'),
+        ]
 
     def __str__(self):
         return f'{self.product.name} ({self.quantity})'
@@ -194,6 +496,12 @@ class Payment(models.Model):
         verbose_name = 'دفعة'
         verbose_name_plural = 'الدفعات'
         ordering = ['-payment_date']
+        indexes = [
+            models.Index(fields=['order'], name='payment_order_idx'),
+            models.Index(fields=['payment_method'], name='payment_method_idx'),
+            models.Index(fields=['payment_date'], name='payment_date_idx'),
+            models.Index(fields=['created_by'], name='payment_created_by_idx'),
+        ]
 
     def __str__(self):
         return f'{self.order.order_number} - {self.amount} ({self.get_payment_method_display()})'
@@ -207,3 +515,34 @@ class Payment(models.Model):
         )['total'] or 0
         self.order.paid_amount = total_payments
         self.order.save()
+
+class OrderStatusLog(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='status_logs', verbose_name=_('الطلب'))
+    old_status = models.CharField(max_length=20, choices=Order.TRACKING_STATUS_CHOICES, verbose_name=_('الحالة السابقة'))
+    new_status = models.CharField(max_length=20, choices=Order.TRACKING_STATUS_CHOICES, verbose_name=_('الحالة الجديدة'))
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, verbose_name=_('تم التغيير بواسطة'))
+    notes = models.TextField(blank=True, verbose_name=_('ملاحظات'))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('تاريخ التغيير'))
+
+    class Meta:
+        verbose_name = _('سجل حالة الطلب')
+        verbose_name_plural = _('سجلات حالة الطلب')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['order'], name='status_log_order_idx'),
+            models.Index(fields=['created_at'], name='status_log_date_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.order.order_number} - {self.get_new_status_display()}'
+
+    def save(self, *args, **kwargs):
+        if not self.old_status and self.order:
+            self.old_status = self.order.tracking_status
+        super().save(*args, **kwargs)
+        
+        # تحديث حالة الطلب
+        if self.order and self.new_status != self.order.tracking_status:
+            self.order.tracking_status = self.new_status
+            self.order.last_notification_date = timezone.now()
+            self.order.save()

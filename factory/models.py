@@ -133,7 +133,7 @@ class ProductionIssue(models.Model):
         User,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='reported_issues',
+        related_name='reported_production_issues',
         verbose_name=_('تم الإبلاغ بواسطة')
     )
     reported_at = models.DateTimeField(_('تاريخ الإبلاغ'), auto_now_add=True)
@@ -144,7 +144,7 @@ class ProductionIssue(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='resolved_issues',
+        related_name='resolved_production_issues',
         verbose_name=_('تم الحل بواسطة')
     )
     resolution_notes = models.TextField(_('ملاحظات الحل'), blank=True)

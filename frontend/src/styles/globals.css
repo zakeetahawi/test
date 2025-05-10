@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  direction: rtl;
+  font-family: 'Cairo', sans-serif;
+}
+
+#root {
+  height: 100%;
+}
+
+/* تحسين المظهر العام للتطبيق */
+.MuiButton-root {
+  font-family: 'Cairo', sans-serif !important;
+}
+
+.MuiTypography-root {
+  font-family: 'Cairo', sans-serif !important;
+}
+
+/* تصحيح اتجاه بعض العناصر */
+.MuiTableCell-alignLeft {
+  text-align: right !important;
+}
+
+.MuiTableCell-alignRight {
+  text-align: left !important;
+}
+
+/* تحسينات لدعم RTL */
+[dir="rtl"] .MuiInputBase-root {
+  text-align: right;
+}
+
+[dir="rtl"] .MuiInputLabel-root {
+  right: 14px;
+  left: auto;
+  transform-origin: top right;
+}

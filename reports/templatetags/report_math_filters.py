@@ -1,86 +1,155 @@
 from django import template
+from django.utils.safestring import mark_safe
+import json
 
 register = template.Library()
 
 @register.filter
-def div(value, arg):
-    """
-    Divides the value by the argument
-    """
+def currency(value):
+    """تنسيق القيمة كعملة"""
     try:
-        return float(value) / float(arg)
-    except (ValueError, ZeroDivisionError):
+        return "{:,.2f} ر.س".format(float(value))
+    except (ValueError, TypeError):
+        return "0.00 ر.س"
+
+@register.filter
+def growth_class(value):
+    """تحديد لون النمو بناءً على القيمة"""
+    try:
+        value = float(value)
+        if value > 5:
+            return 'text-success'
+        elif value < -5:
+            return 'text-danger'
+        else:
+            return 'text-warning'
+    except (ValueError, TypeError):
+        return ''
+
+@register.filter
+def retention_class(value):
+    """تحديد لون معدل الاحتفاظ بناءً على القيمة"""
+    try:
+        value = float(value)
+        if value >= 80:
+            return 'text-success'
+        elif value >= 60:
+            return 'text-warning'
+        else:
+            return 'text-danger'
+    except (ValueError, TypeError):
+        return ''
+
+@register.filter
+def margin_class(value):
+    """تحديد لون هامش الربح بناءً على القيمة"""
+    try:
+        value = float(value)
+        if value >= 25:
+            return 'text-success'
+        elif value >= 15:
+            return 'text-warning'
+        else:
+            return 'text-danger'
+    except (ValueError, TypeError):
+        return ''
+
+@register.filter
+def map(value, attr):
+    """استخراج قيم محددة من قائمة كائنات"""
+    try:
+        return mark_safe(json.dumps([item[attr] for item in value]))
+    except (KeyError, TypeError):
+        return '[]'
+
+@register.filter
+def percentage(value, total):
+    """حساب النسبة المئوية"""
+    try:
+        return (float(value) / float(total)) * 100
+    except (ValueError, TypeError, ZeroDivisionError):
         return 0
 
 @register.filter
-def mul(value, arg):
-    """
-    Multiplies the value by the argument
-    """
+def trend_icon(value):
+    """إرجاع أيقونة الاتجاه بناءً على القيمة"""
     try:
-        return float(value) * float(arg)
-    except ValueError:
-        return 0
+        value = float(value)
+        if value > 0:
+            return mark_safe('<i class="fas fa-arrow-up text-success"></i>')
+        elif value < 0:
+            return mark_safe('<i class="fas fa-arrow-down text-danger"></i>')
+        else:
+            return mark_safe('<i class="fas fa-minus text-warning"></i>')
+    except (ValueError, TypeError):
+        return ''
 
 @register.filter
-def multiply(value, arg):
-    """
-    Multiplies the value by the argument (alias for mul)
-    """
+def format_frequency(value):
+    """تنسيق معدل التكرار"""
     try:
-        return float(value) * float(arg)
-    except ValueError:
-        return 0
+        value = float(value)
+        if value >= 1:
+            return f"{value:.1f}x"
+        else:
+            return f"{value*100:.0f}%"
+    except (ValueError, TypeError):
+        return '0%'
 
 @register.filter
-def sub(value, arg):
-    """
-    Subtracts the argument from the value
-    """
-    try:
-        return float(value) - float(arg)
-    except ValueError:
-        return 0
+def status_class(value):
+    """تحديد لون الحالة"""
+    status_classes = {
+        'completed': 'success',
+        'pending': 'warning',
+        'cancelled': 'danger',
+        'processing': 'info',
+        'delayed': 'secondary'
+    }
+    return f"text-{status_classes.get(value, 'secondary')}"
 
 @register.filter
-def add(value, arg):
-    """
-    Adds the argument to the value
-    """
-    try:
-        return float(value) + float(arg)
-    except ValueError:
-        return 0
+def chart_color(index):
+    """إرجاع لون للرسم البياني"""
+    colors = [
+        '#FF6384',  # أحمر
+        '#36A2EB',  # أزرق
+        '#FFCE56',  # أصفر
+        '#4BC0C0',  # أخضر مائل للأزرق
+        '#9966FF',  # بنفسجي
+        '#FF9F40',  # برتقالي
+        '#FF6384',  # وردي
+        '#C9CBCF'   # رمادي
+    ]
+    return colors[index % len(colors)]
 
 @register.filter
-def sum_attr(value, attr=None):
-    """
-    Sums the attribute 'attr' for each item in the list 'value'
-    If attr is None, sum the items directly
-    """
-    total = 0
-    if not value:
-        return total
+def format_time(minutes):
+    """تنسيق الوقت من دقائق إلى ساعات ودقائق"""
+    try:
+        minutes = int(minutes)
+        hours = minutes // 60
+        remaining_minutes = minutes % 60
         
-    if attr is None:
-        try:
-            return float(sum(value))
-        except (TypeError, ValueError):
-            try:
-                return sum(float(item) for item in value)
-            except (TypeError, ValueError):
-                return 0
-    else:
-        for item in value:
-            try:
-                # Try to get attribute
-                attr_value = getattr(item, attr)
-                total += float(attr_value)
-            except (AttributeError, ValueError, TypeError):
-                try:
-                    # Try dictionary access
-                    attr_value = item[attr]
-                    total += float(attr_value)
-                except (KeyError, ValueError, TypeError):
-                    continue
-        return total
+        if hours > 0 and remaining_minutes > 0:
+            return f"{hours} ساعة و {remaining_minutes} دقيقة"
+        elif hours > 0:
+            return f"{hours} ساعة"
+        else:
+            return f"{remaining_minutes} دقيقة"
+    except (ValueError, TypeError):
+        return "0 دقيقة"
+
+@register.filter
+def format_number(value):
+    """تنسيق الأرقام الكبيرة"""
+    try:
+        value = float(value)
+        if value >= 1000000:
+            return f"{value/1000000:.1f}M"
+        elif value >= 1000:
+            return f"{value/1000:.1f}K"
+        else:
+            return f"{value:.0f}"
+    except (ValueError, TypeError):
+        return "0"

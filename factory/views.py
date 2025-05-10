@@ -555,6 +555,25 @@ def production_issue_detail(request, pk):
     
     return render(request, 'factory/production_issue_detail.html', context)
 
+@login_required
+def production_issue_delete(request, pk):
+    """
+    View for deleting a production issue
+    """
+    issue = get_object_or_404(ProductionIssue, pk=pk)
+    order = issue.production_order
+
+    if request.method == 'POST':
+        issue.delete()
+        messages.success(request, 'تم حذف المشكلة بنجاح.')
+        return redirect('factory:production_order_detail', pk=order.pk)
+
+    context = {
+        'issue': issue,
+        'order': order,
+    }
+
+    return render(request, 'factory/production_issue_confirm_delete.html', context)
 
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin

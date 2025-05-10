@@ -1,83 +1,37 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import User, Branch, Department, Notification, CompanyInfo, FormField, SystemDBImportPermission, Salesperson, ContactFormSettings, FooterSettings, AboutPageSettings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import Permission
+from django import forms
 from django.urls import path
-import os
-import shutil
-from django.conf import settings
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.core.management import call_command
-from django.http import HttpResponse, HttpResponseRedirect
-import io
+from django.utils.html import format_html
+from .models import (
+    User, CompanyInfo, Branch, Notification, Department, Salesperson,
+    Role, UserRole
+)
 
-@admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('title', 'sender', 'sender_department', 'target_department', 'priority', 'created_at', 'is_read')
-    list_filter = ('is_read', 'priority', 'sender_department', 'target_department', 'created_at')
-    search_fields = ('title', 'message')
-    readonly_fields = ('created_at', 'updated_at', 'read_at', 'read_by')
-    date_hierarchy = 'created_at'
+class DepartmentFilter(admin.SimpleListFilter):
+    title = _('Department')
+    parameter_name = 'department'
     
-    fieldsets = (
-        (None, {
-            'fields': ('title', 'message', 'priority')
-        }),
-        (_('معلومات المرسل'), {
-            'fields': ('sender', 'sender_department')
-        }),
-        (_('معلومات المستلم'), {
-            'fields': ('target_department', 'target_branch')
-        }),
-        (_('الكائن المرتبط'), {
-            'fields': ('content_type', 'object_id')
-        }),
-        (_('حالة الإشعار'), {
-            'fields': ('is_read', 'read_at', 'read_by')
-        }),
-        (_('التواريخ'), {
-            'fields': ('created_at', 'updated_at')
-        }),
-    )
-
-@admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'department_type', 'parent', 'manager', 'is_active', 'order')
-    list_filter = ('department_type', 'is_active', 'parent')
-    search_fields = ('name', 'code', 'description')
-    ordering = ['department_type', 'order', 'name']
-    prepopulated_fields = {'code': ('name',)}
-    raw_id_fields = ('parent', 'manager')
+    def lookups(self, request, model_admin):
+        if request.user.is_superuser:
+            departments = Department.objects.filter(is_active=True)
+        else:
+            departments = request.user.departments.filter(is_active=True)
+        
+        return [(dept.id, dept.name) for dept in departments]
     
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related('parent', 'manager')
-
-@admin.register(Branch)
-class BranchAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'phone', 'is_active')
-    list_filter = ('is_active',)
-    search_fields = ('code', 'name', 'phone', 'email')
-    ordering = ['code']
-
-@admin.register(Salesperson)
-class SalespersonAdmin(admin.ModelAdmin):
-    list_display = ['name', 'employee_number', 'branch', 'phone', 'is_active']
-    list_filter = ['branch', 'is_active']
-    search_fields = ['name', 'employee_number', 'phone', 'email']
-    ordering = ['name']
-    
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        if not request.user.is_superuser:
-            qs = qs.filter(branch=request.user.branch)
-        return qs
-    
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if db_field.name == "branch" and not request.user.is_superuser:
-            kwargs["queryset"] = Branch.objects.filter(id=request.user.branch.id)
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+    def queryset(self, request, queryset):
+        if self.value():
+            if hasattr(queryset.model, 'departments'):
+                return queryset.filter(departments__id=self.value())
+            elif hasattr(queryset.model, 'department'):
+                return queryset.filter(department__id=self.value())
+            elif hasattr(queryset.model, 'user') and hasattr(queryset.model.user.field.related_model, 'departments'):
+                return queryset.filter(user__departments__id=self.value())
+        return queryset
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -91,94 +45,6 @@ class CustomUserAdmin(UserAdmin):
         }),
         (_('تواريخ مهمة'), {'fields': ('last_login', 'date_joined')}),
     )
-
-from .forms import SystemDBImportPermissionForm
-
-@admin.register(SystemDBImportPermission)
-class SystemDBImportPermissionAdmin(admin.ModelAdmin):
-    form = SystemDBImportPermissionForm
-    filter_horizontal = ('users',)
-    list_display = ('get_users', 'description')
-    readonly_fields = ('db_import_export_link',)
-
-    def has_add_permission(self, request):
-        # إذا كان هناك صلاحية واحدة بالفعل، لا تظهر زر الإضافة
-        if SystemDBImportPermission.objects.exists():
-            return False
-        return super().has_add_permission(request)
-
-    def db_import_export_link(self, obj):
-        from django.utils.safestring import mark_safe
-        return mark_safe(f'<a class="button" href="/admin/accounts/systemdbimportpermission/db-import-export/" style="font-weight:bold; color:#fff; background:#007bff; padding:8px 18px; border-radius:5px; text-decoration:none;">الانتقال لصفحة استيراد/تصدير قاعدة البيانات</a>')
-    db_import_export_link.short_description = 'استيراد/تصدير قاعدة البيانات'
-
-    def get_users(self, obj):
-        return ', '.join([user.username for user in obj.users.all()])
-    get_users.short_description = 'المستخدمون'
-
-    def save_model(self, request, obj, form, change):
-        # تحقق من عدد المستخدمين قبل الحفظ
-        users = form.cleaned_data.get('users')
-        if users and users.count() > 2:
-            messages.error(request, 'يسمح فقط باختيار مستخدمين اثنين كحد أقصى لاستيراد قاعدة البيانات!')
-            return  # لا يتم الحفظ نهائيًا
-        super().save_model(request, obj, form, change)
-
-    # --- Custom Admin View for DB Import/Export ---
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path('db-import-export/', self.admin_site.admin_view(self.db_import_export_view), name='db-import-export'),
-        ]
-        return custom_urls + urls
-
-    import os, shutil
-    from django.conf import settings
-    def db_import_export_view(self, request):
-        allowed_ids = SystemDBImportPermission.objects.first()
-        if not allowed_ids or request.user not in allowed_ids.users.all():
-            self.message_user(request, "ليس لديك صلاحية الوصول لهذه الصفحة!", level=messages.ERROR)
-            return redirect('admin:index')
-        context = dict(self.admin_site.each_context(request))
-        db_path = os.path.join(settings.BASE_DIR, 'db.sqlite3')
-        context['db_file_exists'] = os.path.exists(db_path)
-        if request.method == 'POST':
-            # تصدير ملف db.sqlite3 الأصلي
-            if 'export_sqlite' in request.POST:
-                if os.path.exists(db_path):
-                    with open(db_path, 'rb') as dbfile:
-                        response = HttpResponse(dbfile.read(), content_type='application/octet-stream')
-                        response['Content-Disposition'] = 'attachment; filename=db.sqlite3'
-                        return response
-                else:
-                    self.message_user(request, "ملف قاعدة البيانات غير موجود!", level=messages.ERROR)
-            # استيراد ملف db.sqlite3 (استبدال الملف)
-            elif 'import_sqlite' in request.FILES:
-                sqlite_file = request.FILES['import_sqlite']
-                if not sqlite_file.name.endswith('.sqlite3'):
-                    self.message_user(request, "يجب رفع ملف بامتداد .sqlite3 فقط!", level=messages.ERROR)
-                else:
-                    try:
-                        # عمل نسخة احتياطية قبل الاستبدال
-                        if os.path.exists(db_path):
-                            backup_path = db_path + '.bak'
-                            shutil.copy2(db_path, backup_path)
-                        # استبدال الملف
-                        with open(db_path, 'wb') as dest:
-                            for chunk in sqlite_file.chunks():
-                                dest.write(chunk)
-                        self.message_user(request, "تم رفع واستبدال قاعدة البيانات بنجاح!", level=messages.SUCCESS)
-                        return HttpResponseRedirect(request.path)
-                    except Exception as e:
-                        self.message_user(request, f"حدث خطأ أثناء رفع قاعدة البيانات: {e}", level=messages.ERROR)
-        return render(request, "admin/db_import_export.html", context)
-
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        if extra_context is None:
-            extra_context = {}
-        # أضف رابط واضح لصفحة الاستيراد/التصدير
-        extra_context['db_import_export_url'] = f'../db-import-export/'
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
 @admin.register(CompanyInfo)
 class CompanyInfoAdmin(admin.ModelAdmin):
@@ -219,73 +85,175 @@ class CompanyInfoAdmin(admin.ModelAdmin):
         # Prevent deletion of the company info
         return False
 
-@admin.register(FormField)
-class FormFieldAdmin(admin.ModelAdmin):
-    list_display = ('form_type', 'field_name', 'field_label', 'field_type', 'required', 'enabled', 'order')
-    list_filter = ('form_type', 'field_type', 'required', 'enabled')
-    search_fields = ('field_name', 'field_label')
-    ordering = ['form_type', 'order']
+@admin.register(Branch)
+class BranchAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'phone', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('code', 'name', 'phone', 'email')
+    ordering = ['code']
 
-@admin.register(ContactFormSettings)
-class ContactFormSettingsAdmin(admin.ModelAdmin):
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('title', 'sender', 'sender_department', 'target_department', 'priority', 'created_at', 'is_read')
+    list_filter = ('is_read', 'priority', 'sender_department', 'target_department', 'created_at')
+    search_fields = ('title', 'message')
+    readonly_fields = ('created_at', 'updated_at', 'read_at', 'read_by')
+    date_hierarchy = 'created_at'
+    
     fieldsets = (
-        (_('إعدادات الصفحة'), {
-            'fields': ('title', 'description')
+        (None, {
+            'fields': ('title', 'message', 'priority')
+        }),
+        (_('معلومات المرسل'), {
+            'fields': ('sender', 'sender_department')
+        }),
+        (_('معلومات المستلم'), {
+            'fields': ('target_department', 'target_branch')
+        }),
+        (_('الكائن المرتبط'), {
+            'fields': ('content_type', 'object_id')
+        }),
+        (_('حالة الإشعار'), {
+            'fields': ('is_read', 'read_at', 'read_by')
+        }),
+        (_('التواريخ'), {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'department_type', 'is_active', 'parent', 'manager')
+    list_filter = (DepartmentFilter, 'department_type', 'is_active', 'parent')
+    search_fields = ('name', 'code', 'description')
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        # Filter by departments that the user belongs to
+        user_departments = request.user.departments.all()
+        # Include departments and their child departments
+        department_ids = set()
+        for dept in user_departments:
+            department_ids.add(dept.id)
+            # Add children recursively
+            children = Department.objects.filter(parent=dept)
+            for child in children:
+                department_ids.add(child.id)
+        return qs.filter(id__in=department_ids)
+        
+    fieldsets = (
+        (_('معلومات أساسية'), {
+            'fields': ('name', 'code', 'department_type', 'description', 'is_active')
+        }),
+        (_('العلاقات'), {
+            'fields': ('parent', 'manager')
+        }),
+        (_('خيارات إضافية'), {
+            'fields': ('order', 'icon', 'url_name', 'has_pages'),
+            'classes': ('collapse',),
+        }),
+    )
+    autocomplete_fields = ['parent', 'manager']
+
+@admin.register(Salesperson)
+class SalespersonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'employee_number', 'branch', 'is_active')
+    list_filter = (DepartmentFilter, 'is_active', 'branch')
+    search_fields = ('name', 'employee_number', 'phone', 'email')
+    fieldsets = (
+        (_('معلومات أساسية'), {
+            'fields': ('name', 'employee_number', 'branch', 'is_active')
         }),
         (_('معلومات الاتصال'), {
-            'fields': ('company_name', 'contact_email', 'contact_phone', 'contact_address', 'contact_hours')
+            'fields': ('phone', 'email', 'address')
         }),
-        (_('إعدادات النموذج'), {
-            'fields': ('form_title', 'form_success_message', 'form_error_message')
+        (_('معلومات إضافية'), {
+            'fields': ('notes', 'created_at', 'updated_at')
         }),
     )
+    readonly_fields = ('created_at', 'updated_at')
     
-    def has_add_permission(self, request):
-        # التحقق إذا كان هناك صف موجود بالفعل
-        return not ContactFormSettings.objects.exists()
-    
-    def has_delete_permission(self, request, obj=None):
-        return False
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        # Filter by branches that the user belongs to
+        if request.user.branch:
+            return qs.filter(branch=request.user.branch)
+        return qs.none()
 
-@admin.register(FooterSettings)
-class FooterSettingsAdmin(admin.ModelAdmin):
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'is_system_role', 'created_at', 'get_users_count')
+    list_filter = ('is_system_role', 'created_at')
+    search_fields = ('name', 'description')
+    filter_horizontal = ('permissions',)
+    readonly_fields = ('created_at', 'updated_at')
+    
     fieldsets = (
-        (_('إعدادات العمود الأيسر'), {
-            'fields': ('left_column_title', 'left_column_text')
+        (_('معلومات الدور'), {
+            'fields': ('name', 'description', 'is_system_role')
         }),
-        (_('إعدادات العمود الأوسط'), {
-            'fields': ('middle_column_title',)
+        (_('الصلاحيات'), {
+            'fields': ('permissions',)
         }),
-        (_('إعدادات العمود الأيمن'), {
-            'fields': ('right_column_title',)
+        (_('معلومات النظام'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
         }),
     )
     
-    def has_add_permission(self, request):
-        # التحقق إذا كان هناك صف موجود بالفعل
-        return not FooterSettings.objects.exists()
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        return qs.filter(is_system_role=False)  # المستخدم العادي لا يمكنه رؤية أدوار النظام
     
     def has_delete_permission(self, request, obj=None):
-        return False
+        if obj and obj.is_system_role:
+            return False  # لا يمكن حذف أدوار النظام
+        return super().has_delete_permission(request, obj)
+    
+    def get_users_count(self, obj):
+        return obj.user_roles.count()
+    get_users_count.short_description = _('عدد المستخدمين')
 
-@admin.register(AboutPageSettings)
-class AboutPageSettingsAdmin(admin.ModelAdmin):
+@admin.register(UserRole)
+class UserRoleAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'assigned_at')
+    list_filter = ('role', 'assigned_at')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'role__name')
+    readonly_fields = ('assigned_at',)
+    
+    autocomplete_fields = ['user', 'role']
+    
     fieldsets = (
-        (_('إعدادات الصفحة'), {
-            'fields': ('title', 'subtitle', 'system_description')
+        (_('معلومات العلاقة'), {
+            'fields': ('user', 'role')
         }),
-        (_('معلومات النظام - للعرض فقط'), {
-            'fields': ('system_version', 'system_release_date', 'system_developer'),
-            'classes': ('collapse',),
-            'description': 'هذه المعلومات للعرض فقط ولا يمكن تعديلها إلا من قبل مطور النظام.'
+        (_('معلومات النظام'), {
+            'fields': ('assigned_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+@admin.register(Permission)
+class PermissionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'codename', 'content_type')
+    list_filter = ('content_type__app_label',)
+    search_fields = ('name', 'codename')
+    readonly_fields = ('codename', 'content_type')
+    
+    fieldsets = (
+        (_('معلومات الصلاحية'), {
+            'fields': ('name', 'codename', 'content_type')
         }),
     )
     
-    readonly_fields = ('system_version', 'system_release_date', 'system_developer')
-    
     def has_add_permission(self, request):
-        # التحقق إذا كان هناك صف موجود بالفعل
-        return not AboutPageSettings.objects.exists()
+        return False  # لا يمكن إضافة صلاحيات جديدة من خلال واجهة الإدارة
     
     def has_delete_permission(self, request, obj=None):
-        return False
+        return False  # لا يمكن حذف صلاحيات من خلال واجهة الإدارة

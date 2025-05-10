@@ -1,40 +1,66 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from . import views
 from .views_health import health_check
 from accounts.views import admin_logout_view
+from inventory.views import dashboard_view
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+    TokenBlacklistView,
+)
 
+# تعريف المسارات الرئيسية
 urlpatterns = [
-    path('health-check/', health_check, name='health_check'),
-    path('health/', health_check, name='health'),  # Add the /health/ endpoint
+    # المسارات الأساسية
     path('', views.home, name='home'),
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),
+    
+    # مسارات API
+    path('api/dashboard/', dashboard_view, name='dashboard'),
+    
+    # مسارات لوحة التحكم
     path('admin/', admin.site.urls),
-    path('admin/logout/', admin_logout_view, name='admin_logout'),  # Ruta personalizada para logout de admin
-    path('accounts/', include('accounts.urls')),
-    path('customers/', include('customers.urls')),
-    path('factory/', include('factory.urls')),
-    path('inventory/', include('inventory.urls')),
-    path('orders/', include('orders.urls')),
-    path('reports/', include('reports.urls')),
-    path('inspections/', include('inspections.urls')),
-    path('installations/', include('installations.urls')),
-    path('data-import-export/', include('data_import_export.urls')),
-    path('data_backup/', include('data_backup.urls')),  # إضافة مسارات تطبيق المزامنة
-    # API endpoints
-    path('api/accounts/', include('accounts.urls', namespace='api_accounts')),
-    path('api/customers/', include('customers.urls', namespace='api_customers')),
-    path('api/factory/', include('factory.urls', namespace='api_factory')),
-    path('api/inventory/', include('inventory.urls', namespace='api_inventory')),
-    path('api/orders/', include('orders.urls', namespace='api_orders')),
-    path('api/reports/', include('reports.urls', namespace='api_reports')),
-    path('api/inspections/', include('inspections.urls', namespace='api_inspections')),
+    path('admin/logout/', admin_logout_view, name='admin_logout'),
+    
+    # مسارات فحص الصحة
+    path('health-check/', health_check, name='health_check'),
+    path('health/', health_check, name='health'),
+
+    # مسار خدمة ملفات الوسائط
+    re_path(r'^media/(?P<path>.*)$', views.serve_media_file, name='serve_media'),
+
+    # مسارات JWT للمصادقة في API
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
+    
+    # مسارات التطبيقات
+    path('accounts/', include('accounts.urls', namespace='accounts')),
+    path('customers/', include('customers.urls', namespace='customers')),
+    path('factory/', include('factory.urls', namespace='factory')),
+    path('inventory/', include('inventory.urls', namespace='inventory')),
+    path('orders/', include('orders.urls', namespace='orders')),
+    path('reports/', include('reports.urls', namespace='reports')),
+    path('inspections/', include('inspections.urls', namespace='inspections')),
+    path('installations/', include('installations.urls', namespace='installations')),
+    path('data-import-export/', include('data_import_export.urls', namespace='data_import_export')),
+    path('data-backup/', include('data_backup.urls', namespace='data_backup')),
 ]
 
-# Serve media files in development
+# خدمة الملفات الثابتة في بيئة التطوير
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Only serve static files in development
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    
+    # Add debug toolbar only if not running tests
+    if not getattr(settings, 'TESTING', False):
+        import debug_toolbar
+        urlpatterns += [
+            path('__debug__/', include(debug_toolbar.urls)),
+        ]

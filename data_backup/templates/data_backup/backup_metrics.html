@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}مقاييس النسخ الاحتياطي{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">مقاييس النسخ الاحتياطي (آخر {{ days }} يوم)</h5>
+                    <div>
+                        <div class="btn-group" role="group">
+                            <a href="?days=7" class="btn btn-sm btn-outline-primary {% if days == 7 %}active{% endif %}">7 أيام</a>
+                            <a href="?days=30" class="btn btn-sm btn-outline-primary {% if days == 30 %}active{% endif %}">30 يوم</a>
+                            <a href="?days=90" class="btn btn-sm btn-outline-primary {% if days == 90 %}active{% endif %}">90 يوم</a>
+                        </div>
+                        <a href="{% url 'data_backup:dashboard' %}" class="btn btn-sm btn-secondary ms-2">العودة للوحة التحكم</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">معدل النجاح</h6>
+                                    <h3 class="mb-0">
+                                        {{ success_rate }}%
+                                        {% if success_rate >= 95 %}
+                                            <i class="fas fa-check-circle text-success"></i>
+                                        {% elif success_rate >= 80 %}
+                                            <i class="fas fa-check text-warning"></i>
+                                        {% else %}
+                                            <i class="fas fa-exclamation-circle text-danger"></i>
+                                        {% endif %}
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">متوسط وقت النسخ</h6>
+                                    <h3 class="mb-0">{{ average_duration }} ثانية</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">الحجم الإجمالي</h6>
+                                    <h3 class="mb-0">{{ total_size_mb }} MB</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">عدد النسخ</h6>
+                                    <h3 class="mb-0">{{ backup_count }}</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <h5>تفاصيل النسخ الاحتياطي</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>التاريخ</th>
+                                            <th>نوع التخزين</th>
+                                            <th>الحجم</th>
+                                            <th>الوقت (ثانية)</th>
+                                            <th>النتيجة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for metric in metrics.metrics_list %}
+                                        <tr>
+                                            <td>{{ metric.backup_date|date:"Y-m-d H:i" }}</td>
+                                            <td>{{ metric.storage_type }}</td>
+                                            <td>{{ metric.backup_size|filesizeformat }}</td>
+                                            <td>{{ metric.duration|floatformat:2 }}</td>
+                                            <td>
+                                                {% if metric.successful %}
+                                                <span class="badge bg-success">ناجح</span>
+                                                {% else %}
+                                                <span class="badge bg-danger" data-bs-toggle="tooltip" title="{{ metric.error_message }}">فاشل</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="5" class="text-center">لا توجد بيانات للنسخ الاحتياطي خلال هذه الفترة</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // تفعيل tooltips لعرض رسائل الخطأ عند تمرير الماوس
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

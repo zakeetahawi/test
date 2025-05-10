@@ -112,6 +112,8 @@
                             {% include 'reports/includes/inventory_report.html' with data=report_data %}
                         {% elif report.report_type == 'financial' %}
                             {% include 'reports/includes/financial_report.html' with data=report_data %}
+                        {% elif report.report_type == 'analytics' %}
+                            {% include 'reports/includes/analytics_report.html' with data=report_data %}
                         {% endif %}
                     {% else %}
                         <div class="alert alert-info">

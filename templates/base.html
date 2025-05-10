@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}نظام الخواجه لإدارة العملاء{% endblock %}</title>
+    <title>{% block title %}نظام إدارة العملاء{% endblock %}</title>
     
     <!-- Bootstrap RTL CSS -->
     <link rel="stylesheet" href="{% static 'css/bootstrap.rtl.min.css' %}">
@@ -24,7 +24,6 @@
             <a class="navbar-brand" href="{% url 'home' %}">
                 <div class="d-flex align-items-center">
                     <img src="{% static 'img/logo.png' %}" alt="شعار النظام" class="logo-img">
-                    <span class="ms-2 d-none d-sm-inline">نظام الخواجه</span>
                 </div>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -96,7 +95,7 @@
                                 </a></li>
                                 {% if user.is_superuser %}
                                 <li><a class="dropdown-item" href="{% url 'data_backup:dashboard' %}">
-                                    <i class="fas fa-sync"></i> مزامنة غوغل
+                                    <i class="fas fa-cloud-upload-alt"></i> النسخ الاحتياطي والتخزين السحابي
                                 </a></li>
                                 {% endif %}
                             </ul>
@@ -230,6 +229,7 @@
                             <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-id-card"></i> الملف الشخصي</a></li>
                             {% if user.is_staff %}
                             <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="fas fa-cog"></i> لوحة الإدارة</a></li>
+                            <li><a class="dropdown-item" href="{% url 'accounts:role_management' %}"><i class="fas fa-user-shield"></i> إدارة الأدوار</a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'accounts:logout' %}"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>

@@ -1,23 +1,43 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.contrib.auth.decorators import user_passes_test
+from django.http import JsonResponse
 from django.utils import timezone
+from datetime import timedelta
 from django.apps import apps
-from django.conf import settings
-from .models import GoogleSheetsConfig, SyncLog
+from .models import GoogleSheetsConfig, SyncLog, BackupHistory, CloudStorageConfig, BackupMetrics
+from .forms import SyncIntervalForm, GoogleSheetsImportForm, CloudStorageConfigForm
 from .services.google_sheets_service import GoogleSheetsService
-from .forms import SyncIntervalForm, GoogleSheetsImportForm
+from .services.auto_sync_service import auto_sync_data
+from .services.cloud_storage import CloudStorageService
+from .services.analytics import BackupAnalyticsService
+from .services.backup_service import BackupService
 
+@login_required
 @user_passes_test(lambda u: u.is_staff)
 def backup_dashboard(request):
-    """لوحة تحكم النسخ الاحتياطي والمزامنة"""
+    """عرض لوحة تحكم النسخ الاحتياطي"""
     config = GoogleSheetsConfig.objects.first()
     recent_logs = SyncLog.objects.all()[:10]
+    
+    # إحصائيات وتقارير النسخ الاحتياطي
+    daily_report = BackupAnalyticsService.generate_daily_report(days=30)
+    storage_report = BackupAnalyticsService.generate_storage_report()
+    performance_metrics = BackupAnalyticsService.generate_performance_metrics(days=7)
+    
+    # آخر النسخ الاحتياطية
+    recent_backups = BackupHistory.objects.order_by('-timestamp')[:10]
+    cloud_config = CloudStorageConfig.objects.first()
     
     context = {
         'config': config,
         'recent_logs': recent_logs,
         'title': 'لوحة تحكم النسخ الاحتياطي والمزامنة',
+        'daily_report': daily_report,
+        'storage_report': storage_report,
+        'performance_metrics': performance_metrics,
+        'recent_backups': recent_backups,
+        'cloud_config': cloud_config
     }
     
     return render(request, 'data_backup/dashboard.html', context)
@@ -427,3 +447,96 @@ def update_sync_interval(request):
         'config': config,
         'title': 'تعديل فترة المزامنة'
     })
+
+@login_required
+def cloud_storage_settings(request):
+    """إدارة إعدادات التخزين السحابي"""
+    config = CloudStorageConfig.objects.first()
+    
+    if request.method == 'POST':
+        form = CloudStorageConfigForm(request.POST, request.FILES, instance=config)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'تم حفظ إعدادات التخزين السحابي بنجاح')
+            return redirect('data_backup:dashboard')
+    else:
+        form = CloudStorageConfigForm(instance=config)
+    
+    return render(request, 'data_backup/cloud_storage_settings.html', {
+        'form': form,
+        'config': config
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def test_cloud_storage(request):
+    """اختبار اتصال التخزين السحابي"""
+    if request.method == 'POST':
+        service = CloudStorageService()
+        success, message = service.test_connection()
+        return JsonResponse({'success': success, 'message': message})
+    return JsonResponse({'success': False, 'message': 'طلب غير صالح'}, status=400)
+
+@login_required
+def backup_metrics(request):
+    """عرض مقاييس النسخ الاحتياطي"""
+    days = int(request.GET.get('days', 30))
+    metrics = CloudStorageService.get_storage_metrics(days)
+    
+    return render(request, 'data_backup/backup_metrics.html', {
+        'metrics': metrics,
+        'days': days,
+        'success_rate': round(metrics['success_rate'], 2),
+        'average_duration': round(metrics['average_duration'], 2),
+        'total_size_mb': round(metrics['total_size'] / (1024 * 1024), 2),
+        'backup_count': metrics['backup_count']
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def backup_reports(request, report_type='daily'):
+    """عرض تقارير النسخ الاحتياطي"""
+    if report_type == 'daily':
+        report_data = BackupAnalyticsService.generate_daily_report()
+    elif report_type == 'storage':
+        report_data = BackupAnalyticsService.generate_storage_report()
+    else:
+        report_data = BackupAnalyticsService.generate_performance_metrics()
+        
+    return render(request, 'data_backup/backup_reports.html', {
+        'report_type': report_type,
+        'report_data': report_data
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def create_backup(request):
+    """إنشاء نسخة احتياطية جديدة"""
+    if request.method == 'POST':
+        backup_service = BackupService(user=request.user)
+        result = backup_service.create_backup(backup_type='manual')
+        
+        if result['success']:
+            messages.success(request, f"تم إنشاء النسخة الاحتياطية بنجاح. حجم الملف: {result['file_size'] / (1024*1024):.2f} MB")
+        else:
+            messages.error(request, f"فشل إنشاء النسخة الاحتياطية: {result.get('error', 'خطأ غير معروف')}")
+    
+    return redirect('data_backup:dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def restore_backup(request, backup_id=None):
+    """استعادة نسخة احتياطية"""
+    if request.method == 'POST' and backup_id:
+        backup_service = BackupService(user=request.user)
+        result = backup_service.restore_backup(backup_id)
+        
+        if result['success']:
+            messages.success(request, "تم استعادة النسخة الاحتياطية بنجاح.")
+        else:
+            messages.error(request, f"فشل استعادة النسخة الاحتياطية: {result.get('error', 'خطأ غير معروف')}")
+        
+        return redirect('data_backup:dashboard')
+    
+    backups = BackupHistory.objects.filter(status='success').order_by('-timestamp')
+    return render(request, 'data_backup/restore_backup.html', {'backups': backups})

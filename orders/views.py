@@ -3,16 +3,44 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Count, Sum
 from django.core.paginator import Paginator
 from django.contrib.contenttypes.models import ContentType
-from .models import Order, OrderItem, Payment
+from django.http import JsonResponse
+from django.utils import timezone
+from .models import Order, OrderItem, Payment, ShippingDetails
 from .forms import OrderForm, OrderItemFormSet, PaymentForm
+from .services.shipping_service import ShippingService
 from accounts.models import Branch, Salesperson, Department, Notification
 from customers.models import Customer
 from inventory.models import Product
 from inspections.models import Inspection
 from datetime import datetime, timedelta
+
+class OrdersDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'orders/dashboard.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
+        
+        # Get orders
+        if self.request.user.is_superuser:
+            orders = Order.objects.all()
+        else:
+            orders = Order.objects.filter(Q(created_by=self.request.user) | Q(salesperson=self.request.user))
+        
+        # Basic statistics
+        context['total_orders'] = orders.count()
+        context['pending_orders'] = orders.filter(status='pending').count()
+        context['completed_orders'] = orders.filter(status='completed').count()
+        context['recent_orders'] = orders.order_by('-created_at')[:10]
+        
+        # Sales statistics
+        context['total_sales'] = orders.filter(status='completed').aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+        context['monthly_sales'] = orders.filter(created_at__month=today.month).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+        
+        return context
 
 @login_required
 def order_list(request):
@@ -251,142 +279,24 @@ def order_update(request, pk):
                 service_types = request.POST.get('service_types_hidden', '')
                 if service_types:
                     service_types = [st.strip() for st in service_types.split(',') if st.strip()]
-                    
-                    # Check if inspection service was added
-                    old_service_types = set(order.service_types)
-                    new_service_types = set(service_types)
-                    
-                    # If inspection is newly added
-                    if 'inspection' in new_service_types and 'inspection' not in old_service_types:
-                        # Create inspection record
-                        try:
-                            # Create a new inspection
-                            inspection = Inspection(
-                                customer=order.customer,
-                                branch=order.branch,
-                                request_date=datetime.now().date(),
-                                scheduled_date=datetime.now().date() + timedelta(days=3),  # Schedule for 3 days later
-                                status='pending',
-                                notes=f'تم إنشاء هذه المعاينة من طلب رقم {order.order_number}',
-                                created_by=request.user,
-                                is_from_orders=True,  # Add this flag
-                                order=order  # Link back to the order
-                            )
-                            inspection.save()
-                            
-                            print(f"Created inspection record for updated order {order.order_number}")
-                            
-                            # Create notification for inspection department
-                            dept = Department.objects.filter(code='inspections').first()
-                            if dept:
-                                try:
-                                    Notification.objects.create(
-                                        title='طلب معاينة جديد',
-                                        message=f'تم إنشاء طلب معاينة جديد للعميل {order.customer.name}',
-                                        priority='high',
-                                        sender=request.user,
-                                        target_department=dept,
-                                        target_branch=order.branch,
-                                        sender_department=request.user.departments.first() if hasattr(request.user, 'departments') and request.user.departments.exists() else None
-                                    )
-                                except Exception as notification_error:
-                                    print(f"Error creating inspection notification: {notification_error}")
-                        except Exception as inspection_error:
-                            print(f"Error creating inspection record: {inspection_error}")
-                    
                     order.service_types = service_types
             
             order.save()
             
-            # Handle product types
-            product_types = request.POST.get('product_types_hidden', '')
-            if 'product' in order_types and product_types:
-                product_types = [pt.strip() for pt in product_types.split(',') if pt.strip()]
-                
-                # Handle product selection for product orders
-                selected_products_json = request.POST.get('selected_products', '')
-                if selected_products_json:
-                    # Clear existing items first
-                    order.items.all().delete()
-                    
-                    import json
-                    try:
-                        selected_products = json.loads(selected_products_json)
-                        
-                        # Create order items for each selected product
-                        for product_data in selected_products:
-                            try:
-                                product_id = product_data.get('id')
-                                quantity = product_data.get('quantity', 1)
-                                
-                                product = Product.objects.get(id=product_id)
-                                
-                                # Check if product type matches selected product types
-                                product_type = 'fabric' if product.category and 'قماش' in product.category.name.lower() else 'accessory'
-                                
-                                # Create order item regardless of product type
-                                OrderItem.objects.create(
-                                    order=order,
-                                    product=product,
-                                    quantity=quantity,
-                                    unit_price=product.price or 0,
-                                    item_type=product_type
-                                )
-                                print(f"Updated order item for product {product.name} with quantity {quantity}")
-                            except (Product.DoesNotExist, ValueError) as e:
-                                print(f"Error processing product {product_id}: {str(e)}")
-                    except json.JSONDecodeError as e:
-                        print(f"Error decoding selected products JSON: {str(e)}")
-                        print(f"Raw JSON: {selected_products_json}")
-            
-            # Save order items from formset (if any)
+            # Save order items
             formset.save()
             
-            # Recalculate total amount
-            total_amount = sum(item.quantity * item.unit_price for item in order.items.all())
-            order.total_amount = total_amount
-            order.save()
-            
-            # Create notification for inventory department
-            inventory_dept = Department.objects.filter(code='inventory').first()
-            if inventory_dept:
-                try:
-                    # Create notification data
-                    notification_data = {
-                        'title': 'طلب تم تحديثه يحتاج للتحقق من المخزون',
-                        'message': f'تم تحديث الطلب رقم {order.order_number} ويحتاج للتحقق من توفر المنتجات في المخزون',
-                        'priority': 'medium',
-                        'sender': request.user,
-                        'target_department': inventory_dept,
-                        'target_branch': order.branch,
-                    }
-                    
-                    # Add sender department if exists
-                    if hasattr(request.user, 'departments') and request.user.departments.exists():
-                        notification_data['sender_department'] = request.user.departments.first()
-                    
-                    # Create notification
-                    Notification.objects.create(**notification_data)
-                except Exception as notification_error:
-                    # Log the error but don't prevent order update
-                    print(f"Error creating notification: {notification_error}")
-            
-            messages.success(request, 'تم تحديث الطلب بنجاح.')
+            messages.success(request, 'تم تحديث الطلب بنجاح!')
             return redirect('orders:order_detail', pk=order.pk)
-    else:
-        form = OrderForm(instance=order)
-        formset = OrderItemFormSet(instance=order)
-        
-        # Set default branch to user's branch
-        if not request.user.is_superuser:
-            form.fields['branch'].initial = request.user.branch
-            form.fields['branch'].queryset = Branch.objects.filter(id=request.user.branch.id)
+    
+    form = OrderForm(instance=order)
+    formset = OrderItemFormSet(instance=order)
     
     context = {
         'form': form,
         'formset': formset,
+        'title': f'تحديث الطلب: {order.order_number}',
         'order': order,
-        'title': 'تعديل الطلب',
     }
     
     return render(request, 'orders/order_form.html', context)
@@ -400,12 +310,16 @@ def order_delete(request, pk):
     order = get_object_or_404(Order, pk=pk)
     
     if request.method == 'POST':
-        order.delete()
-        messages.success(request, 'تم حذف الطلب بنجاح.')
+        try:
+            order.delete()
+            messages.success(request, 'تم حذف الطلب بنجاح.')
+        except Exception as e:
+            messages.error(request, f'حدث خطأ أثناء حذف الطلب: {str(e)}')
         return redirect('orders:order_list')
     
     context = {
         'order': order,
+        'title': f'حذف الطلب: {order.order_number}',
     }
     
     return render(request, 'orders/order_confirm_delete.html', context)
@@ -434,7 +348,7 @@ def payment_create(request, order_pk):
     context = {
         'form': form,
         'order': order,
-        'title': 'تسجيل دفعة جديدة',
+        'title': f'تسجيل دفعة جديدة للطلب: {order.order_number}'
     }
     
     return render(request, 'orders/payment_form.html', context)
@@ -449,13 +363,17 @@ def payment_delete(request, pk):
     order = payment.order
     
     if request.method == 'POST':
-        payment.delete()
-        messages.success(request, 'تم حذف الدفعة بنجاح.')
+        try:
+            payment.delete()
+            messages.success(request, 'تم حذف الدفعة بنجاح.')
+        except Exception as e:
+            messages.error(request, f'حدث خطأ أثناء حذف الدفعة: {str(e)}')
         return redirect('orders:order_detail', pk=order.pk)
     
     context = {
         'payment': payment,
         'order': order,
+        'title': f'حذف دفعة من الطلب: {order.order_number}'
     }
     
     return render(request, 'orders/payment_confirm_delete.html', context)
@@ -463,57 +381,161 @@ def payment_delete(request, pk):
 @login_required
 def salesperson_list(request):
     """
-    عرض قائمة البائعين مع إمكانية البحث والتصفية
+    View for listing salespersons and their orders
     """
-    search_query = request.GET.get('search', '')
-    branch_filter = request.GET.get('branch', '')
-    is_active = request.GET.get('is_active', '')
-    
-    # قاعدة البيانات الأساسية
     salespersons = Salesperson.objects.all()
     
-    # تقييد البائعين حسب فرع المستخدم إذا لم يكن مديراً
-    if not request.user.is_superuser:
-        salespersons = salespersons.filter(branch=request.user.branch)
-    
-    # تطبيق البحث
-    if search_query:
-        salespersons = salespersons.filter(
-            Q(name__icontains=search_query) |
-            Q(employee_number__icontains=search_query) |
-            Q(phone__icontains=search_query)
-        )
-    
-    # تصفية حسب الفرع
-    if branch_filter and request.user.is_superuser:
-        salespersons = salespersons.filter(branch_id=branch_filter)
-    
-    # تصفية حسب الحالة
-    if is_active:
-        is_active = is_active == 'true'
-        salespersons = salespersons.filter(is_active=is_active)
-    
-    # الترتيب
-    salespersons = salespersons.order_by('name')
-    
-    # التقسيم لصفحات
-    paginator = Paginator(salespersons, 10)  # 10 بائعين في كل صفحة
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # جلب قائمة الفروع للتصفية (للمدراء فقط)
-    branches = Branch.objects.all() if request.user.is_superuser else None
+    # Add order statistics for each salesperson
+    for sp in salespersons:
+        sp.total_orders = Order.objects.filter(salesperson=sp).count()
+        sp.completed_orders = Order.objects.filter(salesperson=sp, status='completed').count()
+        sp.pending_orders = Order.objects.filter(salesperson=sp, status='pending').count()
+        sp.total_sales = Order.objects.filter(salesperson=sp, status='completed').aggregate(Sum('total_amount'))['total_amount__sum'] or 0
     
     context = {
-        'page_obj': page_obj,
-        'total_salespersons': salespersons.count(),
-        'search_query': search_query,
-        'branch_filter': branch_filter,
-        'is_active': is_active,
-        'branches': branches,
-        'title': 'قائمة البائعين',
+        'salespersons': salespersons,
+        'title': 'قائمة مندوبي المبيعات'
     }
     
     return render(request, 'orders/salesperson_list.html', context)
 
-# Views for accessory items and fabric orders are now integrated into the main Order model
+@login_required
+@permission_required('orders.change_order', raise_exception=True)
+def update_order_status(request, order_id):
+    """
+    View for updating order status
+    """
+    order = get_object_or_404(Order, pk=order_id)
+    
+    if request.method == 'POST':
+        new_status = request.POST.get('status')
+        if new_status and new_status in dict(Order.STATUS_CHOICES).keys():
+            try:
+                order.status = new_status
+                order.save()
+                messages.success(request, 'تم تحديث حالة الطلب بنجاح.')
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء تحديث حالة الطلب: {str(e)}')
+        else:
+            messages.error(request, 'حالة الطلب غير صالحة.')
+            
+    return redirect('orders:order_detail', pk=order_id)
+
+@login_required
+@permission_required('orders.change_order', raise_exception=True)
+def shipping_details(request, order_id):
+    """
+    عرض تفاصيل الشحن للطلب
+    """
+    order = get_object_or_404(Order, pk=order_id)
+    
+    # التحقق من وجود تفاصيل شحن
+    try:
+        shipping = order.shipping_details
+    except ShippingDetails.DoesNotExist:
+        if order.delivery_type != 'home':
+            messages.error(request, 'هذا الطلب ليس للتوصيل المنزلي')
+            return redirect('orders:order_detail', pk=order_id)
+        
+        # إنشاء تفاصيل شحن جديدة
+        shipping = ShippingService.create_shipping_details(order)
+    
+    # الحصول على الجدول الزمني للشحن
+    timeline = ShippingService.get_shipping_timeline(order)
+    
+    context = {
+        'order': order,
+        'shipping': shipping,
+        'timeline': timeline,
+        'shipping_status_choices': ShippingDetails.SHIPPING_STATUS_CHOICES,
+        'shipping_provider_choices': ShippingDetails.SHIPPING_PROVIDER_CHOICES,
+    }
+    
+    return render(request, 'orders/shipping_details.html', context)
+
+@login_required
+@permission_required('orders.change_order', raise_exception=True)
+def update_shipping_status(request, order_id):
+    """
+    تحديث حالة الشحن
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'يجب استخدام طريقة POST'}, status=400)
+    
+    order = get_object_or_404(Order, pk=order_id)
+    new_status = request.POST.get('status')
+    notes = request.POST.get('notes', '')
+    
+    try:
+        # تحديث حالة الشحن
+        shipping = ShippingService.update_shipping_status(
+            order,
+            new_status,
+            notes=notes,
+            tracking_number=request.POST.get('tracking_number'),
+            estimated_delivery_date=request.POST.get('estimated_delivery_date'),
+            shipping_cost=request.POST.get('shipping_cost')
+        )
+        
+        messages.success(request, 'تم تحديث حالة الشحن بنجاح')
+        return JsonResponse({
+            'success': True,
+            'shipping_status': shipping.get_shipping_status_display(),
+            'last_update': shipping.last_update.strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except ValidationError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'حدث خطأ: {str(e)}'}, status=500)
+
+@login_required
+@permission_required('orders.change_order', raise_exception=True)
+def update_shipping_provider(request, order_id):
+    """
+    تحديث شركة الشحن
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'يجب استخدام طريقة POST'}, status=400)
+    
+    order = get_object_or_404(Order, pk=order_id)
+    provider = request.POST.get('provider')
+    
+    try:
+        # التحقق من صلاحية شركة الشحن
+        ShippingService.validate_shipping_provider(provider)
+        
+        # تحديث شركة الشحن
+        shipping = order.shipping_details
+        shipping.shipping_provider = provider
+        shipping.save()
+        
+        # حساب تكلفة الشحن الجديدة
+        new_cost = ShippingService.get_shipping_cost(order, provider)
+        shipping.shipping_cost = new_cost
+        shipping.save()
+        
+        messages.success(request, 'تم تحديث شركة الشحن بنجاح')
+        return JsonResponse({
+            'success': True,
+            'shipping_provider': shipping.get_shipping_provider_display(),
+            'shipping_cost': float(shipping.shipping_cost)
+        })
+        
+    except ValidationError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'حدث خطأ: {str(e)}'}, status=500)
+
+@login_required
+def shipping_timeline(request, order_id):
+    """
+    عرض الجدول الزمني للشحن
+    """
+    order = get_object_or_404(Order, pk=order_id)
+    timeline = ShippingService.get_shipping_timeline(order)
+    
+    return JsonResponse({
+        'success': True,
+        'timeline': timeline
+    })

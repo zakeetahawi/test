@@ -1,19 +1,41 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
+from .views import OrdersDashboardView
+from .views_pricing import DynamicPricingViewSet
 
 app_name = 'orders'
 
+router = DefaultRouter()
+router.register(r'dynamic-pricing', DynamicPricingViewSet, basename='dynamic-pricing')
+
 urlpatterns = [
-    # Order URLs
-    path('', views.order_list, name='order_list'),
-    # alias for compatibility
-    path('orders/', views.order_list, name='orders_list'),
-    path('create/', views.order_create, name='order_create'),
+    # Dashboard as main page
+    path('', OrdersDashboardView.as_view(), name='dashboard'),
+    
+    # Order Views
+    path('list/', views.order_list, name='order_list'),
     path('<int:pk>/', views.order_detail, name='order_detail'),
+    path('create/', views.order_create, name='order_create'),
     path('<int:pk>/update/', views.order_update, name='order_update'),
     path('<int:pk>/delete/', views.order_delete, name='order_delete'),
     
-    # Payment URLs
-    path('<int:order_pk>/payment/create/', views.payment_create, name='payment_create'),
+    # Payment Views
+    path('payment/<int:order_pk>/create/', views.payment_create, name='payment_create'),
     path('payment/<int:pk>/delete/', views.payment_delete, name='payment_delete'),
+    
+    # Salesperson Views
+    path('salesperson/', views.salesperson_list, name='salesperson_list'),
+
+    # Update Order Status
+    path('order/<int:order_id>/update-status/', views.update_order_status, name='update_status'),
+
+    # Shipping Views
+    path('order/<int:order_id>/shipping/', views.shipping_details, name='shipping_details'),
+    path('order/<int:order_id>/shipping/status/', views.update_shipping_status, name='update_shipping_status'),
+    path('order/<int:order_id>/shipping/provider/', views.update_shipping_provider, name='update_shipping_provider'),
+    path('order/<int:order_id>/shipping/timeline/', views.shipping_timeline, name='shipping_timeline'),
+
+    # API Dynamic Pricing
+    path('api/', include(router.urls)),
 ]

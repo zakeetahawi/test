@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+from django.conf import settings
 
 class User(AbstractUser):
     """Custom User model for the application."""
@@ -20,18 +21,6 @@ class User(AbstractUser):
     
     def __str__(self):
         return self.username
-
-class SystemDBImportPermission(models.Model):
-    users = models.ManyToManyField(User, verbose_name=_('مستخدمين استيراد قاعدة البيانات'))
-    description = models.CharField(max_length=200, blank=True, verbose_name=_('وصف'))
-
-
-    def __str__(self):
-        return 'صلاحية استيراد قاعدة البيانات (مستخدمين محددين فقط)'
-
-    class Meta:
-        verbose_name = _('صلاحية استيراد قاعدة البيانات')
-        verbose_name_plural = _('صلاحيات استيراد قاعدة البيانات')
 
 class Branch(models.Model):
     code = models.CharField(max_length=50, unique=True)
@@ -373,3 +362,79 @@ class AboutPageSettings(models.Model):
         if not self.pk and AboutPageSettings.objects.exists():
             return  # لا تحفظ إذا كان هناك صف موجود بالفعل
         super().save(*args, **kwargs)
+
+class Role(models.Model):
+    """نموذج الأدوار للمستخدمين في النظام"""
+    name = models.CharField(max_length=100, unique=True, verbose_name='اسم الدور')
+    description = models.TextField(blank=True, null=True, verbose_name='وصف الدور')
+    permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='الصلاحيات',
+        blank=True,
+    )
+    is_system_role = models.BooleanField(default=False, verbose_name='دور نظام', 
+                                         help_text='تحديد ما إذا كان هذا الدور من أدوار النظام الأساسية التي لا يمكن تعديلها')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التحديث')
+    
+    class Meta:
+        verbose_name = 'دور'
+        verbose_name_plural = 'الأدوار'
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+    def assign_to_user(self, user):
+        """إسناد هذا الدور للمستخدم المحدد"""
+        # إضافة المستخدم إلى هذا الدور
+        UserRole.objects.get_or_create(user=user, role=self)
+        
+        # إضافة صلاحيات الدور للمستخدم
+        for permission in self.permissions.all():
+            user.user_permissions.add(permission)
+    
+    def remove_from_user(self, user):
+        """إزالة هذا الدور من المستخدم المحدد"""
+        # حذف المستخدم من هذا الدور
+        UserRole.objects.filter(user=user, role=self).delete()
+        
+        # حذف صلاحيات الدور من المستخدم
+        # نحذف فقط الصلاحيات التي تنتمي حصرياً لهذا الدور وليست موجودة في أي دور آخر للمستخدم
+        for permission in self.permissions.all():
+            if not UserRole.objects.filter(user=user, role__permissions=permission).exists():
+                user.user_permissions.remove(permission)
+
+class UserRole(models.Model):
+    """العلاقة بين المستخدمين والأدوار"""
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='user_roles', verbose_name='المستخدم')
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='user_roles', verbose_name='الدور')
+    assigned_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإسناد')
+    
+    class Meta:
+        verbose_name = 'دور المستخدم'
+        verbose_name_plural = 'أدوار المستخدمين'
+        unique_together = ['user', 'role']  # لضمان عدم تكرار الدور للمستخدم
+    
+    def __str__(self):
+        return f"{self.user} - {self.role}"
+
+class ActivityLog(models.Model):
+    ACTIVITY_TYPES = [
+        ('عميل', 'عميل'),
+        ('طلب', 'طلب'),
+        ('مخزون', 'مخزون'),
+        ('تركيب', 'تركيب'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='activities'
+    )
+    type = models.CharField(max_length=20, choices=ACTIVITY_TYPES)
+    description = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']

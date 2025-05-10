@@ -156,231 +156,169 @@ def generate_multi_sheet_template(model_names):
     
     return output
 
-def process_multi_sheet_import(file_path, import_log):
+def process_multi_sheet_import(file_path, import_log, new_only=False, chunk_size=1000):
     """
-    Process a multi-sheet Excel file for importing data
+    معالجة ملف Excel متعدد الصفحات للاستيراد
+    """
+    import pandas as pd
+    from django.apps import apps
     
-    Args:
-        file_path: Path to the Excel file
-        import_log: ImportExportLog instance
-        
-    Returns:
-        Tuple of (success_count, error_count, error_details)
-    """
-    # Initialize counters
-    total_success_count = 0
-    total_error_count = 0
+    success_count = 0
+    error_count = 0
     error_details = []
     
-    # Read the Excel file
-    xls = pd.ExcelFile(file_path)
-    
-    # Define mapping of sheet names to models
-    # This mapping can be customized based on your specific needs
-    sheet_to_model_mapping = {
-        'Products': 'inventory.product',
-        'المنتجات': 'inventory.product',
-        'Suppliers': 'inventory.supplier',
-        'الموردين': 'inventory.supplier',
-        'Customers': 'customers.customer',
-        'العملاء': 'customers.customer',
-        'Orders': 'orders.order',
-        'الطلبات': 'orders.order',
-        'Categories': 'inventory.category',
-        'فئات المنتجات': 'inventory.category',
-        'CustomerCategories': 'customers.customercategory',
-        'فئات العملاء': 'customers.customercategory',
-        'OrderItems': 'orders.orderitem',
-        'عناصر الطلبات': 'orders.orderitem',
-        'Payments': 'orders.payment',
-        'المدفوعات': 'orders.payment',
-    }
-    
-    # Process each sheet
-    for sheet_name in xls.sheet_names:
-        # Skip sheets that start with '_' (considered as metadata or helper sheets)
-        if sheet_name.startswith('_'):
-            continue
-            
-        # Get the model name from the mapping or try to infer it
-        if sheet_name in sheet_to_model_mapping:
-            model_name = sheet_to_model_mapping[sheet_name]
-        else:
-            # Try to infer the model name from the sheet name
-            # Convert CamelCase to snake_case if needed
-            model_guess = sheet_name.lower()
-            # Check if it's a valid model in any of the importable apps
-            importable_apps = ['inventory', 'customers', 'orders']
-            model_found = False
-            
-            for app in importable_apps:
-                try:
-                    model_class = apps.get_model(app, model_guess)
-                    model_name = f"{app}.{model_guess}"
-                    model_found = True
-                    break
-                except LookupError:
-                    continue
-            
-            if not model_found:
-                error_details.append(f"Sheet: {sheet_name}: Could not determine model. Skipping this sheet.")
-                continue
+    try:
+        # قراءة جميع الصفحات
+        excel_file = pd.ExcelFile(file_path)
+        sheet_names = excel_file.sheet_names
         
-        try:
-            # Get the model class
-            app_label, model = model_name.split('.')
-            model_class = apps.get_model(app_label, model)
-            
-            # Read the sheet
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
-            
-            # Skip empty sheets
-            if df.empty:
-                continue
-            
-            # Process the data
-            records_count = len(df)
-            success_count = 0
-            error_count = 0
-            
-            # Process each row
-            with transaction.atomic():
-                for index, row in df.iterrows():
+        for sheet_name in sheet_names:
+            try:
+                # قراءة البيانات على دفعات
+                for chunk in pd.read_excel(excel_file, sheet_name=sheet_name, chunksize=chunk_size):
+                    # تحديد النموذج بناءً على اسم الصفحة
+                    model_name = sheet_name.lower()
                     try:
-                        # Skip empty rows
-                        if row.isnull().all():
-                            continue
-                        
-                        # Convert row to dict and remove NaN values
-                        row_dict = {}
-                        for key, value in row.to_dict().items():
-                            if pd.notna(value):
-                                row_dict[key] = value
-                        
-                        # Skip rows with no data
-                        if not row_dict:
-                            continue
-                        
-                        # Handle specific model import logic
-                        if model == 'product':
-                            # Handle product import
-                            instance = handle_product_import(row_dict)
-                        elif model == 'supplier':
-                            # Handle supplier import
-                            instance = handle_supplier_import(row_dict)
-                        elif model == 'customer':
-                            # Handle customer import
-                            instance = handle_customer_import(row_dict)
-                        elif model == 'order':
-                            # Handle order import
-                            instance = handle_order_import(row_dict)
+                        if model_name == 'products':
+                            app_label, model = 'inventory', 'product'
+                        elif model_name == 'suppliers':
+                            app_label, model = 'inventory', 'supplier'
+                        elif model_name == 'customers':
+                            app_label, model = 'customers', 'customer'
+                        elif model_name == 'orders':
+                            app_label, model = 'orders', 'order'
                         else:
-                            # Generic import
-                            instance = model_class.objects.create(**row_dict)
+                            continue
                         
-                        success_count += 1
+                        model_class = apps.get_model(app_label, model)
+                        
+                        # معالجة الدفعة
+                        chunk_success, chunk_error, chunk_details = process_dataframe(
+                            chunk,
+                            model,
+                            model_class,
+                            new_only=new_only
+                        )
+                        
+                        success_count += chunk_success
+                        error_count += chunk_error
+                        if chunk_details:
+                            error_details.append(f"Sheet {sheet_name}:\n{chunk_details}")
+                            
                     except Exception as e:
-                        error_count += 1
-                        error_details.append(f"Sheet: {sheet_name}, Row {index+1}: {str(e)}")
-            
-            # Update counters
-            total_success_count += success_count
-            total_error_count += error_count
-            
-        except Exception as e:
-            error_details.append(f"Sheet: {sheet_name}: {str(e)}")
+                        error_details.append(f"Error processing sheet {sheet_name}: {str(e)}")
+                        continue
+                        
+            except Exception as e:
+                error_details.append(f"Error reading sheet {sheet_name}: {str(e)}")
+                continue
+                
+    except Exception as e:
+        error_details.append(f"Error reading Excel file: {str(e)}")
     
-    return total_success_count, total_error_count, error_details
+    return success_count, error_count, error_details
 
-def generate_multi_sheet_export(model_names):
+def validate_data(data, model_class):
     """
-    Generate a multi-sheet Excel file for exporting data
+    التحقق من صحة البيانات قبل الاستيراد
+    """
+    errors = []
     
-    Args:
-        model_names: List of model names in the format 'app_label.model_name'
+    # التحقق من الحقول المطلوبة
+    required_fields = [f.name for f in model_class._meta.fields if not f.blank and not f.null 
+                      and f.name not in ['id', 'created_at', 'updated_at']]
+    
+    missing_fields = [field for field in required_fields if field not in data or not data[field]]
+    if missing_fields:
+        errors.append(f"Missing required fields: {', '.join(missing_fields)}")
+    
+    # التحقق من صحة أنواع البيانات
+    for field_name, value in data.items():
+        try:
+            field = model_class._meta.get_field(field_name)
+            
+            # التحقق من نوع البيانات
+            if value is not None:
+                if field.get_internal_type() in ['IntegerField', 'PositiveIntegerField']:
+                    try:
+                        int(value)
+                    except (ValueError, TypeError):
+                        errors.append(f"Invalid integer value for field {field_name}: {value}")
+                
+                elif field.get_internal_type() in ['DecimalField', 'FloatField']:
+                    try:
+                        float(value)
+                    except (ValueError, TypeError):
+                        errors.append(f"Invalid numeric value for field {field_name}: {value}")
+                
+                elif field.get_internal_type() == 'DateField':
+                    try:
+                        pd.to_datetime(value)
+                    except (ValueError, TypeError):
+                        errors.append(f"Invalid date value for field {field_name}: {value}")
+                
+                elif field.get_internal_type() == 'BooleanField':
+                    if not isinstance(value, bool) and str(value).lower() not in ['true', 'false', '0', '1']:
+                        errors.append(f"Invalid boolean value for field {field_name}: {value}")
         
-    Returns:
-        BytesIO object containing the Excel file
-    """
-    import io
+        except Exception as e:
+            errors.append(f"Error validating field {field_name}: {str(e)}")
     
-    # Create a BytesIO object to store the Excel file
+    return errors
+
+def generate_multi_sheet_export(model_names, chunk_size=1000):
+    """
+    إنشاء ملف Excel متعدد الصفحات للتصدير
+    """
+    import pandas as pd
+    import io
+    from django.apps import apps
+    
     output = io.BytesIO()
     
-    # Create a Pandas Excel writer using the BytesIO object
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # For each model, create a sheet with data
-        for model_name in model_names:
-            app_label, model = model_name.split('.')
-            
-            # Get the model class
-            model_class = apps.get_model(app_label, model)
-            
-            # Get all records
-            queryset = model_class.objects.all()
-            
-            # Convert queryset to DataFrame
-            data = []
-            for obj in queryset:
-                # Convert model instance to dict
-                item = {}
-                for field in model_class._meta.fields:
-                    field_name = field.name
-                    field_value = getattr(obj, field_name)
+    try:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            for model_name in model_names:
+                try:
+                    # الحصول على النموذج
+                    app_label, model = model_name.split('.')
+                    model_class = apps.get_model(app_label, model)
                     
-                    # Handle foreign keys
-                    if field.is_relation:
-                        if field_value is not None:
-                            field_value = str(field_value)
-                        else:
-                            field_value = None
+                    # استخراج البيانات على دفعات
+                    data = []
+                    for instance in model_class.objects.iterator(chunk_size=chunk_size):
+                        item = {}
+                        for field in model_class._meta.fields:
+                            field_name = field.name
+                            field_value = getattr(instance, field_name)
+                            
+                            # معالجة العلاقات
+                            if field.is_relation:
+                                if field_value is not None:
+                                    field_value = str(field_value)
+                                else:
+                                    field_value = None
+                            
+                            item[field_name] = field_value
+                        
+                        data.append(item)
                     
-                    # Handle datetime fields with timezone info
-                    if field.get_internal_type() in ['DateTimeField', 'DateField']:
-                        if field_value is not None:
-                            # Convert to timezone naive datetime
-                            if hasattr(field_value, 'tzinfo') and field_value.tzinfo is not None:
-                                from django.utils import timezone
-                                field_value = timezone.make_naive(field_value)
-                    
-                    item[field_name] = field_value
+                    # إنشاء DataFrame وحفظه في الملف
+                    if data:
+                        df = pd.DataFrame(data)
+                        sheet_name = model.capitalize()[:31]  # Excel يقبل فقط 31 حرف كحد أقصى
+                        df.to_excel(writer, sheet_name=sheet_name, index=False)
                 
-                data.append(item)
-            
-            df = pd.DataFrame(data)
-            
-            # Get the Arabic name for the sheet
-            sheet_name = model
-            if model == 'product':
-                sheet_name = 'المنتجات'
-            elif model == 'customer':
-                sheet_name = 'العملاء'
-            elif model == 'supplier':
-                sheet_name = 'الموردين'
-            elif model == 'order':
-                sheet_name = 'الطلبات'
-            elif model == 'category':
-                sheet_name = 'فئات المنتجات'
-            elif model == 'customercategory':
-                sheet_name = 'فئات العملاء'
-            elif model == 'orderitem':
-                sheet_name = 'عناصر الطلبات'
-            elif model == 'payment':
-                sheet_name = 'المدفوعات'
-            elif model == 'stocktransaction':
-                sheet_name = 'حركات المخزون'
-            elif model == 'purchaseorder':
-                sheet_name = 'طلبات الشراء'
-            elif model == 'customercontact':
-                sheet_name = 'جهات اتصال العملاء'
-            
-            # Write the dataframe to the Excel file
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+                except Exception as e:
+                    print(f"Error exporting {model_name}: {str(e)}")
+                    continue
+        
+        output.seek(0)
+        return output
     
-    # Reset the pointer to the beginning of the BytesIO object
-    output.seek(0)
-    
-    return output
+    except Exception as e:
+        print(f"Error generating Excel file: {str(e)}")
+        return None
 
 # Helper functions for importing specific models
 

@@ -1,26 +1,25 @@
 """
 ASGI config for CRM project.
 """
-
 import os
+import django
 from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+from channels.security.websocket import AllowedHostsOriginValidator
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm.settings')
+django.setup()
 
-application = get_asgi_application()
+from .routing import application as websocket_application
 
-# تكوين Mangum للاستخدام في بيئات serverless (AWS Lambda / Netlify Functions) فقط
-# يتم تشغيل هذا الجزء فقط إذا تم استدعاء التطبيق من بيئة serverless
-try:
-    from mangum import Mangum
-    # تحقق ما إذا كنا نعمل في بيئة AWS Lambda أو Netlify Functions
-    import os
-    if 'AWS_LAMBDA_FUNCTION_NAME' in os.environ or 'NETLIFY' in os.environ:
-        handler = Mangum(
-            application,
-            lifespan="off",
-            api_gateway_base_path=None
+django_asgi_app = get_asgi_application()
+
+application = ProtocolTypeRouter({
+    'http': django_asgi_app,
+    'websocket': AllowedHostsOriginValidator(
+        AuthMiddlewareStack(
+            websocket_application
         )
-except ImportError:
-    # في حالة عدم تثبيت Mangum، نستمر بشكل طبيعي
-    pass
+    ),
+})

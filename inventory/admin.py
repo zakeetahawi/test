@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from .models import (
     Category, Product, StockTransaction, Supplier, PurchaseOrder, PurchaseOrderItem,
@@ -14,10 +15,10 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
-    list_display = ('name', 'code', 'category', 'price', 'current_stock', 'needs_restock')
-    list_filter = ('category', 'unit', 'created_at')
+    list_display = ('name', 'code', 'category', 'price', 'get_current_stock', 'get_stock_status')
+    list_filter = ('category', 'created_at')
     search_fields = ('name', 'code', 'description')
-    readonly_fields = ('current_stock', 'created_at', 'updated_at')
+    readonly_fields = ('get_current_stock', 'created_at', 'updated_at')
     
     fieldsets = (
         (_('معلومات المنتج'), {
@@ -27,10 +28,25 @@ class ProductAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
             'fields': ('unit', 'price', 'minimum_stock')
         }),
         (_('معلومات المخزون'), {
-            'fields': ('current_stock', 'created_at', 'updated_at'),
+            'fields': ('get_current_stock', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+
+    def get_current_stock(self, obj):
+        stock = obj.transactions.filter(transaction_type='in').aggregate(Sum('quantity'))['quantity__sum'] or 0
+        stock -= obj.transactions.filter(transaction_type='out').aggregate(Sum('quantity'))['quantity__sum'] or 0
+        return stock
+    get_current_stock.short_description = _('المخزون الحالي')
+
+    def get_stock_status(self, obj):
+        current_stock = self.get_current_stock(obj)
+        if current_stock <= 0:
+            return _('نفذ من المخزون')
+        elif current_stock <= obj.minimum_stock:
+            return _('مخزون منخفض')
+        return _('متوفر')
+    get_stock_status.short_description = _('حالة المخزون')
 
 @admin.register(StockTransaction)
 class StockTransactionAdmin(admin.ModelAdmin):

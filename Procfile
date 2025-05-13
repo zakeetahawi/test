@@ -1,1 +1,1 @@
-web: gunicorn crm.wsgi
+web: python manage.py migrate && gunicorn crm.wsgi:application

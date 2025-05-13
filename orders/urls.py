@@ -28,11 +28,7 @@ urlpatterns = [
     # Update Order Status
     path('order/<int:order_id>/update-status/', views.update_order_status, name='update_status'),
 
-    # Shipping Views
-    path('order/<int:order_id>/shipping/', views.shipping_details, name='shipping_details'),
-    path('order/<int:order_id>/shipping/status/', views.update_shipping_status, name='update_shipping_status'),
-    path('order/<int:order_id>/shipping/provider/', views.update_shipping_provider, name='update_shipping_provider'),
-    path('order/<int:order_id>/shipping/timeline/', views.shipping_timeline, name='shipping_timeline'),
+
 
     # API Dynamic Pricing
     path('api/', include(router.urls)),

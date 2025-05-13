@@ -8,9 +8,8 @@ from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from .models import Order, OrderItem, Payment, ShippingDetails
+from .models import Order, OrderItem, Payment
 from .forms import OrderForm, OrderItemFormSet, PaymentForm
-from .services import ShippingService
 from accounts.models import Branch, Salesperson, Department, Notification
 from customers.models import Customer
 from inventory.models import Product
@@ -120,7 +119,6 @@ def order_create(request):
 
     if request.method == 'POST':
         form = OrderForm(request.POST, initial={'user': request.user})
-        formset = OrderItemFormSet(request.POST, prefix='items')
 
         if form.is_valid():
             try:
@@ -135,6 +133,10 @@ def order_create(request):
 
                 # 3. حفظ الطلب في قاعدة البيانات للحصول على مفتاح أساسي
                 order.save()
+
+                # التأكد من أن الطلب تم حفظه بنجاح وله مفتاح أساسي
+                if not order.pk:
+                    raise Exception("فشل في حفظ الطلب: لم يتم إنشاء مفتاح أساسي")
 
                 # 4. معالجة المنتجات المحددة إن وجدت
                 selected_products_json = request.POST.get('selected_products', '')
@@ -161,6 +163,7 @@ def order_create(request):
                                     unit_price=product.price or 0,
                                     item_type=product_type
                                 )
+                                print(f"تم إنشاء عنصر الطلب بنجاح: {product.name}")
                             except Product.DoesNotExist:
                                 print(f"Product {product_id} does not exist")
                             except Exception as e:
@@ -169,7 +172,6 @@ def order_create(request):
                         print("Invalid JSON for selected products")
 
                 # 5. إذا كان الطلب يتضمن خدمة معاينة، قم بإنشاء سجل معاينة جديد
-                # الآن يمكننا استخدام الطلب في العلاقات لأنه تم حفظه وله مفتاح أساسي
                 if 'inspection' in form.cleaned_data.get('selected_types', []):
                     try:
                         # إنشاء معاينة جديدة
@@ -184,6 +186,7 @@ def order_create(request):
                             is_from_orders=True,  # إضافة هذه العلامة
                             order=order  # الربط بالطلب
                         )
+                        print(f"تم إنشاء معاينة جديدة بنجاح للطلب {order.order_number}")
 
                         # إنشاء إشعار لقسم المعاينات
                         dept = Department.objects.filter(code='inspections').first()
@@ -198,6 +201,14 @@ def order_create(request):
                             )
                     except Exception as e:
                         print(f"Error creating inspection: {e}")
+                        messages.warning(request, f'تم إنشاء الطلب بنجاح ولكن فشل إنشاء المعاينة: {str(e)}')
+
+                # 6. الآن نقوم بمعالجة الـ formset بعد حفظ الطلب
+                formset = OrderItemFormSet(request.POST, prefix='items', instance=order)
+                if formset.is_valid():
+                    formset.save()
+                else:
+                    print("Formset errors:", formset.errors)
 
                 messages.success(request, 'تم إنشاء الطلب بنجاح!')
                 return redirect('orders:order_detail', pk=order.pk)
@@ -241,17 +252,19 @@ def order_update(request, pk):
         print("UPDATE - POST data:", request.POST)
 
         form = OrderForm(request.POST, instance=order)
-        formset = OrderItemFormSet(request.POST, instance=order)
 
         # Print form errors if any
         if not form.is_valid():
             print("UPDATE - Form errors:", form.errors)
+            messages.error(request, 'يوجد أخطاء في النموذج. يرجى التحقق من البيانات المدخلة.')
+            return render(request, 'orders/order_form.html', {
+                'form': form,
+                'formset': OrderItemFormSet(request.POST, prefix='items', instance=order),
+                'title': f'تحديث الطلب: {order.order_number}',
+                'order': order,
+            })
 
-        if not formset.is_valid():
-            print("UPDATE - Formset errors:", formset.errors)
-
-        # Force form validation to pass
-        if True:  # form.is_valid() and formset.is_valid():
+        try:
             # Save order
             order = form.save(commit=False)
 
@@ -278,19 +291,38 @@ def order_update(request, pk):
                     order.order_type = order_type
 
             # Handle service_types field
-            if 'service' in order_types:
+            if order_types and 'service' in order_types:
                 service_types = request.POST.get('service_types_hidden', '')
                 if service_types:
                     service_types = [st.strip() for st in service_types.split(',') if st.strip()]
                     order.service_types = service_types
 
+            # حفظ الطلب
             order.save()
 
+            # التأكد من أن الطلب تم حفظه بنجاح وله مفتاح أساسي
+            if not order.pk:
+                raise Exception("فشل في حفظ الطلب: لم يتم إنشاء مفتاح أساسي")
+
             # Save order items
-            formset.save()
+            formset = OrderItemFormSet(request.POST, prefix='items', instance=order)
+            if formset.is_valid():
+                formset.save()
+            else:
+                print("UPDATE - Formset errors:", formset.errors)
+                messages.warning(request, 'تم تحديث الطلب ولكن هناك أخطاء في عناصر الطلب.')
 
             messages.success(request, 'تم تحديث الطلب بنجاح!')
             return redirect('orders:order_detail', pk=order.pk)
+
+        except Exception as e:
+            messages.error(request, f'حدث خطأ أثناء تحديث الطلب: {str(e)}')
+            return render(request, 'orders/order_form.html', {
+                'form': form,
+                'formset': OrderItemFormSet(request.POST, prefix='items', instance=order),
+                'title': f'تحديث الطلب: {order.order_number}',
+                'order': order,
+            })
 
     form = OrderForm(instance=order)
     formset = OrderItemFormSet(instance=order)
@@ -338,13 +370,22 @@ def payment_create(request, order_pk):
     if request.method == 'POST':
         form = PaymentForm(request.POST)
         if form.is_valid():
-            payment = form.save(commit=False)
-            payment.order = order
-            payment.created_by = request.user
-            payment.save()
+            try:
+                # التأكد من أن الطلب له مفتاح أساسي
+                if not order.pk:
+                    messages.error(request, 'لا يمكن إنشاء دفعة: الطلب ليس له مفتاح أساسي')
+                    return redirect('orders:order_detail', pk=order_pk)
 
-            messages.success(request, 'تم تسجيل الدفعة بنجاح.')
-            return redirect('orders:order_detail', pk=order.pk)
+                payment = form.save(commit=False)
+                payment.order = order
+                payment.created_by = request.user
+                payment.save()
+
+                messages.success(request, 'تم تسجيل الدفعة بنجاح.')
+                return redirect('orders:order_detail', pk=order.pk)
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء حفظ الدفعة: {str(e)}')
+                return render(request, 'orders/payment_form.html', {'form': form, 'order': order})
     else:
         form = PaymentForm()
 
@@ -414,6 +455,11 @@ def update_order_status(request, order_id):
         new_status = request.POST.get('status')
         if new_status and new_status in dict(Order.STATUS_CHOICES).keys():
             try:
+                # التأكد من أن الطلب له مفتاح أساسي
+                if not order.pk:
+                    messages.error(request, 'لا يمكن تحديث حالة الطلب: الطلب ليس له مفتاح أساسي')
+                    return redirect('orders:order_detail', pk=order_id)
+
                 order.status = new_status
                 order.save()
                 messages.success(request, 'تم تحديث حالة الطلب بنجاح.')
@@ -424,121 +470,4 @@ def update_order_status(request, order_id):
 
     return redirect('orders:order_detail', pk=order_id)
 
-@login_required
-@permission_required('orders.change_order', raise_exception=True)
-def shipping_details(request, order_id):
-    """
-    عرض تفاصيل الشحن للطلب
-    """
-    order = get_object_or_404(Order, pk=order_id)
 
-    # التحقق من وجود تفاصيل شحن
-    try:
-        shipping = order.shipping_details
-    except ShippingDetails.DoesNotExist:
-        if order.delivery_type != 'home':
-            messages.error(request, 'هذا الطلب ليس للتوصيل المنزلي')
-            return redirect('orders:order_detail', pk=order_id)
-
-        # إنشاء تفاصيل شحن جديدة
-        shipping = ShippingService.create_shipping_details(order)
-
-    # الحصول على الجدول الزمني للشحن
-    timeline = ShippingService.get_shipping_timeline(order)
-
-    context = {
-        'order': order,
-        'shipping': shipping,
-        'timeline': timeline,
-        'shipping_status_choices': ShippingDetails.SHIPPING_STATUS_CHOICES,
-        'shipping_provider_choices': ShippingDetails.SHIPPING_PROVIDER_CHOICES,
-    }
-
-    return render(request, 'orders/shipping_details.html', context)
-
-@login_required
-@permission_required('orders.change_order', raise_exception=True)
-def update_shipping_status(request, order_id):
-    """
-    تحديث حالة الشحن
-    """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'يجب استخدام طريقة POST'}, status=400)
-
-    order = get_object_or_404(Order, pk=order_id)
-    new_status = request.POST.get('status')
-    notes = request.POST.get('notes', '')
-
-    try:
-        # تحديث حالة الشحن
-        shipping = ShippingService.update_shipping_status(
-            order,
-            new_status,
-            notes=notes,
-            tracking_number=request.POST.get('tracking_number'),
-            estimated_delivery_date=request.POST.get('estimated_delivery_date'),
-            shipping_cost=request.POST.get('shipping_cost')
-        )
-
-        messages.success(request, 'تم تحديث حالة الشحن بنجاح')
-        return JsonResponse({
-            'success': True,
-            'shipping_status': shipping.get_shipping_status_display(),
-            'last_update': shipping.last_update.strftime('%Y-%m-%d %H:%M:%S')
-        })
-
-    except ValidationError as e:
-        return JsonResponse({'error': str(e)}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': f'حدث خطأ: {str(e)}'}, status=500)
-
-@login_required
-@permission_required('orders.change_order', raise_exception=True)
-def update_shipping_provider(request, order_id):
-    """
-    تحديث شركة الشحن
-    """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'يجب استخدام طريقة POST'}, status=400)
-
-    order = get_object_or_404(Order, pk=order_id)
-    provider = request.POST.get('provider')
-
-    try:
-        # التحقق من صلاحية شركة الشحن
-        ShippingService.validate_shipping_provider(provider)
-
-        # تحديث شركة الشحن
-        shipping = order.shipping_details
-        shipping.shipping_provider = provider
-        shipping.save()
-
-        # حساب تكلفة الشحن الجديدة
-        new_cost = ShippingService.get_shipping_cost(order, provider)
-        shipping.shipping_cost = new_cost
-        shipping.save()
-
-        messages.success(request, 'تم تحديث شركة الشحن بنجاح')
-        return JsonResponse({
-            'success': True,
-            'shipping_provider': shipping.get_shipping_provider_display(),
-            'shipping_cost': float(shipping.shipping_cost)
-        })
-
-    except ValidationError as e:
-        return JsonResponse({'error': str(e)}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': f'حدث خطأ: {str(e)}'}, status=500)
-
-@login_required
-def shipping_timeline(request, order_id):
-    """
-    عرض الجدول الزمني للشحن
-    """
-    order = get_object_or_404(Order, pk=order_id)
-    timeline = ShippingService.get_shipping_timeline(order)
-
-    return JsonResponse({
-        'success': True,
-        'timeline': timeline
-    })

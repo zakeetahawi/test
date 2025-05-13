@@ -13,73 +13,7 @@ from django.dispatch import receiver
 from django.utils.translation import gettext as _
 from model_utils import FieldTracker
 
-class ShippingDetails(models.Model):
-    SHIPPING_STATUS_CHOICES = [
-        ('pending', 'قيد الانتظار'),
-        ('scheduled', 'تم جدولة الشحن'),
-        ('picked_up', 'تم استلام الشحنة'),
-        ('in_transit', 'قيد النقل'),
-        ('out_for_delivery', 'خارج للتوصيل'),
-        ('delivered', 'تم التوصيل'),
-        ('failed', 'فشل التوصيل'),
-    ]
 
-    SHIPPING_PROVIDER_CHOICES = [
-        ('internal', 'خدمة التوصيل الداخلية'),
-        ('aramex', 'أرامكس'),
-        ('smsa', 'سمسا'),
-        ('dhl', 'دي إتش إل'),
-    ]
-
-    order = models.OneToOneField('Order', on_delete=models.CASCADE, related_name='shipping_details', verbose_name='الطلب')
-    shipping_provider = models.CharField(
-        max_length=20,
-        choices=SHIPPING_PROVIDER_CHOICES,
-        default='internal',
-        verbose_name='شركة الشحن'
-    )
-    tracking_number = models.CharField(max_length=100, blank=True, verbose_name='رقم التتبع')
-    shipping_status = models.CharField(
-        max_length=20,
-        choices=SHIPPING_STATUS_CHOICES,
-        default='pending',
-        verbose_name='حالة الشحن'
-    )
-    estimated_delivery_date = models.DateTimeField(null=True, blank=True, verbose_name='تاريخ التوصيل المتوقع')
-    actual_delivery_date = models.DateTimeField(null=True, blank=True, verbose_name='تاريخ التوصيل الفعلي')
-    shipping_cost = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name='تكلفة الشحن'
-    )
-    recipient_name = models.CharField(max_length=100, verbose_name='اسم المستلم')
-    recipient_phone = models.CharField(max_length=20, verbose_name='رقم هاتف المستلم')
-    shipping_notes = models.TextField(blank=True, verbose_name='ملاحظات الشحن')
-    last_update = models.DateTimeField(auto_now=True, verbose_name='آخر تحديث')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
-
-    class Meta:
-        verbose_name = 'تفاصيل الشحن'
-        verbose_name_plural = 'تفاصيل الشحن'
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['order'], name='shipping_order_idx'),
-            models.Index(fields=['shipping_status'], name='shipping_status_idx'),
-            models.Index(fields=['tracking_number'], name='shipping_tracking_idx'),
-        ]
-
-    def __str__(self):
-        return f'شحنة {self.order.order_number} - {self.get_shipping_status_display()}'
-
-    def save(self, *args, **kwargs):
-        # تحديث حالة الطلب عند تغيير حالة الشحن
-        if self.shipping_status == 'delivered':
-            self.actual_delivery_date = timezone.now()
-            self.order.tracking_status = 'delivered'
-            self.order.save()
-        super().save(*args, **kwargs)
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -192,87 +126,95 @@ class Order(models.Model):
         return self.final_price
 
     def save(self, *args, **kwargs):
-        # تحقق مما إذا كان هذا كائن جديد (ليس له مفتاح أساسي)
-        is_new = self.pk is None
-
-        # تحقق من وجود رقم طلب
-        if not self.order_number:
-            # Get the last order number for this customer
-            last_order = Order.objects.filter(
-                customer=self.customer
-            ).order_by('-order_number').first()
-
-            if last_order:
-                # Extract the number part and increment it
-                try:
-                    last_num = int(last_order.order_number.split('-')[-1])
-                    next_num = last_num + 1
-                except ValueError:
-                    next_num = 1
-            else:
-                next_num = 1
-
-            # Generate new order number
-            self.order_number = f"{self.customer.code}-{next_num:04d}"
-
-        # Validate selected types
-        selected_types = self.selected_types or []
-        if isinstance(selected_types, str):
-            try:
-                selected_types = json.loads(selected_types)
-            except json.JSONDecodeError:
-                selected_types = [st.strip() for st in selected_types.split(',') if st.strip()]
-
-        if not selected_types:
-            raise models.ValidationError('يجب اختيار نوع طلب واحد على الأقل')
-
-        # Contract number validation
-        if 'tailoring' in selected_types and not self.contract_number:
-            raise models.ValidationError('رقم العقد مطلوب لخدمة التفصيل')
-
-        # Invoice number validation - required for all types except inspection alone
-        if not (len(selected_types) == 1 and selected_types[0] == 'inspection'):
-            if not self.invoice_number:
-                raise models.ValidationError('رقم الفاتورة مطلوب')
-
-        # Set legacy fields for backward compatibility
-        has_products = any(t in ['fabric', 'accessory'] for t in selected_types)
-        has_services = any(t in ['installation', 'inspection', 'transport', 'tailoring'] for t in selected_types)
-
-        if has_products:
-            self.order_type = 'product'
-        if has_services:
-            self.order_type = 'service'
-            self.service_types = [t for t in selected_types if t in ['installation', 'inspection', 'transport', 'tailoring']]
-
-        # Validate delivery address for home delivery
-        if self.delivery_type == 'home' and not self.delivery_address:
-            raise models.ValidationError('عنوان التسليم مطلوب لخدمة التوصيل للمنزل')
-
-        # حساب السعر النهائي
-        if not self.final_price:
-            self.calculate_final_price()
-
-        # حفظ الطلب أولاً للحصول على مفتاح أساسي
-        super().save(*args, **kwargs)
-
-        # بعد حفظ الطلب، يمكننا إنشاء العلاقات المرتبطة به
-        # إنشاء تفاصيل الشحن للطلبات الجديدة مع توصيل للمنزل
-        # نستخدم try/except لتجنب الأخطاء إذا كانت تفاصيل الشحن موجودة بالفعل
         try:
-            if self.delivery_type == 'home':
-                # التحقق من وجود تفاصيل الشحن
-                shipping_details = getattr(self, 'shipping_details', None)
-                if shipping_details is None:
-                    # إنشاء تفاصيل الشحن
-                    ShippingDetails.objects.create(
-                        order=self,
-                        recipient_name=self.customer.name,
-                        recipient_phone=self.customer.phone
-                    )
+            # تحقق مما إذا كان هذا كائن جديد (ليس له مفتاح أساسي)
+            is_new = self.pk is None
+
+            # تحقق من وجود العميل
+            if not self.customer:
+                raise models.ValidationError('يجب اختيار العميل')
+
+            # تحقق من وجود رقم طلب
+            if not self.order_number:
+                # Get the last order number for this customer
+                try:
+                    last_order = Order.objects.filter(
+                        customer=self.customer
+                    ).order_by('-order_number').first()
+
+                    if last_order:
+                        # Extract the number part and increment it
+                        try:
+                            last_num = int(last_order.order_number.split('-')[-1])
+                            next_num = last_num + 1
+                        except ValueError:
+                            next_num = 1
+                    else:
+                        next_num = 1
+
+                    # Generate new order number
+                    self.order_number = f"{self.customer.code}-{next_num:04d}"
+                except Exception as e:
+                    print(f"Error generating order number: {e}")
+                    # Use a fallback order number if we can't generate one
+                    import uuid
+                    self.order_number = f"ORD-{str(uuid.uuid4())[:8]}"
+
+            # Validate selected types
+            selected_types = self.selected_types or []
+            if isinstance(selected_types, str):
+                try:
+                    selected_types = json.loads(selected_types)
+                except json.JSONDecodeError:
+                    selected_types = [st.strip() for st in selected_types.split(',') if st.strip()]
+
+            if not selected_types:
+                selected_types = ['inspection']  # Default to inspection if no types are selected
+                self.selected_types = selected_types
+
+            # Contract number validation
+            if 'tailoring' in selected_types and not self.contract_number:
+                raise models.ValidationError('رقم العقد مطلوب لخدمة التفصيل')
+
+            # Invoice number validation - required for all types except inspection alone
+            if not (len(selected_types) == 1 and selected_types[0] == 'inspection'):
+                if not self.invoice_number:
+                    raise models.ValidationError('رقم الفاتورة مطلوب')
+
+            # Set legacy fields for backward compatibility
+            has_products = any(t in ['fabric', 'accessory'] for t in selected_types)
+            has_services = any(t in ['installation', 'inspection', 'transport', 'tailoring'] for t in selected_types)
+
+            if has_products:
+                self.order_type = 'product'
+            if has_services:
+                self.order_type = 'service'
+                self.service_types = [t for t in selected_types if t in ['installation', 'inspection', 'transport', 'tailoring']]
+
+            # Validate delivery address for home delivery
+            if self.delivery_type == 'home' and not self.delivery_address:
+                raise models.ValidationError('عنوان التسليم مطلوب لخدمة التوصيل للمنزل')
+
+            # حساب السعر النهائي
+            if not self.final_price:
+                try:
+                    self.calculate_final_price()
+                except Exception as e:
+                    print(f"Error calculating final price: {e}")
+                    self.final_price = 0
+
+            # حفظ الطلب أولاً للحصول على مفتاح أساسي
+            super().save(*args, **kwargs)
+
+            # التأكد من أن الطلب تم حفظه بنجاح
+            if not self.pk:
+                raise models.ValidationError('فشل في حفظ الطلب: لم يتم إنشاء مفتاح أساسي')
+
+            print(f"Successfully saved order {self.order_number} with primary key {self.pk}")
         except Exception as e:
-            # تسجيل الخطأ ولكن عدم إيقاف العملية
-            print(f"Error creating shipping details: {e}")
+            # تسجيل الخطأ
+            print(f"Error saving order: {e}")
+            raise
 
     def notify_status_change(self, old_status, new_status, changed_by=None, notes=''):
         """إرسال إشعار عند تغيير حالة تتبع الطلب"""
@@ -354,13 +296,7 @@ class Order(models.Model):
         """Check if order is fully paid"""
         return self.paid_amount >= self.total_amount
 
-    @property
-    def shipping_status(self):
-        """Get shipping status if available"""
-        try:
-            return self.shipping_details.get_shipping_status_display()
-        except ShippingDetails.DoesNotExist:
-            return None
+
 
 @receiver(post_save, sender=Order)
 def order_post_save(sender, instance, created, **kwargs):
@@ -403,7 +339,30 @@ class OrderItem(models.Model):
     @property
     def total_price(self):
         """Calculate total price for this item"""
+        if self.quantity is None or self.unit_price is None:
+            return 0
         return self.quantity * self.unit_price
+
+    def save(self, *args, **kwargs):
+        """Save order item with validation"""
+        try:
+            # التحقق من أن الطلب له مفتاح أساسي
+            if not self.order.pk:
+                raise models.ValidationError('يجب حفظ الطلب أولاً قبل إنشاء عنصر الطلب')
+
+            super().save(*args, **kwargs)
+
+            # تحديث السعر النهائي للطلب
+            try:
+                self.order.calculate_final_price()
+                self.order.save(update_fields=['final_price'])
+                print(f"Successfully updated final price for order {self.order.order_number}")
+            except Exception as e:
+                print(f"Error updating order final price: {e}")
+                # لا نريد إيقاف العملية إذا فشل تحديث السعر النهائي
+        except Exception as e:
+            print(f"Error saving order item: {e}")
+            raise
 
 class Payment(models.Model):
     PAYMENT_METHOD_CHOICES = [
@@ -436,13 +395,27 @@ class Payment(models.Model):
 
     def save(self, *args, **kwargs):
         """Update order's paid amount when payment is saved"""
-        super().save(*args, **kwargs)
-        # Update order's paid amount
-        total_payments = Payment.objects.filter(order=self.order).aggregate(
-            total=models.Sum('amount')
-        )['total'] or 0
-        self.order.paid_amount = total_payments
-        self.order.save()
+        try:
+            # التحقق من أن الطلب له مفتاح أساسي
+            if not self.order.pk:
+                raise models.ValidationError('يجب حفظ الطلب أولاً قبل إنشاء دفعة')
+
+            super().save(*args, **kwargs)
+
+            # Update order's paid amount
+            try:
+                total_payments = Payment.objects.filter(order=self.order).aggregate(
+                    total=models.Sum('amount')
+                )['total'] or 0
+                self.order.paid_amount = total_payments
+                self.order.save(update_fields=['paid_amount'])
+                print(f"Successfully updated paid amount for order {self.order.order_number}")
+            except Exception as e:
+                print(f"Error updating order paid amount: {e}")
+                # لا نريد إيقاف العملية إذا فشل تحديث المبلغ المدفوع
+        except Exception as e:
+            print(f"Error saving payment: {e}")
+            raise
 
 class OrderStatusLog(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='status_logs', verbose_name=_('الطلب'))
@@ -465,12 +438,26 @@ class OrderStatusLog(models.Model):
         return f'{self.order.order_number} - {self.get_new_status_display()}'
 
     def save(self, *args, **kwargs):
-        if not self.old_status and self.order:
-            self.old_status = self.order.tracking_status
-        super().save(*args, **kwargs)
+        try:
+            # التحقق من أن الطلب له مفتاح أساسي
+            if not self.order.pk:
+                raise models.ValidationError('يجب حفظ الطلب أولاً قبل إنشاء سجل حالة')
 
-        # تحديث حالة الطلب
-        if self.order and self.new_status != self.order.tracking_status:
-            self.order.tracking_status = self.new_status
-            self.order.last_notification_date = timezone.now()
-            self.order.save()
+            if not self.old_status and self.order:
+                self.old_status = self.order.tracking_status
+
+            super().save(*args, **kwargs)
+
+            # تحديث حالة الطلب
+            try:
+                if self.order and self.new_status != self.order.tracking_status:
+                    self.order.tracking_status = self.new_status
+                    self.order.last_notification_date = timezone.now()
+                    self.order.save(update_fields=['tracking_status', 'last_notification_date'])
+                    print(f"Successfully updated tracking status for order {self.order.order_number} to {self.new_status}")
+            except Exception as e:
+                print(f"Error updating order tracking status: {e}")
+                # لا نريد إيقاف العملية إذا فشل تحديث حالة الطلب
+        except Exception as e:
+            print(f"Error saving order status log: {e}")
+            raise

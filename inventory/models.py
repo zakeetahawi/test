@@ -41,7 +41,13 @@ class Product(models.Model):
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50, unique=True, null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products', verbose_name=_('الفئة'))
+    category = models.ForeignKey(
+        'Category',
+        on_delete=models.CASCADE,
+        related_name='products',
+        verbose_name=_('الفئة'),
+        null=True,  # Allow null temporarily for imports
+    )
     description = models.TextField(_('الوصف'), blank=True)
     minimum_stock = models.PositiveIntegerField(_('الحد الأدنى للمخزون'), default=0)
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
@@ -78,14 +84,40 @@ class Product(models.Model):
     def save(self, *args, **kwargs):
         # تنظيف ذاكرة التخزين المؤقت عند حفظ المنتج
         from django.core.cache import cache
+
+        # إذا لم يكن هناك فئة، حاول العثور على فئة افتراضية
+        if not self.category:
+            from django.db import transaction
+            try:
+                with transaction.atomic():
+                    # البحث عن فئة افتراضية
+                    default_category = Category.objects.filter(name='عام').first()
+                    if not default_category:
+                        default_category = Category.objects.first()
+                    if default_category:
+                        self.category = default_category
+                        print(f"Assigned default category '{default_category.name}' to product '{self.name}'")
+            except Exception as e:
+                print(f"Error assigning default category: {e}")
+
+        # تحديد مفاتيح ذاكرة التخزين المؤقت
         cache_keys = [
             f'product_detail_{self.id}',
-            f'category_stats_{self.category_id}',
             'product_list_all',
-            f'product_list_{self.category_id}',
             'inventory_dashboard_stats'
         ]
+
+        # إضافة مفاتيح متعلقة بالفئة إذا كانت موجودة
+        if self.category_id:
+            cache_keys.extend([
+                f'category_stats_{self.category_id}',
+                f'product_list_{self.category_id}',
+            ])
+
+        # حفظ المنتج
         super().save(*args, **kwargs)
+
+        # حذف مفاتيح ذاكرة التخزين المؤقت
         cache.delete_many(cache_keys)
 
 class Supplier(models.Model):

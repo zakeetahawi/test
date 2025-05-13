@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
 # from django.utils import timezone
-from .models import Order, OrderItem, Payment, OrderStatusLog, ShippingDetails
+from .models import Order, OrderItem, Payment, OrderStatusLog
 from .extended_models import ExtendedOrder, AccessoryItem, FabricOrder
 from data_import_export.admin import AdminMultiSheetImportExportMixin
 
@@ -11,10 +11,26 @@ class OrderItemInline(admin.TabularInline):
     extra = 1
     readonly_fields = ('total_price',)
 
+    def get_formset(self, request, obj=None, **kwargs):
+        """Override to make sure we don't try to create inline items for unsaved objects"""
+        if obj is None:  # obj is None when we're adding a new object
+            self.extra = 0  # Don't show any extra forms for new objects
+        else:
+            self.extra = 1  # Show extra forms for existing objects
+        return super().get_formset(request, obj, **kwargs)
+
 class PaymentInline(admin.TabularInline):
     model = Payment
     extra = 1
     readonly_fields = ('payment_date',)
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """Override to make sure we don't try to create inline items for unsaved objects"""
+        if obj is None:  # obj is None when we're adding a new object
+            self.extra = 0  # Don't show any extra forms for new objects
+        else:
+            self.extra = 1  # Show extra forms for existing objects
+        return super().get_formset(request, obj, **kwargs)
 
 @admin.register(Order)
 class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
@@ -73,6 +89,14 @@ class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
 class AccessoryItemInline(admin.TabularInline):
     model = AccessoryItem
     extra = 1
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """Override to make sure we don't try to create inline items for unsaved objects"""
+        if obj is None:  # obj is None when we're adding a new object
+            self.extra = 0  # Don't show any extra forms for new objects
+        else:
+            self.extra = 1  # Show extra forms for existing objects
+        return super().get_formset(request, obj, **kwargs)
 
 @admin.register(ExtendedOrder)
 class ExtendedOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
@@ -143,25 +167,4 @@ class OrderStatusLogAdmin(admin.ModelAdmin):
     search_fields = ('order__order_number', 'notes')
     readonly_fields = ('order', 'old_status', 'new_status', 'changed_by', 'created_at')
 
-@admin.register(ShippingDetails)
-class ShippingDetailsAdmin(admin.ModelAdmin):
-    list_display = ('order', 'shipping_provider', 'shipping_status', 'tracking_number', 'estimated_delivery_date', 'actual_delivery_date')
-    list_filter = ('shipping_provider', 'shipping_status')
-    search_fields = ('order__order_number', 'tracking_number', 'recipient_name', 'recipient_phone')
-    readonly_fields = ('last_update', 'created_at')
 
-    fieldsets = (
-        (_('معلومات الطلب'), {
-            'fields': ('order', 'shipping_provider', 'shipping_status')
-        }),
-        (_('معلومات التتبع'), {
-            'fields': ('tracking_number', 'estimated_delivery_date', 'actual_delivery_date')
-        }),
-        (_('معلومات المستلم'), {
-            'fields': ('recipient_name', 'recipient_phone', 'shipping_notes')
-        }),
-        (_('معلومات إضافية'), {
-            'fields': ('shipping_cost', 'last_update', 'created_at'),
-            'classes': ('collapse',)
-        }),
-    )

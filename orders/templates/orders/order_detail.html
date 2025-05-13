@@ -90,16 +90,7 @@
                             <th>تاريخ التحديث</th>
                             <td>{{ order.updated_at|date:"Y-m-d H:i" }}</td>
                         </tr>
-                        {% if order.delivery_type == 'home' %}
-                        <tr>
-                            <th>تفاصيل الشحن</th>
-                            <td>
-                                <a href="{% url 'orders:shipping_details' order.id %}" class="btn btn-info btn-sm">
-                                    <i class="fas fa-shipping-fast"></i> عرض تفاصيل الشحن
-                                </a>
-                            </td>
-                        </tr>
-                        {% endif %}
+
                     </table>
                 </div>
             </div>
@@ -146,7 +137,7 @@
                     {% endif %}
                 </div>
             </div>
-            
+
             <!-- Order Type Information -->
             <div class="card mb-4">
                 <div class="card-header bg-light">
@@ -278,7 +269,7 @@
                     <div class="timeline-content">
                         <h6 class="mb-0">{{ log.get_new_status_display }}</h6>
                         <small class="text-muted">
-                            {{ log.created_at|date:"Y-m-d H:i" }} - 
+                            {{ log.created_at|date:"Y-m-d H:i" }} -
                             بواسطة {{ log.changed_by.get_full_name|default:log.changed_by.username }}
                         </small>
                         {% if log.notes %}
@@ -338,7 +329,7 @@
             </div>
         </div>
     </div>
-    
+
     {% if 'inspection' in order.service_types %}
     <!-- Inspection Details -->
     <div class="card mb-4">
@@ -429,7 +420,7 @@
         </div>
     </div>
     {% endif %}
-    
+
     <!-- Payments -->
     <div class="card">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">

@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "استيراد قاعدة بيانات" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{% trans "استيراد قاعدة بيانات" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5>{% trans "ملاحظات هامة:" %}</h5>
+                        <ul>
+                            <li>{% trans "يجب أن يكون الملف بتنسيق JSON فقط." %}</li>
+                            <li>{% trans "الحد الأقصى لحجم الملف هو 100 ميجابايت." %}</li>
+                            <li>{% trans "سيتم استيراد البيانات إلى قاعدة البيانات المحددة." %}</li>
+                            <li>{% trans "قد تستغرق عملية الاستيراد بعض الوقت اعتمادًا على حجم الملف." %}</li>
+                        </ul>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" id="importForm">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="id_database_config">{% trans "قاعدة البيانات" %}</label>
+                            <select name="database_config" id="id_database_config" class="form-control" required>
+                                {% for db in databases %}
+                                    <option value="{{ db.id }}" {% if db.id == default_db.id %}selected{% endif %}>
+                                        {{ db.name }} ({{ db.get_db_type_display }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">{% trans "اختر قاعدة البيانات التي تريد استيراد البيانات إليها" %}</small>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="id_file">{% trans "ملف الاستيراد" %}</label>
+                            <div class="custom-file">
+                                <input type="file" name="file" id="id_file" class="form-control" required accept=".json">
+                            </div>
+                            <small class="form-text text-muted">{% trans "اختر ملف JSON للاستيراد" %}</small>
+                        </div>
+                        
+                        <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload"></i> {% trans "استيراد" %}
+                            </button>
+                            <a href="{% url 'db_manager:database_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // تحسين واجهة اختيار الملف
+        $('#id_file').on('change', function() {
+            var fileName = $(this).val().split('\\').pop();
+            if (fileName) {
+                $(this).next('.custom-file-label').html(fileName);
+            } else {
+                $(this).next('.custom-file-label').html('{% trans "اختر ملفًا" %}');
+            }
+        });
+        
+        // التحقق من صحة النموذج قبل الإرسال
+        $('#importForm').on('submit', function(e) {
+            var fileInput = $('#id_file');
+            var filePath = fileInput.val();
+            
+            // التحقق من وجود ملف
+            if (!filePath) {
+                e.preventDefault();
+                alert('{% trans "يرجى اختيار ملف للاستيراد" %}');
+                return false;
+            }
+            
+            // التحقق من امتداد الملف
+            var allowedExtensions = /(\.json)$/i;
+            if (!allowedExtensions.exec(filePath)) {
+                e.preventDefault();
+                alert('{% trans "يجب أن يكون الملف بتنسيق JSON فقط" %}');
+                fileInput.val('');
+                return false;
+            }
+            
+            // عرض رسالة تحميل
+            $('button[type="submit"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> {% trans "جاري الاستيراد..." %}');
+            
+            return true;
+        });
+    });
+</script>
+{% endblock %}

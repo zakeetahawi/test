@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "حالة الاستيراد" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{% trans "حالة الاستيراد" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% trans "الحالة:" %}</strong>
+                            <span id="status-badge" class="badge 
+                                {% if db_import.status == 'pending' %}bg-secondary{% endif %}
+                                {% if db_import.status == 'in_progress' %}bg-info{% endif %}
+                                {% if db_import.status == 'completed' %}bg-success{% endif %}
+                                {% if db_import.status == 'failed' %}bg-danger{% endif %}
+                            ">
+                                {% if db_import.status == 'pending' %}{% trans "قيد الانتظار" %}{% endif %}
+                                {% if db_import.status == 'in_progress' %}{% trans "قيد التنفيذ" %}{% endif %}
+                                {% if db_import.status == 'completed' %}{% trans "مكتمل" %}{% endif %}
+                                {% if db_import.status == 'failed' %}{% trans "فشل" %}{% endif %}
+                            </span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "قاعدة البيانات:" %}</strong>
+                            {{ db_import.database_config.name }}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% trans "تاريخ البدء:" %}</strong>
+                            {{ db_import.created_at }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "تاريخ الانتهاء:" %}</strong>
+                            <span id="completed-at">
+                                {% if db_import.completed_at %}
+                                    {{ db_import.completed_at }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>{% trans "الملف:" %}</strong>
+                            {{ db_import.file.name }}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">{% trans "سجل العملية" %}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <pre id="log-content" class="bg-dark text-light p-3" style="max-height: 400px; overflow-y: auto;">{{ db_import.log|default:"" }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <a href="{% url 'db_manager:database_list' %}" class="btn btn-primary">
+                                <i class="fas fa-arrow-left"></i> {% trans "العودة إلى قائمة قواعد البيانات" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // تحديث حالة الاستيراد كل 3 ثوانٍ
+        var statusInterval;
+        var importId = {{ db_import.id }};
+        var currentStatus = "{{ db_import.status }}";
+        
+        function updateStatus() {
+            $.ajax({
+                url: "{% url 'db_manager:import_status' db_import.id %}",
+                type: "GET",
+                dataType: "json",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                success: function(data) {
+                    // تحديث الحالة
+                    var statusBadge = $("#status-badge");
+                    statusBadge.removeClass("bg-secondary bg-info bg-success bg-danger");
+                    
+                    if (data.status === "pending") {
+                        statusBadge.addClass("bg-secondary").text("{% trans "قيد الانتظار" %}");
+                    } else if (data.status === "in_progress") {
+                        statusBadge.addClass("bg-info").text("{% trans "قيد التنفيذ" %}");
+                    } else if (data.status === "completed") {
+                        statusBadge.addClass("bg-success").text("{% trans "مكتمل" %}");
+                    } else if (data.status === "failed") {
+                        statusBadge.addClass("bg-danger").text("{% trans "فشل" %}");
+                    }
+                    
+                    // تحديث تاريخ الانتهاء
+                    if (data.completed_at) {
+                        $("#completed-at").text(new Date(data.completed_at).toLocaleString());
+                    }
+                    
+                    // تحديث السجل
+                    $("#log-content").text(data.log || "");
+                    
+                    // تمرير السجل إلى النهاية
+                    var logContent = document.getElementById("log-content");
+                    logContent.scrollTop = logContent.scrollHeight;
+                    
+                    // إيقاف التحديث إذا اكتملت العملية أو فشلت
+                    if (data.status === "completed" || data.status === "failed") {
+                        clearInterval(statusInterval);
+                    }
+                    
+                    // تحديث الحالة الحالية
+                    currentStatus = data.status;
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error updating status:", error);
+                }
+            });
+        }
+        
+        // بدء التحديث فقط إذا كانت العملية قيد الانتظار أو قيد التنفيذ
+        if (currentStatus === "pending" || currentStatus === "in_progress") {
+            statusInterval = setInterval(updateStatus, 3000);
+            
+            // تحديث فوري
+            updateStatus();
+        }
+        
+        // تمرير السجل إلى النهاية عند التحميل
+        var logContent = document.getElementById("log-content");
+        logContent.scrollTop = logContent.scrollHeight;
+    });
+</script>
+{% endblock %}

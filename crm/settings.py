@@ -102,6 +102,7 @@ TEMPLATES = [
 ]
 
 ASGI_APPLICATION = 'crm.asgi.application'
+WSGI_APPLICATION = 'crm.wsgi.application'
 
 # Channels configuration
 CHANNEL_LAYERS = {

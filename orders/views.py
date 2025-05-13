@@ -125,16 +125,18 @@ def order_create(request):
         if form.is_valid():
             try:
                 # Save order
+                # 1. إنشاء كائن الطلب بدون حفظه
                 order = form.save(commit=False)
                 order.created_by = request.user
 
-                # Set branch if not provided
+                # 2. تعيين الفرع إذا لم يتم توفيره
                 if not order.branch:
                     order.branch = request.user.branch
 
+                # 3. حفظ الطلب في قاعدة البيانات للحصول على مفتاح أساسي
                 order.save()
 
-                # Handle selected products if any
+                # 4. معالجة المنتجات المحددة إن وجدت
                 selected_products_json = request.POST.get('selected_products', '')
                 if selected_products_json:
                     import json
@@ -148,10 +150,10 @@ def order_create(request):
 
                                 product = Product.objects.get(id=product_id)
 
-                                # Check if product type matches selected product types
+                                # التحقق من نوع المنتج
                                 product_type = 'fabric' if product.category and 'قماش' in product.category.name.lower() else 'accessory'
 
-                                # Create order item
+                                # إنشاء عنصر الطلب
                                 OrderItem.objects.create(
                                     order=order,
                                     product=product,
@@ -166,7 +168,8 @@ def order_create(request):
                     except json.JSONDecodeError:
                         print("Invalid JSON for selected products")
 
-                # إذا كان الطلب يتضمن خدمة معاينة، قم بإنشاء سجل معاينة جديد
+                # 5. إذا كان الطلب يتضمن خدمة معاينة، قم بإنشاء سجل معاينة جديد
+                # الآن يمكننا استخدام الطلب في العلاقات لأنه تم حفظه وله مفتاح أساسي
                 if 'inspection' in form.cleaned_data.get('selected_types', []):
                     try:
                         # إنشاء معاينة جديدة
@@ -178,8 +181,8 @@ def order_create(request):
                             status='pending',
                             notes=f'تم إنشاء المعاينة تلقائياً من الطلب رقم {order.order_number}',
                             created_by=request.user,
-                            is_from_orders=True,  # Add this flag
-                            order=order  # Link back to the order
+                            is_from_orders=True,  # إضافة هذه العلامة
+                            order=order  # الربط بالطلب
                         )
 
                         # إنشاء إشعار لقسم المعاينات

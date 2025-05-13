@@ -192,6 +192,10 @@ class Order(models.Model):
         return self.final_price
 
     def save(self, *args, **kwargs):
+        # تحقق مما إذا كان هذا كائن جديد (ليس له مفتاح أساسي)
+        is_new = self.pk is None
+
+        # تحقق من وجود رقم طلب
         if not self.order_number:
             # Get the last order number for this customer
             last_order = Order.objects.filter(
@@ -249,15 +253,26 @@ class Order(models.Model):
         if not self.final_price:
             self.calculate_final_price()
 
+        # حفظ الطلب أولاً للحصول على مفتاح أساسي
         super().save(*args, **kwargs)
 
+        # بعد حفظ الطلب، يمكننا إنشاء العلاقات المرتبطة به
         # إنشاء تفاصيل الشحن للطلبات الجديدة مع توصيل للمنزل
-        if self.delivery_type == 'home' and not hasattr(self, 'shipping_details'):
-            ShippingDetails.objects.create(
-                order=self,
-                recipient_name=self.customer.name,
-                recipient_phone=self.customer.phone
-            )
+        # نستخدم try/except لتجنب الأخطاء إذا كانت تفاصيل الشحن موجودة بالفعل
+        try:
+            if self.delivery_type == 'home':
+                # التحقق من وجود تفاصيل الشحن
+                shipping_details = getattr(self, 'shipping_details', None)
+                if shipping_details is None:
+                    # إنشاء تفاصيل الشحن
+                    ShippingDetails.objects.create(
+                        order=self,
+                        recipient_name=self.customer.name,
+                        recipient_phone=self.customer.phone
+                    )
+        except Exception as e:
+            # تسجيل الخطأ ولكن عدم إيقاف العملية
+            print(f"Error creating shipping details: {e}")
 
     def notify_status_change(self, old_status, new_status, changed_by=None, notes=''):
         """إرسال إشعار عند تغيير حالة تتبع الطلب"""

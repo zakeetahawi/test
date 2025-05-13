@@ -58,24 +58,64 @@ class Command(BaseCommand):
                 os.environ['PGUSER'] = db_config.username
                 os.environ['PGPASSWORD'] = db_config.password
 
-                # تنفيذ أمر pg_restore
-                cmd = [
-                    'pg_restore',
-                    '--dbname=' + db_config.database_name,
-                    '--clean',
-                    '--if-exists',
-                    '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
-                    '--no-owner',  # تجاهل معلومات المالك
-                    '--no-privileges',  # تجاهل الصلاحيات
-                    file_path
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                
-                if result.returncode == 0:
-                    self.stdout.write(self.style.SUCCESS('تم استيراد البيانات بنجاح'))
-                else:
-                    self.stdout.write(self.style.WARNING('تم استيراد البيانات مع بعض التحذيرات'))
-                    self.stdout.write(result.stderr)
+                # محاولة استخدام pg_restore
+                try:
+                    # التحقق من وجود أداة pg_restore
+                    try:
+                        # محاولة تحديد موقع pg_restore
+                        pg_restore_path = 'pg_restore'
+                        subprocess.check_output([pg_restore_path, '--version'], stderr=subprocess.STDOUT, text=True)
+
+                        # تنفيذ أمر pg_restore
+                        cmd = [
+                            pg_restore_path,
+                            '--dbname=' + db_config.database_name,
+                            '--clean',
+                            '--if-exists',
+                            '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
+                            '--no-owner',  # تجاهل معلومات المالك
+                            '--no-privileges',  # تجاهل الصلاحيات
+                            file_path
+                        ]
+                        result = subprocess.run(cmd, capture_output=True, text=True)
+
+                        if result.returncode == 0:
+                            self.stdout.write(self.style.SUCCESS('تم استيراد البيانات بنجاح'))
+                        else:
+                            self.stdout.write(self.style.WARNING('تم استيراد البيانات مع بعض التحذيرات'))
+                            self.stdout.write(result.stderr)
+                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                        # pg_restore غير موجود، محاولة استخدام psql
+                        self.stdout.write(self.style.WARNING(f'أداة pg_restore غير متوفرة: {str(e)}'))
+                        self.stdout.write(self.style.WARNING('محاولة استخدام psql...'))
+
+                        try:
+                            # محاولة تحديد موقع psql
+                            psql_path = 'psql'
+                            subprocess.check_output([psql_path, '--version'], stderr=subprocess.STDOUT, text=True)
+
+                            # استخدام psql لاستعادة النسخة الاحتياطية
+                            cmd = [
+                                psql_path,
+                                '-h', db_config.host,
+                                '-p', db_config.port or '5432',
+                                '-U', db_config.username,
+                                '-d', db_config.database_name,
+                                '-f', file_path
+                            ]
+                            result = subprocess.run(cmd, capture_output=True, text=True)
+
+                            if result.returncode == 0:
+                                self.stdout.write(self.style.SUCCESS('تم استيراد البيانات بنجاح باستخدام psql'))
+                            else:
+                                self.stdout.write(self.style.WARNING('تم استيراد البيانات مع بعض التحذيرات'))
+                                self.stdout.write(result.stderr)
+                        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                            # psql غير موجود أيضًا، عرض رسالة خطأ
+                            self.stdout.write(self.style.ERROR(f'أداة psql غير متوفرة: {str(e)}'))
+                            self.stdout.write(self.style.ERROR('أدوات PostgreSQL غير متوفرة على الخادم. لا يمكن استيراد ملف PostgreSQL dump.'))
+                except Exception as e:
+                    self.stdout.write(self.style.ERROR(f'حدث خطأ أثناء استيراد البيانات: {str(e)}'))
             else:
                 self.stdout.write(self.style.ERROR('نوع قاعدة البيانات غير مدعوم للاستيراد'))
         except Exception as e:

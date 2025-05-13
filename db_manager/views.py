@@ -95,26 +95,87 @@ def cleanup_old_imports():
 
 def setup_view(request):
     """صفحة الإعداد الأولي للنظام"""
-    # التحقق مما إذا كان النظام مُعدًا بالفعل
-    if DatabaseConfig.objects.filter(is_active=True).exists():
-        # إذا كان هناك قاعدة بيانات نشطة، فإن النظام مُعد بالفعل
-        # توجيه المستخدم إلى صفحة تسجيل الدخول
-        messages.info(request, _('النظام مُعد بالفعل. يرجى تسجيل الدخول.'))
-        return redirect('accounts:login')
+    try:
+        # التحقق مما إذا كان النظام مُعدًا بالفعل
+        if DatabaseConfig.objects.filter(is_active=True).exists():
+            # إذا كان هناك قاعدة بيانات نشطة، فإن النظام مُعد بالفعل
+            # توجيه المستخدم إلى صفحة تسجيل الدخول
+            messages.info(request, _('النظام مُعد بالفعل. يرجى تسجيل الدخول.'))
+            return redirect('accounts:login')
 
-    # إنشاء رمز إعداد جديد
-    token = SetupToken.objects.create(
-        expires_at=timezone.now() + timedelta(hours=24)
-    )
+        # إنشاء رمز إعداد جديد
+        token = SetupToken.objects.create(
+            expires_at=timezone.now() + timedelta(hours=24)
+        )
 
-    setup_url = request.build_absolute_uri(
-        reverse('db_manager:setup_with_token', args=[token.token])
-    )
+        setup_url = request.build_absolute_uri(
+            reverse('db_manager:setup_with_token', args=[token.token])
+        )
 
-    return render(request, 'db_manager/setup.html', {
-        'token': token,
-        'setup_url': setup_url,
-    })
+        return render(request, 'db_manager/setup.html', {
+            'token': token,
+            'setup_url': setup_url,
+        })
+    except Exception as e:
+        # في حالة حدوث خطأ (مثل عدم وجود جدول قاعدة البيانات)
+        # إنشاء صفحة إعداد بسيطة
+        from django.contrib.auth.models import User
+
+        # التحقق من وجود مستخدمين
+        try:
+            has_users = User.objects.exists()
+        except:
+            has_users = False
+
+        # إنشاء نموذج إعداد بسيط
+        if request.method == 'POST':
+            # معالجة النموذج
+            db_type = request.POST.get('db_type', 'postgresql')
+            host = request.POST.get('host', 'localhost')
+            port = request.POST.get('port', '5432')
+            username = request.POST.get('username', 'postgres')
+            password = request.POST.get('password', '')
+            database_name = request.POST.get('database_name', 'crm')
+
+            # إنشاء قاعدة بيانات
+            try:
+                # إنشاء جداول قاعدة البيانات
+                from django.core.management import call_command
+                call_command('migrate')
+
+                # إنشاء إعداد قاعدة البيانات
+                db_config = DatabaseConfig.objects.create(
+                    name=_('قاعدة البيانات الرئيسية'),
+                    db_type=db_type,
+                    host=host,
+                    port=port,
+                    username=username,
+                    password=password,
+                    database_name=database_name,
+                    is_active=True,
+                    is_default=True
+                )
+
+                # إنشاء مستخدم مسؤول إذا لم يكن هناك مستخدمين
+                if not has_users and request.POST.get('create_admin') == 'on':
+                    admin_username = request.POST.get('admin_username', 'admin')
+                    admin_email = request.POST.get('admin_email', 'admin@example.com')
+                    admin_password = request.POST.get('admin_password', 'admin')
+
+                    # إنشاء المستخدم المسؤول
+                    create_superuser(admin_username, admin_email, admin_password)
+
+                messages.success(request, _('تم إعداد النظام بنجاح! يمكنك الآن تسجيل الدخول.'))
+                return redirect('accounts:login')
+            except Exception as setup_error:
+                messages.error(request, _('حدث خطأ أثناء إعداد النظام: {}').format(str(setup_error)))
+
+        # عرض نموذج الإعداد البسيط
+        return render(request, 'db_manager/setup.html', {
+            'simple_setup': True,
+            'has_users': has_users,
+            'error': str(e)
+        })
 
 
 def setup_with_token(request, token):
@@ -777,31 +838,115 @@ def process_import(import_id):
             db_import.log += f"الاتصال بقاعدة البيانات: {db_config.database_name} على {db_config.host}:{db_config.port or '5432'}\n"
             db_import.save()
 
-            # تنفيذ أمر pg_restore مع تحسينات الأداء
-            cmd = [
-                'pg_restore',
-                '--dbname=' + db_config.database_name,
-                '--clean',
-                '--if-exists',
-                '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
-                '--no-owner',  # تجاهل معلومات المالك
-                '--no-privileges',  # تجاهل الصلاحيات
-                file_path
-            ]
+            # محاولة استخدام pg_restore
+            try:
+                # التحقق من وجود أداة pg_restore
+                try:
+                    # محاولة تحديد موقع pg_restore
+                    pg_restore_path = 'pg_restore'
+                    subprocess.check_output([pg_restore_path, '--version'], stderr=subprocess.STDOUT, text=True)
 
-            # تحديث السجل
-            db_import.log += f"تنفيذ الأمر: {' '.join(cmd)}\n"
-            db_import.save()
+                    # تنفيذ أمر pg_restore مع تحسينات الأداء
+                    cmd = [
+                        pg_restore_path,
+                        '--dbname=' + db_config.database_name,
+                        '--clean',
+                        '--if-exists',
+                        '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
+                        '--no-owner',  # تجاهل معلومات المالك
+                        '--no-privileges',  # تجاهل الصلاحيات
+                        file_path
+                    ]
 
-            # تنفيذ الأمر مع تحديث السجل بشكل دوري
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
+                    # تحديث السجل
+                    db_import.log += f"تنفيذ الأمر: {' '.join(cmd)}\n"
+                    db_import.save()
+
+                    # تنفيذ الأمر مع تحديث السجل بشكل دوري
+                    process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        bufsize=1,
+                        universal_newlines=True
+                    )
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    # pg_restore غير موجود، محاولة استخدام psql
+                    db_import.log += f"أداة pg_restore غير متوفرة: {str(e)}\nمحاولة استخدام psql...\n"
+                    db_import.save()
+
+                    try:
+                        # محاولة تحديد موقع psql
+                        psql_path = 'psql'
+                        subprocess.check_output([psql_path, '--version'], stderr=subprocess.STDOUT, text=True)
+
+                        # إنشاء ملف SQL مؤقت من ملف الـ dump
+                        temp_sql_path = file_path + '.sql'
+                        db_import.log += f"تحويل ملف الـ dump إلى SQL...\n"
+                        db_import.save()
+
+                        # استخدام psql لاستعادة النسخة الاحتياطية
+                        cmd = [
+                            psql_path,
+                            '-h', db_config.host,
+                            '-p', db_config.port or '5432',
+                            '-U', db_config.username,
+                            '-d', db_config.database_name,
+                            '-f', file_path
+                        ]
+
+                        # تحديث السجل
+                        db_import.log += f"تنفيذ الأمر: {' '.join(cmd)}\n"
+                        db_import.save()
+
+                        # تنفيذ الأمر مع تحديث السجل بشكل دوري
+                        process = subprocess.Popen(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            bufsize=1,
+                            universal_newlines=True
+                        )
+                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                        # psql غير موجود أيضًا، استخدام طريقة بديلة
+                        db_import.log += f"أداة psql غير متوفرة: {str(e)}\nاستخدام طريقة بديلة...\n"
+                        db_import.save()
+
+                        # التحقق من نوع الملف
+                        if file_path.endswith('.json'):
+                            # استخدام loaddata لاستعادة ملف JSON
+                            db_import.log += "استخدام Django loaddata لاستعادة البيانات...\n"
+                            db_import.save()
+
+                            output = io.StringIO()
+                            call_command('loaddata', file_path, stdout=output)
+
+                            # تحديث السجل
+                            db_import.log += "تم استيراد البيانات بنجاح باستخدام Django loaddata.\n"
+                            db_import.log += "نتيجة العملية:\n"
+                            db_import.log += output.getvalue()
+                            db_import.save()
+
+                            # تعيين الحالة إلى مكتملة
+                            db_import.status = 'completed'
+                            db_import.completed_at = timezone.now()
+                            db_import.log += f"\nاكتملت العملية بنجاح في {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                            db_import.save()
+                            return
+                        else:
+                            # لا يمكن استعادة ملف dump بدون أدوات PostgreSQL
+                            db_import.status = 'failed'
+                            db_import.log += "فشل استعادة البيانات: لا يمكن استعادة ملف PostgreSQL dump بدون أدوات PostgreSQL.\n"
+                            db_import.save()
+                            return
+            except Exception as e:
+                # حدث خطأ أثناء محاولة استعادة البيانات
+                db_import.status = 'failed'
+                db_import.log += f"حدث خطأ أثناء محاولة استعادة البيانات: {str(e)}\n"
+                db_import.save()
+                return
 
             # قراءة المخرجات بشكل تدريجي
             stdout_lines = []
@@ -1108,24 +1253,59 @@ def import_data_from_file(request):
                 os.environ['PGUSER'] = db_config.username
                 os.environ['PGPASSWORD'] = db_config.password
 
-                # تنفيذ أمر pg_restore
+                # محاولة استخدام pg_restore
                 import subprocess
-                cmd = [
-                    'pg_restore',
-                    '--dbname=' + db_config.database_name,
-                    '--clean',
-                    '--if-exists',
-                    '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
-                    '--no-owner',  # تجاهل معلومات المالك
-                    '--no-privileges',  # تجاهل الصلاحيات
-                    file_path
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                try:
+                    # التحقق من وجود أداة pg_restore
+                    try:
+                        # محاولة تحديد موقع pg_restore
+                        pg_restore_path = 'pg_restore'
+                        subprocess.check_output([pg_restore_path, '--version'], stderr=subprocess.STDOUT, text=True)
 
-                if result.returncode == 0:
-                    messages.success(request, _('تم استيراد البيانات بنجاح.'))
-                else:
-                    messages.warning(request, _('تم استيراد البيانات مع بعض التحذيرات.'))
+                        # تنفيذ أمر pg_restore
+                        cmd = [
+                            pg_restore_path,
+                            '--dbname=' + db_config.database_name,
+                            '--clean',
+                            '--if-exists',
+                            '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
+                            '--no-owner',  # تجاهل معلومات المالك
+                            '--no-privileges',  # تجاهل الصلاحيات
+                            file_path
+                        ]
+                        result = subprocess.run(cmd, capture_output=True, text=True)
+
+                        if result.returncode == 0:
+                            messages.success(request, _('تم استيراد البيانات بنجاح.'))
+                        else:
+                            messages.warning(request, _('تم استيراد البيانات مع بعض التحذيرات.'))
+                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                        # pg_restore غير موجود، محاولة استخدام psql
+                        try:
+                            # محاولة تحديد موقع psql
+                            psql_path = 'psql'
+                            subprocess.check_output([psql_path, '--version'], stderr=subprocess.STDOUT, text=True)
+
+                            # استخدام psql لاستعادة النسخة الاحتياطية
+                            cmd = [
+                                psql_path,
+                                '-h', db_config.host,
+                                '-p', db_config.port or '5432',
+                                '-U', db_config.username,
+                                '-d', db_config.database_name,
+                                '-f', file_path
+                            ]
+                            result = subprocess.run(cmd, capture_output=True, text=True)
+
+                            if result.returncode == 0:
+                                messages.success(request, _('تم استيراد البيانات بنجاح باستخدام psql.'))
+                            else:
+                                messages.warning(request, _('تم استيراد البيانات مع بعض التحذيرات.'))
+                        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                            # psql غير موجود أيضًا، عرض رسالة خطأ
+                            messages.error(request, _('أدوات PostgreSQL غير متوفرة على الخادم. لا يمكن استيراد ملف PostgreSQL dump.'))
+                except Exception as e:
+                    messages.error(request, _('حدث خطأ أثناء استيراد البيانات: {}').format(str(e)))
             else:
                 messages.error(request, _('نوع قاعدة البيانات غير مدعوم للاستيراد.'))
         except Exception as e:

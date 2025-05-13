@@ -67,12 +67,54 @@ def login_view(request):
         if form.is_valid():
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password')
-            user = authenticate(username=username, password=password)
-            if user is not None:
-                login(request, user)
-                messages.success(request, f'مرحباً بك {username}!')
-                next_url = request.GET.get('next', 'home')
-                return redirect(next_url)
+
+            # التعامل مع المستخدمين المكررين
+            try:
+                # استخدام raw SQL للحصول على المستخدم
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT id FROM accounts_user WHERE username = %s LIMIT 1",
+                        [username]
+                    )
+                    result = cursor.fetchone()
+
+                if result:
+                    user_id = result[0]
+                    user_obj = User.objects.get(id=user_id)
+
+                    # التحقق من كلمة المرور يدويًا
+                    if user_obj.check_password(password):
+                        # تسجيل الدخول يدويًا
+                        login(request, user_obj)
+                        messages.success(request, f'مرحباً بك {username}!')
+                        next_url = request.GET.get('next', 'home')
+                        return redirect(next_url)
+                    else:
+                        messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                else:
+                    messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+            except Exception as e:
+                # تسجيل الخطأ
+                import traceback
+                print(f"[Login Error] {e}")
+                traceback.print_exc()
+
+                # محاولة المصادقة العادية كخطة بديلة
+                try:
+                    # استخدام طريقة المصادقة العادية
+                    user = authenticate(username=username, password=password)
+                    if user is not None:
+                        login(request, user)
+                        messages.success(request, f'مرحباً بك {username}!')
+                        next_url = request.GET.get('next', 'home')
+                        return redirect(next_url)
+                    else:
+                        messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                except Exception as auth_error:
+                    print(f"[Authentication Error] {auth_error}")
+                    traceback.print_exc()
+                    messages.error(request, 'حدث خطأ أثناء محاولة تسجيل الدخول. يرجى المحاولة مرة أخرى.')
             else:
                 messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
                 # Add CSS classes to form fields

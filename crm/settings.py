@@ -51,6 +51,13 @@ INSTALLED_APPS = [
     'db_manager',  # إضافة تطبيق إدارة قواعد البيانات
 ]
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'accounts.backends.CustomModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+
 if not TESTING and DEBUG:
     INSTALLED_APPS += ['debug_toolbar']
 
@@ -358,3 +365,30 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False  # Must be False to allow JavaScript access
 CSRF_COOKIE_SECURE = True if not DEBUG else False
 SESSION_COOKIE_SECURE = True if not DEBUG else False
+
+# إعدادات جدولة المهام
+APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
+APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+
+# تكوين المهام المجدولة
+SCHEDULER_CONFIG = {
+    "apscheduler.jobstores.default": {
+        "class": "django_apscheduler.jobstores:DjangoJobStore"
+    },
+    "apscheduler.executors.processpool": {
+        "type": "threadpool",
+        "max_workers": 5
+    },
+    "apscheduler.job_defaults.coalesce": "false",
+    "apscheduler.job_defaults.max_instances": "3",
+    "apscheduler.timezone": TIME_ZONE,
+}
+
+# تكوين مهمة تنظيف الجلسات
+SESSION_CLEANUP_SCHEDULE = {
+    'days': 1,  # تنظيف الجلسات الأقدم من يوم واحد
+    'fix_users': True,  # إصلاح المستخدمين المكررين أيضًا
+    'frequency': 'daily',  # تنفيذ المهمة يوميًا
+    'hour': 3,  # تنفيذ المهمة في الساعة 3 صباحًا
+    'minute': 0,  # تنفيذ المهمة في الدقيقة 0
+}

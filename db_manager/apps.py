@@ -19,6 +19,30 @@ class DbManagerConfig(AppConfig):
         # إنشاء مستخدم افتراضي إذا لم يكن هناك مستخدمين
         self.create_default_user()
 
+        # بدء تشغيل جدولة المهام
+        self.start_scheduler()
+
+    def start_scheduler(self):
+        """بدء تشغيل جدولة المهام"""
+        import os
+        import sys
+
+        # تجاهل بدء تشغيل الجدولة في بعض الحالات
+        if 'migrate' in sys.argv or 'makemigrations' in sys.argv or 'collectstatic' in sys.argv:
+            return
+
+        # استخدام متغير بيئي للتحكم في بدء تشغيل الجدولة
+        if os.environ.get('DISABLE_SCHEDULER', '').lower() == 'true':
+            return
+
+        try:
+            # بدء تشغيل جدولة المهام
+            from db_manager.scheduler import start_scheduler
+            start_scheduler()
+        except Exception as e:
+            # تجاهل الأخطاء أثناء بدء تشغيل الجدولة
+            print(f"حدث خطأ أثناء بدء تشغيل جدولة المهام: {str(e)}")
+
     def create_default_user(self):
         """إنشاء مستخدم افتراضي إذا لم يكن هناك مستخدمين"""
         import os

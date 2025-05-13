@@ -787,6 +787,40 @@ def process_import(import_id):
         db_import.log = "بدء عملية الاستيراد...\n"
         db_import.save()
 
+        # إنشاء نسخة احتياطية قبل الاستيراد
+        db_import.log += "إنشاء نسخة احتياطية قبل الاستيراد...\n"
+        db_import.save()
+
+        try:
+            # إنشاء نسخة احتياطية
+            from django.conf import settings
+            backup_dir = settings.BACKUP_ROOT
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_filename = f"pre_import_backup_{timestamp}.json"
+            backup_path = os.path.join(backup_dir, backup_filename)
+
+            # استخدام أمر Django dumpdata
+            output = io.StringIO()
+            call_command(
+                'dumpdata',
+                '--exclude', 'auth.permission',
+                '--exclude', 'contenttypes',
+                '--exclude', 'sessions',
+                '--indent', '2',
+                stdout=output
+            )
+
+            # حفظ النسخة الاحتياطية
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(output.getvalue())
+
+            db_import.log += f"تم إنشاء نسخة احتياطية بنجاح: {backup_filename}\n"
+            db_import.save()
+        except Exception as e:
+            db_import.log += f"تحذير: فشل إنشاء نسخة احتياطية: {str(e)}\n"
+            db_import.log += "متابعة عملية الاستيراد...\n"
+            db_import.save()
+
         # الحصول على مسار الملف
         file_path = db_import.file.path
 
@@ -987,6 +1021,88 @@ def process_import(import_id):
                 db_import.log += "".join(stderr_lines)
 
             db_import.save()
+
+        # التحقق من البيانات المكررة بعد الاستعادة
+        db_import.log += "\nالتحقق من البيانات المكررة بعد الاستعادة...\n"
+        db_import.save()
+
+        try:
+            # التحقق من المستخدمين المكررين
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+
+            # استخدام استعلام SQL مباشر للبحث عن المستخدمين المكررين
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                SELECT username, COUNT(*) as count
+                FROM accounts_user
+                GROUP BY username
+                HAVING COUNT(*) > 1
+                """)
+                duplicate_users = cursor.fetchall()
+
+            if duplicate_users:
+                db_import.log += f"تحذير: تم العثور على {len(duplicate_users)} مستخدم مكرر.\n"
+
+                # حذف المستخدمين المكررين
+                db_import.log += "محاولة إصلاح المستخدمين المكررين...\n"
+
+                with connection.cursor() as cursor:
+                    # حذف المستخدمين المكررين
+                    cursor.execute("""
+                    DELETE FROM accounts_user
+                    WHERE id IN (
+                        SELECT id
+                        FROM (
+                            SELECT id,
+                                   ROW_NUMBER() OVER (PARTITION BY username ORDER BY id) as row_num
+                            FROM accounts_user
+                        ) t
+                        WHERE t.row_num > 1
+                    )
+                    """)
+
+                    # الحصول على عدد الصفوف المتأثرة
+                    affected_rows = cursor.rowcount
+
+                    db_import.log += f"تم حذف {affected_rows} مستخدم مكرر.\n"
+            else:
+                db_import.log += "لم يتم العثور على مستخدمين مكررين.\n"
+
+            # التحقق من جلسات المستخدمين المكررة
+            from django.contrib.sessions.models import Session
+
+            # استخدام استعلام SQL مباشر للبحث عن الجلسات المكررة
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                SELECT session_key, COUNT(*) as count
+                FROM django_session
+                GROUP BY session_key
+                HAVING COUNT(*) > 1
+                """)
+                duplicate_sessions = cursor.fetchall()
+
+            if duplicate_sessions:
+                db_import.log += f"تحذير: تم العثور على {len(duplicate_sessions)} جلسة مكررة.\n"
+
+                # حذف الجلسات المكررة
+                db_import.log += "محاولة إصلاح الجلسات المكررة...\n"
+
+                for session_key, count in duplicate_sessions:
+                    sessions = Session.objects.filter(session_key=session_key).order_by('-expire_date')
+
+                    # الاحتفاظ بأحدث جلسة وحذف البقية
+                    if sessions.count() > 1:
+                        primary_session = sessions.first()
+                        duplicate_sessions_to_delete = sessions.exclude(id=primary_session.id)
+                        duplicate_sessions_to_delete.delete()
+
+                db_import.log += "تم إصلاح الجلسات المكررة.\n"
+            else:
+                db_import.log += "لم يتم العثور على جلسات مكررة.\n"
+        except Exception as e:
+            db_import.log += f"تحذير: فشل التحقق من البيانات المكررة: {str(e)}\n"
 
         # تحديث الحالة
         db_import.status = 'completed'

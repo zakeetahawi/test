@@ -834,85 +834,37 @@ def process_import(import_id):
         db_import.log += "جاري التحضير لعملية الاستيراد...\n"
         db_import.save()
 
-        # استيراد البيانات
+        # استيراد البيانات - استخدام Django loaddata فقط
         if is_json:
             # تحديث السجل
             db_import.log += "بدء استيراد ملف JSON باستخدام Django loaddata...\n"
             db_import.save()
 
-            # استخدام أمر Django loaddata
-            output = io.StringIO()
-            call_command(
-                'loaddata',
-                file_path,
-                stdout=output
-            )
+            try:
+                # استخدام أمر Django loaddata
+                output = io.StringIO()
+                call_command(
+                    'loaddata',
+                    file_path,
+                    stdout=output
+                )
 
-            # تحديث السجل
-            db_import.log += "تم استيراد ملف JSON بنجاح.\n"
-            db_import.log += "نتيجة العملية:\n"
-            db_import.log += output.getvalue()
-            db_import.save()
-        elif is_dump:
-            # تحديث السجل
-            db_import.log += "بدء استيراد ملف PostgreSQL Dump...\n"
-            db_import.save()
-
-            # استخدام أمر pg_restore
-            db_config = db_import.database_config
-
-            # تعيين متغيرات البيئة للاتصال بقاعدة البيانات
-            os.environ['PGHOST'] = db_config.host
-            os.environ['PGPORT'] = db_config.port or '5432'
-            os.environ['PGDATABASE'] = db_config.database_name
-            os.environ['PGUSER'] = db_config.username
-            os.environ['PGPASSWORD'] = db_config.password
-
-            # تحديث السجل
-            db_import.log += f"الاتصال بقاعدة البيانات: {db_config.database_name} على {db_config.host}:{db_config.port or '5432'}\n"
-            db_import.save()
-
-            # استخدام Django loaddata فقط لاستعادة البيانات
-            db_import.log += "استخدام طريقة بديلة للاستعادة...\n"
-            db_import.save()
-
-            # التحقق من نوع الملف
-            if file_path.endswith('.json'):
-                # استخدام loaddata لاستعادة ملف JSON
-                db_import.log += "استخدام Django loaddata لاستعادة البيانات...\n"
+                # تحديث السجل
+                db_import.log += "تم استيراد ملف JSON بنجاح.\n"
+                db_import.log += "نتيجة العملية:\n"
+                db_import.log += output.getvalue()
                 db_import.save()
-
-                try:
-                    # استيراد الوحدات اللازمة
-                    import io
-                    from django.core.management import call_command
-
-                    output = io.StringIO()
-                    call_command('loaddata', file_path, stdout=output)
-
-                    # تحديث السجل
-                    db_import.log += "تم استيراد البيانات بنجاح باستخدام Django loaddata.\n"
-                    db_import.log += "نتيجة العملية:\n"
-                    db_import.log += output.getvalue()
-                    db_import.save()
-
-                    # تعيين الحالة إلى مكتملة
-                    db_import.status = 'completed'
-                    db_import.completed_at = timezone.now()
-                    db_import.log += f"\nاكتملت العملية بنجاح في {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    db_import.save()
-                    return
-                except Exception as e:
-                    db_import.status = 'failed'
-                    db_import.log += f"فشل استعادة البيانات باستخدام Django loaddata: {str(e)}\n"
-                    db_import.save()
-                    return
-            else:
-                # لا يمكن استعادة ملف dump بدون أدوات PostgreSQL
+            except Exception as e:
                 db_import.status = 'failed'
-                db_import.log += "فشل استعادة البيانات: لا يمكن استعادة ملف PostgreSQL dump على Railway. يرجى استخدام ملف JSON بدلاً من ذلك.\n"
+                db_import.log += f"فشل استعادة البيانات باستخدام Django loaddata: {str(e)}\n"
                 db_import.save()
                 return
+        else:
+            # لا يمكن استعادة ملف dump
+            db_import.status = 'failed'
+            db_import.log += "فشل استعادة البيانات: لا يمكن استعادة ملف PostgreSQL dump. يرجى استخدام ملف JSON بدلاً من ذلك.\n"
+            db_import.save()
+            return
 
         # التحقق من البيانات المكررة بعد الاستعادة
         db_import.log += "\nالتحقق من البيانات المكررة بعد الاستعادة...\n"
@@ -1247,38 +1199,17 @@ def import_data_from_file(request):
                 destination.write(chunk)
 
         try:
-            # استيراد البيانات
+            # استيراد البيانات - استخدام Django loaddata فقط
             if is_json:
-                # استخدام أمر Django loaddata
-                from django.core.management import call_command
-                call_command('loaddata', file_path)
-                messages.success(request, _('تم استيراد البيانات بنجاح.'))
-            elif is_dump and db_config.db_type == 'postgresql':
-                # تعيين متغيرات البيئة للاتصال بقاعدة البيانات
-                os.environ['PGHOST'] = db_config.host
-                os.environ['PGPORT'] = db_config.port or '5432'
-                os.environ['PGDATABASE'] = db_config.database_name
-                os.environ['PGUSER'] = db_config.username
-                os.environ['PGPASSWORD'] = db_config.password
-
-                # استخدام Django loaddata فقط لاستعادة البيانات
-                from django.core.management import call_command
-                import io
-
-                # التحقق من نوع الملف
-                if file_path.endswith('.json'):
-                    try:
-                        # استخدام loaddata لاستعادة ملف JSON
-                        output = io.StringIO()
-                        call_command('loaddata', file_path, stdout=output)
-
-                        messages.success(request, _('تم استيراد البيانات بنجاح باستخدام Django loaddata.'))
-                    except Exception as e:
-                        messages.error(request, _('حدث خطأ أثناء استيراد البيانات: {}').format(str(e)))
-                else:
-                    messages.error(request, _('لا يمكن استعادة ملف PostgreSQL dump على Railway. يرجى استخدام ملف JSON بدلاً من ذلك.'))
+                try:
+                    # استخدام أمر Django loaddata
+                    from django.core.management import call_command
+                    call_command('loaddata', file_path)
+                    messages.success(request, _('تم استيراد البيانات بنجاح.'))
+                except Exception as e:
+                    messages.error(request, _('حدث خطأ أثناء استيراد البيانات: {}').format(str(e)))
             else:
-                messages.error(request, _('نوع قاعدة البيانات غير مدعوم للاستيراد.'))
+                messages.error(request, _('نوع الملف غير مدعوم. يرجى استخدام ملف JSON بدلاً من ذلك.'))
         except Exception as e:
             messages.error(request, _('حدث خطأ أثناء استيراد البيانات: {}').format(str(e)))
         finally:

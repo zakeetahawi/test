@@ -27,6 +27,8 @@ generate_secret_key.py
 # Ignore media files that might contain sensitive data
 media/google_credentials/
 media/imports_exports/
+media/db_backups/
+media/db_imports/
 
 # Ignore OS files
 .DS_Store

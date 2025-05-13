@@ -153,18 +153,31 @@
         <div class="status-footer">
             {% if db_import.status == 'completed' %}
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> {% trans "تم استيراد البيانات بنجاح!" %}
+                    <h4 class="alert-heading"><i class="fas fa-check-circle"></i> {% trans "تم استيراد البيانات بنجاح!" %}</h4>
+                    <p>{% trans "تم استيراد البيانات إلى قاعدة البيانات بنجاح. يمكنك الآن استخدام النظام بالبيانات الجديدة." %}</p>
+                    <hr>
+                    <p class="mb-0">{% trans "قاعدة البيانات:" %} <strong>{{ db_import.database_config.name }}</strong></p>
+                    <p class="mb-0">{% trans "تاريخ الاكتمال:" %} <strong>{{ db_import.completed_at|date:"Y-m-d H:i" }}</strong></p>
+                </div>
+
+                <div class="btn-group mt-3">
+                    <a href="{% url 'db_manager:database_list' %}" class="btn btn-primary btn-lg">{% trans "العودة إلى قائمة قواعد البيانات" %}</a>
+                    <a href="/" class="btn btn-success btn-lg">{% trans "الذهاب إلى الصفحة الرئيسية" %}</a>
                 </div>
             {% elif db_import.status == 'failed' %}
                 <div class="alert alert-danger">
-                    <i class="fas fa-times-circle"></i> {% trans "فشل استيراد البيانات. يرجى التحقق من سجل العملية للحصول على مزيد من المعلومات." %}
+                    <h4 class="alert-heading"><i class="fas fa-times-circle"></i> {% trans "فشل استيراد البيانات" %}</h4>
+                    <p>{% trans "حدث خطأ أثناء استيراد البيانات. يرجى التحقق من سجل العملية للحصول على مزيد من المعلومات." %}</p>
+                    <hr>
+                    <p class="mb-0">{% trans "يمكنك محاولة استيراد البيانات مرة أخرى أو الاتصال بمسؤول النظام للحصول على المساعدة." %}</p>
                 </div>
-            {% endif %}
 
-            <a href="{% url 'db_manager:database_list' %}" class="btn btn-primary btn-lg">{% trans "العودة إلى قائمة قواعد البيانات" %}</a>
-
-            {% if db_import.status == 'failed' %}
-                <a href="{% url 'db_manager:database_import' %}" class="btn btn-warning btn-lg">{% trans "محاولة مرة أخرى" %}</a>
+                <div class="btn-group mt-3">
+                    <a href="{% url 'db_manager:database_list' %}" class="btn btn-primary btn-lg">{% trans "العودة إلى قائمة قواعد البيانات" %}</a>
+                    <a href="{% url 'db_manager:database_import' %}" class="btn btn-warning btn-lg">{% trans "محاولة مرة أخرى" %}</a>
+                </div>
+            {% else %}
+                <a href="{% url 'db_manager:database_list' %}" class="btn btn-primary btn-lg">{% trans "العودة إلى قائمة قواعد البيانات" %}</a>
             {% endif %}
         </div>
     </div>
@@ -301,16 +314,31 @@
                             if (data.status === 'completed') {
                                 $('#progress-bar').css('width', '100%');
                                 $('#progress-bar').removeClass('progress-bar-animated').addClass('bg-success');
-                                $('#status-message').text('تم استيراد البيانات بنجاح!');
+
+                                // إضافة إشعار نجاح واضح
+                                $('.spinner-container').html('<div class="alert alert-success w-100 text-center py-3"><h4><i class="fas fa-check-circle fa-lg me-2"></i> تم استيراد البيانات بنجاح!</h4><p class="mb-0">سيتم تحديث الصفحة تلقائيًا خلال 3 ثوانٍ...</p></div>');
+
+                                // إضافة صوت تنبيه (اختياري)
+                                try {
+                                    var audio = new Audio('/static/sounds/success.mp3');
+                                    audio.play().catch(function(error) {
+                                        // تجاهل أخطاء تشغيل الصوت (قد لا يكون الملف موجودًا)
+                                        console.log('Could not play notification sound');
+                                    });
+                                } catch (e) {
+                                    console.log('Audio not supported');
+                                }
                             } else {
                                 $('#progress-bar').removeClass('progress-bar-animated').addClass('bg-danger');
-                                $('#status-message').text('فشل استيراد البيانات!');
+
+                                // إضافة إشعار فشل واضح
+                                $('.spinner-container').html('<div class="alert alert-danger w-100 text-center py-3"><h4><i class="fas fa-times-circle fa-lg me-2"></i> فشل استيراد البيانات!</h4><p class="mb-0">سيتم تحديث الصفحة تلقائيًا خلال 3 ثوانٍ...</p></div>');
                             }
 
-                            // إعادة تحميل الصفحة بعد ثانيتين
+                            // إعادة تحميل الصفحة بعد 3 ثوانٍ
                             setTimeout(function() {
                                 location.reload();
-                            }, 2000);
+                            }, 3000);
                         }
                     },
                     error: function() {

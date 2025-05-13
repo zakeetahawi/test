@@ -82,6 +82,7 @@ class DatabaseImport(models.Model):
     database_config = models.ForeignKey(DatabaseConfig, on_delete=models.CASCADE, related_name='imports', verbose_name=_('إعداد قاعدة البيانات'))
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='pending')
     log = models.TextField(_('سجل العملية'), blank=True, null=True)
+    clear_data = models.BooleanField(_('حذف البيانات القديمة'), default=False)
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
     completed_at = models.DateTimeField(_('تاريخ الاكتمال'), null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_imports', verbose_name=_('تم الإنشاء بواسطة'))

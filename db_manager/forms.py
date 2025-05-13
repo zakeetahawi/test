@@ -121,12 +121,20 @@ class DatabaseImportForm(forms.ModelForm):
 
     file = forms.FileField(
         label=_('ملف الاستيراد'),
-        help_text=_('يجب أن يكون الملف بتنسيق JSON أو SQL')
+        help_text=_('يجب أن يكون الملف بتنسيق JSON أو SQL أو DUMP'),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.json,.sql,.dump'})
+    )
+
+    clear_data = forms.BooleanField(
+        label=_('حذف البيانات القديمة'),
+        required=False,
+        initial=False,
+        help_text=_('حذف البيانات الموجودة في قاعدة البيانات قبل استيراد البيانات الجديدة')
     )
 
     class Meta:
         model = DatabaseImport
-        fields = ['file', 'database_config']
+        fields = ['file', 'database_config', 'clear_data']
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
@@ -148,8 +156,8 @@ class DatabaseImportForm(forms.ModelForm):
         file = self.cleaned_data.get('file')
         if file:
             ext = os.path.splitext(file.name)[1].lower()
-            if ext not in ['.json', '.sql']:
-                raise forms.ValidationError(_('يجب أن يكون الملف بتنسيق JSON أو SQL'))
+            if ext not in ['.json', '.sql', '.dump']:
+                raise forms.ValidationError(_('يجب أن يكون الملف بتنسيق JSON أو SQL أو DUMP'))
 
             # التحقق من حجم الملف (الحد الأقصى 100 ميجابايت)
             if file.size > 100 * 1024 * 1024:

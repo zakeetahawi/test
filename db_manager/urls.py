@@ -28,6 +28,7 @@ urlpatterns = [
     path('export/', views.database_export, name='database_export'),
     path('import/status/<int:pk>/', views.import_status, name='import_status'),
     path('import/from-file/', views.import_data_from_file, name='import_data_from_file'),
+    path('import/direct/', views.direct_import_form, name='direct_import_form'),
 
     # رموز الإعداد
     path('tokens/', views.token_list, name='token_list'),

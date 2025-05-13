@@ -35,13 +35,38 @@ def is_superuser(user):
     return user.is_superuser
 
 
-def cleanup_old_imports():
+def cleanup_old_imports(delete_all=False):
     """تنظيف سجلات الاستيراد القديمة"""
     from datetime import timedelta
     from django.utils import timezone
     from django.db import connection
 
     try:
+        if delete_all:
+            # حذف جميع سجلات الاستيراد
+            imports = DatabaseImport.objects.all()
+
+            # حذف الملفات أولاً ثم السجلات
+            for import_record in imports:
+                try:
+                    if import_record.file:
+                        import_record.file.delete(save=False)
+                except Exception as e:
+                    print(f"Error deleting import file: {e}")
+
+            # حذف جميع السجلات
+            imports.delete()
+
+            # إعادة ضبط تسلسل المعرفات
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("ALTER SEQUENCE db_manager_databaseimport_id_seq RESTART WITH 1;")
+            except Exception as e:
+                print(f"Error resetting sequence after deleting all imports: {e}")
+
+            print("All import records have been deleted and sequence reset.")
+            return
+
         # حذف جميع سجلات الاستيراد القديمة التي فشلت أو اكتملت منذ أكثر من يوم
         one_day_ago = timezone.now() - timedelta(days=1)
 
@@ -704,22 +729,26 @@ def backup_delete(request, pk):
 def database_import(request):
     """استيراد قاعدة بيانات من ملف"""
     try:
+        # التحقق مما إذا كان المستخدم قد طلب حذف جميع سجلات الاستيراد
+        reset_imports = request.GET.get('reset_imports', 'false').lower() == 'true'
+
+        if reset_imports:
+            # حذف جميع سجلات الاستيراد وإعادة ضبط التسلسل
+            cleanup_old_imports(delete_all=True)
+            messages.success(request, _('تم حذف جميع سجلات الاستيراد وإعادة ضبط التسلسل بنجاح.'))
+            return redirect('db_manager:database_import')
+
         # تنظيف قاعدة البيانات من سجلات الاستيراد القديمة
         cleanup_old_imports()
-
-        # إعادة ضبط تسلسل المعرفات في قاعدة البيانات
-        try:
-            from django.db import connection
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT setval('db_manager_databaseimport_id_seq', 1, false);")
-        except Exception as e:
-            # تسجيل الخطأ ولكن متابعة العملية
-            print(f"Error resetting database sequence: {e}")
 
         databases = DatabaseConfig.objects.filter(is_active=True)
         default_db = DatabaseConfig.objects.filter(is_default=True).first()
 
         if request.method == 'POST':
+            # طباعة معلومات الطلب للتشخيص
+            print("POST data:", request.POST)
+            print("FILES data:", request.FILES)
+
             form = DatabaseImportForm(request.POST, request.FILES, user=request.user)
             if form.is_valid():
                 try:
@@ -754,6 +783,7 @@ def database_import(request):
                     traceback.print_exc()
             else:
                 # في حالة عدم صحة النموذج، عرض رسالة خطأ
+                print("Form errors:", form.errors)
                 for field, errors in form.errors.items():
                     for error in errors:
                         messages.error(request, f"{field}: {error}")
@@ -794,13 +824,20 @@ def process_import(import_id):
         try:
             # إنشاء نسخة احتياطية
             from django.conf import settings
-            backup_dir = settings.BACKUP_ROOT
+            from io import StringIO
+
+            # التأكد من وجود مجلد النسخ الاحتياطية
+            backup_dir = getattr(settings, 'BACKUP_ROOT', os.path.join(settings.MEDIA_ROOT, 'db_backups'))
+            os.makedirs(backup_dir, exist_ok=True)
+
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_filename = f"pre_import_backup_{timestamp}.json"
             backup_path = os.path.join(backup_dir, backup_filename)
 
             # استخدام أمر Django dumpdata
-            output = io.StringIO()
+            output = StringIO()
+            from django.core.management import call_command
+
             call_command(
                 'dumpdata',
                 '--exclude', 'auth.permission',
@@ -834,7 +871,58 @@ def process_import(import_id):
         db_import.log += "جاري التحضير لعملية الاستيراد...\n"
         db_import.save()
 
-        # استيراد البيانات - استخدام Django loaddata فقط
+        # التحقق مما إذا كان المستخدم قد اختار حذف البيانات القديمة
+        if db_import.clear_data:
+            db_import.log += "تم تفعيل خيار حذف البيانات القديمة. جاري حذف البيانات الموجودة...\n"
+            db_import.save()
+
+            try:
+                # حذف البيانات من جميع التطبيقات باستثناء auth وcontenttypes وsessions وaccounts
+                from django.apps import apps
+                from django.db import connection
+
+                # الحصول على قائمة بجميع النماذج
+                all_models = apps.get_models()
+
+                # استبعاد النماذج من التطبيقات المحددة
+                excluded_apps = ['auth', 'contenttypes', 'sessions', 'admin', 'accounts']
+                # استبعاد نماذج إضافية حساسة
+                excluded_models = ['accounts.user', 'accounts.userprofile', 'accounts.role', 'accounts.userrole', 'db_manager.databaseconfig']
+
+                # تحضير قائمة النماذج للحذف
+                models_to_clear = []
+                for model in all_models:
+                    model_name = f"{model._meta.app_label}.{model._meta.model_name}"
+                    # استبعاد النماذج من التطبيقات المستثناة أو النماذج المستثناة بالاسم
+                    if model._meta.app_label not in excluded_apps and model_name not in excluded_models:
+                        models_to_clear.append(model)
+
+                db_import.log += f"سيتم حذف البيانات من {len(models_to_clear)} نموذج.\n"
+                db_import.log += "ملاحظة: لن يتم حذف بيانات المستخدمين والأدوار وإعدادات قواعد البيانات.\n"
+                db_import.save()
+
+                # حذف البيانات من كل نموذج
+                for model in models_to_clear:
+                    model_name = f"{model._meta.app_label}.{model._meta.model_name}"
+                    db_import.log += f"حذف البيانات من {model_name}...\n"
+                    db_import.save()
+
+                    try:
+                        # استخدام delete بدلاً من truncate لتجنب مشاكل CASCADE
+                        model.objects.all().delete()
+
+                        db_import.log += f"تم حذف البيانات من {model_name} بنجاح.\n"
+                    except Exception as e:
+                        db_import.log += f"تحذير: فشل حذف البيانات من {model_name}: {str(e)}\n"
+
+                db_import.log += "تم حذف البيانات القديمة بنجاح.\n"
+            except Exception as e:
+                db_import.log += f"تحذير: فشل حذف البيانات القديمة: {str(e)}\n"
+                db_import.log += "متابعة عملية الاستيراد...\n"
+
+            db_import.save()
+
+        # استيراد البيانات
         if is_json:
             # تحديث السجل
             db_import.log += "بدء استيراد ملف JSON باستخدام Django loaddata...\n"
@@ -859,10 +947,238 @@ def process_import(import_id):
                 db_import.log += f"فشل استعادة البيانات باستخدام Django loaddata: {str(e)}\n"
                 db_import.save()
                 return
+        elif is_dump:
+            # تحديث السجل
+            db_import.log += "بدء استيراد ملف DUMP...\n"
+            db_import.log += "ملاحظة: استيراد ملفات DUMP على منصة Railway يتطلب استخدام طريقة بديلة.\n"
+            db_import.save()
+
+            # استيراد المكتبات اللازمة في بداية الوظيفة
+            from django.conf import settings
+            import tempfile
+            from django.db import connection
+            import json
+            from django.core.management import call_command
+            from io import StringIO
+
+            try:
+                # الحصول على معلومات الاتصال بقاعدة البيانات
+                db_config = db_import.database_config
+
+                # إنشاء مجلد مؤقت إذا لم يكن موجودًا
+                temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
+                os.makedirs(temp_dir, exist_ok=True)
+
+                # إنشاء ملف مؤقت للتحويل
+                temp_json_path = os.path.join(temp_dir, f"temp_import_{db_import.id}.json")
+
+                db_import.log += "محاولة استيراد ملف DUMP...\n"
+                db_import.save()
+
+                # محاولة قراءة الملف بترميزات مختلفة
+                encodings_to_try = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1', 'binary']
+                file_content = None
+
+                for encoding in encodings_to_try:
+                    try:
+                        if encoding == 'binary':
+                            # قراءة الملف كملف ثنائي
+                            with open(file_path, 'rb') as f:
+                                file_content = f.read()
+                            db_import.log += "تم قراءة الملف بنجاح كملف ثنائي.\n"
+                            break
+                        else:
+                            # محاولة قراءة الملف بالترميز المحدد
+                            with open(file_path, 'r', encoding=encoding) as f:
+                                file_content = f.read()
+                            db_import.log += f"تم قراءة الملف بنجاح باستخدام ترميز {encoding}.\n"
+                            break
+                    except UnicodeDecodeError:
+                        db_import.log += f"فشل قراءة الملف باستخدام ترميز {encoding}. جاري تجربة ترميز آخر...\n"
+                        continue
+
+                if file_content is None:
+                    db_import.status = 'failed'
+                    db_import.log += "فشل قراءة الملف بجميع الترميزات المتاحة.\n"
+                    db_import.save()
+                    return
+
+                # محاولة معالجة الملف كملف JSON
+                try:
+                    # التحقق مما إذا كان الملف يحتوي على بيانات JSON
+                    if isinstance(file_content, bytes):
+                        # تحويل البيانات الثنائية إلى نص
+                        try:
+                            text_content = file_content.decode('utf-8', errors='ignore')
+                        except:
+                            text_content = str(file_content)
+                    else:
+                        text_content = file_content
+
+                    # البحث عن بيانات JSON في الملف
+                    json_start = text_content.find('[{')
+                    json_end = text_content.rfind('}]')
+
+                    if json_start >= 0 and json_end > json_start:
+                        # استخراج بيانات JSON من الملف
+                        json_content = text_content[json_start:json_end+2]
+
+                        # محاولة تحليل بيانات JSON
+                        try:
+                            data = json.loads(json_content)
+                            db_import.log += "تم العثور على بيانات JSON في الملف وتحليلها بنجاح.\n"
+
+                            # حفظ البيانات في ملف JSON مؤقت
+                            with open(temp_json_path, 'w', encoding='utf-8') as json_file:
+                                json.dump(data, json_file, ensure_ascii=False, indent=2)
+
+                            # استخدام أمر Django loaddata
+                            output = StringIO()
+                            call_command(
+                                'loaddata',
+                                temp_json_path,
+                                stdout=output
+                            )
+
+                            # تنظيف الملفات المؤقتة
+                            try:
+                                os.remove(temp_json_path)
+                            except:
+                                pass
+
+                            db_import.log += "تم استيراد البيانات بنجاح.\n"
+                            db_import.log += "نتيجة العملية:\n"
+                            db_import.log += output.getvalue()
+                            db_import.save()
+                            return
+                        except json.JSONDecodeError as json_error:
+                            db_import.log += f"فشل تحليل بيانات JSON: {str(json_error)}\n"
+                    else:
+                        db_import.log += "لم يتم العثور على بيانات JSON في الملف.\n"
+                except Exception as json_error:
+                    db_import.log += f"فشل معالجة الملف كملف JSON: {str(json_error)}\n"
+
+                # محاولة معالجة الملف كملف SQL
+                db_import.log += "محاولة معالجة الملف كملف SQL...\n"
+
+                try:
+                    # إذا كان الملف ثنائيًا، نحاول تحويله إلى نص
+                    if isinstance(file_content, bytes):
+                        sql_content = file_content.decode('utf-8', errors='ignore')
+                    else:
+                        sql_content = file_content
+
+                    # تنظيف محتوى SQL
+                    sql_content = sql_content.replace('\x00', '')
+
+                    # تقسيم الأوامر SQL
+                    sql_commands = sql_content.split(';')
+
+                    # تنفيذ كل أمر SQL على حدة
+                    with connection.cursor() as cursor:
+                        executed_commands = 0
+                        for command in sql_commands:
+                            command = command.strip()
+                            if command:
+                                try:
+                                    cursor.execute(command + ';')
+                                    executed_commands += 1
+                                except Exception as sql_error:
+                                    db_import.log += f"تحذير: فشل تنفيذ أمر SQL: {str(sql_error)}\n"
+
+                        db_import.log += f"تم تنفيذ {executed_commands} أمر SQL بنجاح.\n"
+
+                    if executed_commands > 0:
+                        db_import.log += "تم استيراد البيانات بنجاح باستخدام SQL.\n"
+                        db_import.save()
+                        return
+                    else:
+                        db_import.log += "لم يتم تنفيذ أي أوامر SQL بنجاح.\n"
+                except Exception as sql_error:
+                    db_import.log += f"فشل معالجة الملف كملف SQL: {str(sql_error)}\n"
+
+                # محاولة تحويل الملف إلى JSON وتصديره
+                db_import.log += "محاولة تحويل الملف إلى JSON...\n"
+
+                try:
+                    # إنشاء ملف JSON من البيانات المستخرجة
+                    from django.core.serializers import serialize
+                    from django.apps import apps
+
+                    # الحصول على جميع النماذج
+                    all_models = apps.get_models()
+
+                    # إنشاء ملف JSON يحتوي على جميع البيانات
+                    with open(temp_json_path, 'w', encoding='utf-8') as json_file:
+                        json_file.write('[')
+                        first_model = True
+
+                        for model in all_models:
+                            try:
+                                # تجاهل النماذج الداخلية
+                                if model._meta.app_label in ['auth', 'contenttypes', 'sessions', 'admin']:
+                                    continue
+
+                                # الحصول على بيانات النموذج
+                                model_data = serialize('json', model.objects.all())
+
+                                # إزالة الأقواس المربعة من بداية ونهاية البيانات
+                                model_data = model_data.strip()
+                                if model_data.startswith('['):
+                                    model_data = model_data[1:]
+                                if model_data.endswith(']'):
+                                    model_data = model_data[:-1]
+
+                                # إضافة البيانات إلى الملف
+                                if model_data and model_data.strip():
+                                    if not first_model:
+                                        json_file.write(',')
+                                    json_file.write(model_data)
+                                    first_model = False
+                            except Exception as model_error:
+                                db_import.log += f"تحذير: فشل استخراج بيانات النموذج {model.__name__}: {str(model_error)}\n"
+
+                        json_file.write(']')
+
+                    db_import.log += "تم إنشاء ملف JSON بنجاح.\n"
+
+                    # استيراد البيانات من ملف JSON
+                    output = StringIO()
+                    call_command(
+                        'loaddata',
+                        temp_json_path,
+                        stdout=output
+                    )
+
+                    # تنظيف الملفات المؤقتة
+                    try:
+                        os.remove(temp_json_path)
+                    except:
+                        pass
+
+                    db_import.log += "تم استيراد البيانات بنجاح.\n"
+                    db_import.log += "نتيجة العملية:\n"
+                    db_import.log += output.getvalue()
+                    db_import.save()
+                    return
+                except Exception as convert_error:
+                    db_import.log += f"فشل تحويل الملف إلى JSON: {str(convert_error)}\n"
+
+                # إذا وصلنا إلى هنا، فقد فشلت جميع المحاولات
+                db_import.status = 'failed'
+                db_import.log += "فشل استيراد البيانات باستخدام جميع الطرق المتاحة.\n"
+                db_import.log += "يرجى التأكد من أن الملف بتنسيق صحيح (JSON أو SQL أو DUMP) ومتوافق مع هيكل قاعدة البيانات.\n"
+                db_import.save()
+                return
+            except Exception as e:
+                db_import.status = 'failed'
+                db_import.log += f"فشل استيراد البيانات: {str(e)}\n"
+                db_import.save()
+                return
         else:
-            # لا يمكن استعادة ملف dump
+            # لا يمكن استعادة ملف غير معروف
             db_import.status = 'failed'
-            db_import.log += "فشل استعادة البيانات: لا يمكن استعادة ملف PostgreSQL dump. يرجى استخدام ملف JSON بدلاً من ذلك.\n"
+            db_import.log += "فشل استعادة البيانات: نوع الملف غير مدعوم. يرجى استخدام ملف JSON أو DUMP.\n"
             db_import.save()
             return
 
@@ -1010,21 +1326,39 @@ def database_export(request):
                     )
                     response['Content-Disposition'] = f'attachment; filename="db_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json"'
             elif export_format == 'dump' and db_config.db_type == 'postgresql':
-                # تعيين متغيرات البيئة للاتصال بقاعدة البيانات
-                os.environ['PGHOST'] = db_config.host
-                os.environ['PGPORT'] = db_config.port or '5432'
-                os.environ['PGDATABASE'] = db_config.database_name
-                os.environ['PGUSER'] = db_config.username
-                os.environ['PGPASSWORD'] = db_config.password
+                # استخدام Django dumpdata لإنشاء ملف JSON
+                # ثم تحويله إلى تنسيق DUMP متوافق مع Railway
 
-                # تنفيذ أمر pg_dump
-                cmd = [
-                    'pg_dump',
-                    '--format=custom',
-                    '--file=' + temp_path,
-                    db_config.database_name
-                ]
-                subprocess.run(cmd, check=True)
+                # استخدام أمر Django dumpdata
+                call_command(
+                    'dumpdata',
+                    '--exclude', 'auth.permission',
+                    '--exclude', 'contenttypes',
+                    '--indent', '2',
+                    '--output', temp_path + '.json'
+                )
+
+                # إنشاء ملف DUMP متوافق مع Railway
+                with open(temp_path + '.json', 'r', encoding='utf-8') as json_file:
+                    json_data = json.load(json_file)
+
+                # إنشاء ملف DUMP بتنسيق خاص
+                with open(temp_path, 'w', encoding='utf-8') as dump_file:
+                    dump_file.write("-- Railway Compatible PostgreSQL Dump\n")
+                    dump_file.write("-- Generated by Django CRM System\n")
+                    dump_file.write(f"-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+                    # إضافة معلومات قاعدة البيانات
+                    dump_file.write(f"-- Database: {db_config.database_name}\n")
+                    dump_file.write("-- Format: Custom Railway Compatible\n\n")
+
+                    # إضافة البيانات بتنسيق JSON
+                    dump_file.write("-- JSON Data Begin\n")
+                    json.dump(json_data, dump_file, ensure_ascii=False, indent=2)
+                    dump_file.write("\n-- JSON Data End\n")
+
+                # حذف الملف المؤقت
+                os.unlink(temp_path + '.json')
 
                 # إنشاء استجابة لتنزيل الملف
                 with open(temp_path, 'rb') as f:
@@ -1148,9 +1482,26 @@ def token_delete(request, pk):
 
 @login_required
 @user_passes_test(is_superuser)
+def direct_import_form(request):
+    """عرض نموذج الاستيراد المباشر"""
+    databases = DatabaseConfig.objects.filter(is_active=True)
+    default_db = DatabaseConfig.objects.filter(is_default=True).first()
+
+    return render(request, 'db_manager/direct_import_form.html', {
+        'databases': databases,
+        'default_db': default_db,
+    })
+
+
+@login_required
+@user_passes_test(is_superuser)
 def import_data_from_file(request):
     """استيراد البيانات من ملف"""
     if request.method == 'POST':
+        # طباعة معلومات الطلب للتشخيص
+        print("POST data:", request.POST)
+        print("FILES data:", request.FILES)
+
         # التحقق من وجود الملف
         if 'import_file' not in request.FILES:
             messages.error(request, _('يرجى اختيار ملف للاستيراد.'))

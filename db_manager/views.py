@@ -887,7 +887,7 @@ def process_import(import_id):
                 # استبعاد النماذج من التطبيقات المحددة
                 excluded_apps = ['auth', 'contenttypes', 'sessions', 'admin', 'accounts']
                 # استبعاد نماذج إضافية حساسة
-                excluded_models = ['accounts.user', 'accounts.userprofile', 'accounts.role', 'accounts.userrole', 'db_manager.databaseconfig']
+                excluded_models = ['accounts.user', 'accounts.userprofile', 'accounts.role', 'accounts.userrole', 'accounts.department', 'db_manager.databaseconfig']
 
                 # تحضير قائمة النماذج للحذف
                 models_to_clear = []

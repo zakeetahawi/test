@@ -1,1 +1,1 @@
-web: python manage.py migrate && gunicorn crm.wsgi:application
+web: python manage.py migrate && python scripts/post_deploy.py && gunicorn crm.wsgi:application

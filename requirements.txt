@@ -13,12 +13,8 @@ redis==5.0.1
 asgiref==3.8.1
 daphne==4.0.0
 
-# Task Queue and Scheduling
-celery==5.3.4
+# Task Scheduling
 django-apscheduler==0.6.2
-kombu==5.5.3
-amqp==5.3.1
-billiard==4.2.1
 
 # Data Processing and Analytics
 numpy>=1.24.0

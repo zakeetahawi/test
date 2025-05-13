@@ -13,97 +13,6 @@ from django.dispatch import receiver
 from django.utils.translation import gettext as _
 from model_utils import FieldTracker
 
-class DynamicPricing(models.Model):
-    RULE_TYPES = [
-        ('seasonal', 'موسمي'),
-        ('quantity', 'كمية'),
-        ('customer_type', 'نوع العميل'),
-        ('special_offer', 'عرض خاص'),
-    ]
-
-    CUSTOMER_TYPES = [
-        ('regular', 'عادي'),
-        ('vip', 'VIP'),
-        ('wholesale', 'جملة'),
-        ('distributor', 'موزع'),
-    ]
-
-    name = models.CharField(max_length=100, verbose_name="اسم القاعدة")
-    rule_type = models.CharField(max_length=20, choices=RULE_TYPES, verbose_name="نوع القاعدة")
-    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="نسبة الخصم")
-    min_quantity = models.IntegerField(null=True, blank=True, verbose_name="الحد الأدنى للكمية")
-    min_amount = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        null=True, 
-        blank=True, 
-        verbose_name="الحد الأدنى للمبلغ"
-    )
-    customer_type = models.CharField(
-        max_length=20,
-        choices=CUSTOMER_TYPES,
-        null=True,
-        blank=True,
-        verbose_name="نوع العميل"
-    )
-    start_date = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ البداية")
-    end_date = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ النهاية")
-    is_active = models.BooleanField(default=True, verbose_name="فعال")
-    priority = models.IntegerField(default=0, verbose_name="الأولوية")
-    description = models.TextField(blank=True, verbose_name="الوصف")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="تاريخ التحديث")
-
-    class Meta:
-        verbose_name = "التسعير الديناميكي"
-        verbose_name_plural = "قواعد التسعير الديناميكي"
-        ordering = ['-priority', '-created_at']
-
-    def __str__(self):
-        return self.name
-
-    def clean(self):
-        if self.rule_type == 'quantity' and not self.min_quantity:
-            raise ValidationError({
-                'min_quantity': _('يجب تحديد الحد الأدنى للكمية لقواعد التسعير بالكمية')
-            })
-        if self.rule_type == 'customer_type' and not self.customer_type:
-            raise ValidationError({
-                'customer_type': _('يجب تحديد نوع العميل لقواعد التسعير حسب نوع العميل')
-            })
-        if self.rule_type == 'special_offer' and not self.min_amount:
-            raise ValidationError({
-                'min_amount': _('يجب تحديد الحد الأدنى للمبلغ للعروض الخاصة')
-            })
-        if self.start_date and self.end_date and self.start_date >= self.end_date:
-            raise ValidationError({
-                'end_date': _('تاريخ النهاية يجب أن يكون بعد تاريخ البداية')
-            })
-
-    def is_applicable_to_order(self, order):
-        """التحقق من إمكانية تطبيق القاعدة على الطلب"""
-        if not self.is_active:
-            return False
-            
-        now = timezone.now()
-        if self.start_date and self.start_date > now:
-            return False
-        if self.end_date and self.end_date < now:
-            return False
-
-        if self.rule_type == 'quantity':
-            total_quantity = sum(item.quantity for item in order.items.all())
-            return total_quantity >= (self.min_quantity or 0)
-            
-        elif self.rule_type == 'customer_type':
-            return order.customer and order.customer.customer_type == self.customer_type
-            
-        elif self.rule_type == 'special_offer':
-            total_amount = sum(item.quantity * item.unit_price for item in order.items.all())
-            return total_amount >= (self.min_amount or 0)
-            
-        return True  # للقواعد الموسمية
-
 class ShippingDetails(models.Model):
     SHIPPING_STATUS_CHOICES = [
         ('pending', 'قيد الانتظار'),
@@ -177,7 +86,7 @@ class Order(models.Model):
         ('normal', 'عادي'),
         ('vip', 'VIP'),
     ]
-    
+
     ORDER_TYPES = [
         ('fabric', 'قماش'),
         ('accessory', 'إكسسوار'),
@@ -238,13 +147,6 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التحديث')
 
-    dynamic_pricing_rule = models.ForeignKey(
-        DynamicPricing,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        verbose_name="قاعدة التسعير"
-    )
     final_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -253,7 +155,6 @@ class Order(models.Model):
         verbose_name="السعر النهائي"
     )
 
-    price_changed = models.BooleanField(default=False, help_text='يشير إلى ما إذا تم تغيير السعر مؤخراً')
     modified_at = models.DateTimeField(auto_now=True, help_text='آخر تحديث للطلب')
 
     tracker = FieldTracker(fields=['tracking_status'])
@@ -273,9 +174,21 @@ class Order(models.Model):
         ]
 
     def calculate_final_price(self):
-        """حساب السعر النهائي للطلب باستخدام خدمة التسعير الديناميكي"""
-        from .services.pricing_service import PricingService
-        self.final_price = PricingService.calculate_dynamic_price(self)
+        """حساب السعر النهائي للطلب"""
+        # حساب السعر الأساسي من عناصر الطلب باستخدام استعلام أكثر كفاءة
+        from django.db.models import F, Sum, ExpressionWrapper, DecimalField
+
+        # استخدام استعلام مُحسّن لحساب السعر النهائي
+        total = self.items.aggregate(
+            total=Sum(
+                ExpressionWrapper(
+                    F('quantity') * F('unit_price'),
+                    output_field=DecimalField()
+                )
+            )
+        )['total'] or 0
+
+        self.final_price = total
         return self.final_price
 
     def save(self, *args, **kwargs):
@@ -284,7 +197,7 @@ class Order(models.Model):
             last_order = Order.objects.filter(
                 customer=self.customer
             ).order_by('-order_number').first()
-            
+
             if last_order:
                 # Extract the number part and increment it
                 try:
@@ -294,10 +207,10 @@ class Order(models.Model):
                     next_num = 1
             else:
                 next_num = 1
-            
+
             # Generate new order number
             self.order_number = f"{self.customer.code}-{next_num:04d}"
-        
+
         # Validate selected types
         selected_types = self.selected_types or []
         if isinstance(selected_types, str):
@@ -305,7 +218,7 @@ class Order(models.Model):
                 selected_types = json.loads(selected_types)
             except json.JSONDecodeError:
                 selected_types = [st.strip() for st in selected_types.split(',') if st.strip()]
-        
+
         if not selected_types:
             raise models.ValidationError('يجب اختيار نوع طلب واحد على الأقل')
 
@@ -321,7 +234,7 @@ class Order(models.Model):
         # Set legacy fields for backward compatibility
         has_products = any(t in ['fabric', 'accessory'] for t in selected_types)
         has_services = any(t in ['installation', 'inspection', 'transport', 'tailoring'] for t in selected_types)
-        
+
         if has_products:
             self.order_type = 'product'
         if has_services:
@@ -357,17 +270,17 @@ class Order(models.Model):
             'ready': _('الطلب جاهز للتسليم'),
             'delivered': _('تم تسليم الطلب'),
         }
-        
+
         title = _('تحديث حالة الطلب #{}'.format(self.order_number))
         message = _('{}\nتم تغيير الحالة من {} إلى {}'.format(
             status_messages.get(new_status, ''),
             self.get_tracking_status_display(),
             dict(self.TRACKING_STATUS_CHOICES)[new_status]
         ))
-        
+
         if notes:
             message += f'\nملاحظات: {notes}'
-        
+
         # إنشاء سجل لتغيير الحالة
         OrderStatusLog.objects.create(
             order=self,
@@ -376,7 +289,7 @@ class Order(models.Model):
             changed_by=changed_by,
             notes=notes
         )
-        
+
         # إرسال إشعار للعميل
         send_notification(
             title=title,
@@ -397,10 +310,10 @@ class Order(models.Model):
             'completed': _('تم إكمال الطلب بنجاح'),
             'cancelled': _('تم إلغاء الطلب')
         }
-        
+
         title = _('تحديث حالة الطلب #{}'.format(self.order_number))
         message = status_messages.get(self.status, _('تم تحديث حالة الطلب'))
-        
+
         # إرسال إشعار للعميل
         send_notification(
             title=title,
@@ -540,7 +453,7 @@ class OrderStatusLog(models.Model):
         if not self.old_status and self.order:
             self.old_status = self.order.tracking_status
         super().save(*args, **kwargs)
-        
+
         # تحديث حالة الطلب
         if self.order and self.new_status != self.order.tracking_status:
             self.order.tracking_status = self.new_status

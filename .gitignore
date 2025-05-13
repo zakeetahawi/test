@@ -10,7 +10,8 @@ ENV/
 
 # Ignore environment files
 .env
-.env.*
+# Don't ignore .env.production as it's a template for Railway
+!.env.production
 
 # السماح بملف قاعدة البيانات
 # *.sqlite3

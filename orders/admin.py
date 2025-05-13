@@ -1,40 +1,10 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
-from django.utils import timezone
-from .models import Order, OrderItem, Payment, OrderStatusLog, DynamicPricing, ShippingDetails
+# from django.utils import timezone
+from .models import Order, OrderItem, Payment, OrderStatusLog, ShippingDetails
 from .extended_models import ExtendedOrder, AccessoryItem, FabricOrder
 from data_import_export.admin import AdminMultiSheetImportExportMixin
-
-@admin.register(DynamicPricing)
-class DynamicPricingAdmin(admin.ModelAdmin):
-    list_display = ('name', 'rule_type', 'discount_percentage', 'is_active', 'priority', 'start_date', 'end_date')
-    list_filter = ('rule_type', 'is_active', 'customer_type')
-    search_fields = ('name', 'description')
-    ordering = ('-priority', '-created_at')
-    
-    fieldsets = (
-        ('معلومات أساسية', {
-            'fields': ('name', 'rule_type', 'discount_percentage', 'description')
-        }),
-        ('شروط التطبيق', {
-            'fields': ('min_quantity', 'min_amount', 'customer_type', 'start_date', 'end_date')
-        }),
-        ('الإعدادات', {
-            'fields': ('is_active', 'priority')
-        }),
-    )
-    
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        if obj:
-            if obj.rule_type != 'quantity':
-                form.fields['min_quantity'].widget.attrs['disabled'] = True
-            if obj.rule_type != 'special_offer':
-                form.fields['min_amount'].widget.attrs['disabled'] = True
-            if obj.rule_type != 'customer_type':
-                form.fields['customer_type'].widget.attrs['disabled'] = True
-        return form
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -53,8 +23,6 @@ class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
         'tracking_status',
         'payment_verified',
         'delivery_type',
-        ('dynamic_pricing_rule', admin.RelatedOnlyFieldListFilter),
-        'price_changed',
     )
     search_fields = ('order_number', 'customer__name', 'invoice_number')
     inlines = [OrderItemInline, PaymentInline]
@@ -62,10 +30,9 @@ class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
         'created_at',
         'updated_at',
         'order_date',
-        'price_changed',
         'modified_at',
     )
-    
+
     fieldsets = (
         (_('معلومات أساسية'), {
             'fields': ('customer', 'order_number', 'tracking_status')
@@ -76,11 +43,9 @@ class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
         (_('معلومات مالية'), {
             'fields': ('paid_amount', 'payment_verified')
         }),
-        (_('التسعير الديناميكي'), {
+        (_('معلومات السعر'), {
             'fields': (
-                'dynamic_pricing_rule',
                 'final_price',
-                'price_changed',
                 'modified_at'
             )
         }),
@@ -103,7 +68,7 @@ class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.select_related('dynamic_pricing_rule')
+        return qs
 
 class AccessoryItemInline(admin.TabularInline):
     model = AccessoryItem
@@ -126,7 +91,7 @@ class ExtendedOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
             'fields': ('invoice_number', 'contract_number', 'payment_verified')
         }),
     )
-    
+
     def get_subtype_display(self, obj):
         if obj.order_type == 'goods':
             return obj.get_goods_type_display() if obj.goods_type else '-'
@@ -184,7 +149,7 @@ class ShippingDetailsAdmin(admin.ModelAdmin):
     list_filter = ('shipping_provider', 'shipping_status')
     search_fields = ('order__order_number', 'tracking_number', 'recipient_name', 'recipient_phone')
     readonly_fields = ('last_update', 'created_at')
-    
+
     fieldsets = (
         (_('معلومات الطلب'), {
             'fields': ('order', 'shipping_provider', 'shipping_status')

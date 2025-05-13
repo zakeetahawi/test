@@ -9,12 +9,14 @@
 - إدارة المخزون
 - نظام إنتاج متكامل
 - تقارير وإحصائيات متقدمة
+- نسخ احتياطي ومزامنة مع Google Sheets
 
 ## المتطلبات التقنية
 - Python 3.11+
 - Django 4.2
-- SQLite (قاعدة البيانات مضمنة)
-- (اختياري) Redis
+- PostgreSQL (في الإنتاج)
+- Redis (للقنوات والويب سوكت)
+- Railway (للنشر)
 
 ## إعداد المشروع
 
@@ -38,10 +40,15 @@ pip install -r requirements.txt
 
 ### 4. قاعدة البيانات
 
-لا تحتاج لأي إعداد إضافي! قاعدة البيانات (db.sqlite3) مضمنة مع النظام وتحتوي على جميع الأقسام والبيانات الحالية.
+في بيئة التطوير المحلية، يمكنك استخدام SQLite أو PostgreSQL.
 
-إذا أردت البدء من جديد، يمكنك حذف ملف db.sqlite3 وسيتم إنشاؤه تلقائيًا عند تشغيل الترحيلات.
-createdb elkhawaga_db
+#### لاستخدام PostgreSQL محليًا:
+```bash
+createdb crm_system
+```
+
+#### في بيئة الإنتاج (Railway):
+يتم إنشاء قاعدة بيانات PostgreSQL تلقائيًا عند إضافة خدمة PostgreSQL إلى مشروعك على Railway.
 
 ### 5. الترحيلات
 ```bash
@@ -62,7 +69,39 @@ python manage.py runserver
 
 ## التكوين
 - قم بتعديل `crm/settings.py` لتكوين إعدادات المشروع
-- تأكد من تكوين متغيرات البيئة للإعدادات الحساسة
+- استخدم ملف `.env` لتكوين متغيرات البيئة في بيئة التطوير
+- استخدم ملف `.env.production` كمرجع لإعداد متغيرات البيئة في Railway
+
+## النشر على Railway
+
+### 1. إنشاء مشروع جديد على Railway
+1. قم بتسجيل الدخول إلى [Railway](https://railway.app/)
+2. انقر على "New Project"
+3. اختر "Deploy from GitHub repo"
+4. حدد مستودع GitHub الخاص بك
+
+### 2. إضافة قاعدة بيانات PostgreSQL
+1. في مشروعك على Railway، انقر على "New Service"
+2. اختر "Add Database" ثم "PostgreSQL"
+
+### 3. إضافة متغيرات البيئة
+1. انتقل إلى تبويب "Variables" في مشروع التطبيق
+2. أضف المتغيرات التالية:
+   - `SECRET_KEY` = مفتاح سري آمن
+   - `DEBUG` = "0"
+   - `ALLOWED_HOSTS` = "*.up.railway.app"
+   - `ENABLE_SSL_SECURITY` = "true"
+
+### 4. ترحيل البيانات (اختياري)
+إذا كنت تريد نقل البيانات من SQLite إلى PostgreSQL:
+1. قم بتصدير البيانات من SQLite محليًا:
+   ```bash
+   python manage.py dumpdata --exclude auth.permission --exclude contenttypes > data.json
+   ```
+2. قم باستيراد البيانات إلى PostgreSQL على Railway:
+   ```bash
+   python manage.py loaddata data.json
+   ```
 
 ## المساهمة
 1. قم بعمل fork للمشروع
@@ -75,7 +114,5 @@ python manage.py runserver
 موزع تحت رخصة MIT. راجع `LICENSE` للمزيد من المعلومات.
 
 ## جهات الاتصال
-- المطور: [اسمك]
-- البريد الإلكتروني: [بريدك الإلكتروني]
-- رابط المشروع: [رابط المشروع]
-# crm.elkhawaga
+- المطور: Zakee Tahawi
+- رابط المشروع: https://github.com/zakeetahawi/test

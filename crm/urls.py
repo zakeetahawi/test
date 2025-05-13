@@ -6,6 +6,15 @@ from . import views
 from .views_health import health_check
 from accounts.views import admin_logout_view
 from inventory.views import dashboard_view
+from api_views import (
+    dashboard_stats,
+    customer_list,
+    customer_detail,
+    customer_categories,
+    inspection_list,
+    inspection_detail,
+    inspection_stats
+)
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -19,14 +28,25 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),
-    
+
     # مسارات API
     path('api/dashboard/', dashboard_view, name='dashboard'),
-    
+    path('api/dashboard/stats/', dashboard_stats, name='dashboard_stats'),
+
+    # مسارات API للعملاء
+    path('api/customers/', customer_list, name='customer_list'),
+    path('api/customers/<int:pk>/', customer_detail, name='customer_detail'),
+    path('api/customer-categories/', customer_categories, name='customer_categories'),
+
+    # مسارات API للمعاينات
+    path('api/inspections/', inspection_list, name='inspection_list'),
+    path('api/inspections/<int:pk>/', inspection_detail, name='inspection_detail'),
+    path('api/inspections/stats/', inspection_stats, name='inspection_stats'),
+
     # مسارات لوحة التحكم
     path('admin/', admin.site.urls),
     path('admin/logout/', admin_logout_view, name='admin_logout'),
-    
+
     # مسارات فحص الصحة
     path('health-check/', health_check, name='health_check'),
     path('health/', health_check, name='health'),
@@ -39,7 +59,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('api/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
-    
+
     # مسارات التطبيقات
     path('accounts/', include('accounts.urls', namespace='accounts')),
     path('customers/', include('customers.urls', namespace='customers')),
@@ -57,7 +77,7 @@ urlpatterns = [
 if settings.DEBUG:
     # Only serve static files in development
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    
+
     # Add debug toolbar only if not running tests
     if not getattr(settings, 'TESTING', False):
         import debug_toolbar

@@ -23,12 +23,12 @@ class Category(models.Model):
         related_name='children',
         verbose_name=_('الفئة الأب')
     )
-    
+
     class Meta:
         verbose_name = _('فئة')
         verbose_name_plural = _('الفئات')
         ordering = ['name']
-    
+
     def __str__(self):
         if self.parent:
             return f"{self.parent.name} - {self.name}"
@@ -39,7 +39,7 @@ class Product(models.Model):
     Model for products
     """
     name = models.CharField(max_length=255)
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=50, unique=True, null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products', verbose_name=_('الفئة'))
     description = models.TextField(_('الوصف'), blank=True)
@@ -99,12 +99,12 @@ class Supplier(models.Model):
     address = models.TextField(_('العنوان'), blank=True)
     tax_number = models.CharField(_('الرقم الضريبي'), max_length=50, blank=True)
     notes = models.TextField(_('ملاحظات'), blank=True)
-    
+
     class Meta:
         verbose_name = _('مورد')
         verbose_name_plural = _('الموردين')
         ordering = ['name']
-    
+
     def __str__(self):
         return self.name
 
@@ -131,12 +131,12 @@ class Warehouse(models.Model):
     address = models.TextField(_('العنوان'), blank=True)
     is_active = models.BooleanField(_('نشط'), default=True)
     notes = models.TextField(_('ملاحظات'), blank=True)
-    
+
     class Meta:
         verbose_name = _('مستودع')
         verbose_name_plural = _('المستودعات')
         ordering = ['name']
-    
+
     def __str__(self):
         return f"{self.name} ({self.code})"
 
@@ -153,13 +153,13 @@ class WarehouseLocation(models.Model):
         verbose_name=_('المستودع')
     )
     description = models.TextField(_('الوصف'), blank=True)
-    
+
     class Meta:
         verbose_name = _('موقع مستودع')
         verbose_name_plural = _('مواقع المستودعات')
         ordering = ['warehouse', 'name']
         unique_together = ['warehouse', 'code']
-    
+
     def __str__(self):
         return f"{self.warehouse.name} - {self.name} ({self.code})"
 
@@ -188,7 +188,7 @@ class ProductBatch(models.Model):
     barcode = models.CharField(_('الباركود'), max_length=100, blank=True)
     cost_price = models.DecimalField(_('سعر التكلفة'), max_digits=10, decimal_places=2, default=0)
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
-    
+
     class Meta:
         verbose_name = _('دفعة منتج')
         verbose_name_plural = _('دفعات المنتجات')
@@ -198,10 +198,10 @@ class ProductBatch(models.Model):
             models.Index(fields=['batch_number'], name='batch_number_idx'),
             models.Index(fields=['expiry_date'], name='batch_expiry_idx'),
         ]
-    
+
     def __str__(self):
         return f"{self.product.name} - {self.batch_number} ({self.quantity})"
-    
+
     def save(self, *args, **kwargs):
         # Generate barcode if not provided
         if not self.barcode:
@@ -218,7 +218,7 @@ class StockTransaction(models.Model):
         ('transfer', _('نقل')),
         ('adjustment', _('تسوية'))
     ]
-    
+
     REASON_CHOICES = [
         ('purchase', _('شراء')),
         ('sale', _('بيع')),
@@ -229,7 +229,7 @@ class StockTransaction(models.Model):
         ('production', _('إنتاج')),
         ('other', _('أخرى'))
     ]
-    
+
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -249,7 +249,7 @@ class StockTransaction(models.Model):
         related_name='stock_transactions',
         verbose_name=_('تم بواسطة')
     )
-    
+
     class Meta:
         verbose_name = _('حركة مخزون')
         verbose_name_plural = _('حركات المخزون')
@@ -259,7 +259,7 @@ class StockTransaction(models.Model):
             models.Index(fields=['transaction_type'], name='transaction_type_idx'),
             models.Index(fields=['date'], name='transaction_date_idx'),
         ]
-    
+
     def __str__(self):
         return f"{self.get_transaction_type_display()} - {self.product.name} ({self.quantity})"
 
@@ -275,7 +275,7 @@ class PurchaseOrder(models.Model):
         ('received', _('تم الاستلام')),
         ('cancelled', _('ملغي'))
     ]
-    
+
     order_number = models.CharField(_('رقم الطلب'), max_length=50, unique=True)
     supplier = models.ForeignKey(
         Supplier,
@@ -302,7 +302,7 @@ class PurchaseOrder(models.Model):
         related_name='created_purchase_orders',
         verbose_name=_('تم بواسطة')
     )
-    
+
     class Meta:
         verbose_name = _('طلب شراء')
         verbose_name_plural = _('طلبات الشراء')
@@ -313,10 +313,10 @@ class PurchaseOrder(models.Model):
             models.Index(fields=['status'], name='po_status_idx'),
             models.Index(fields=['order_date'], name='po_date_idx'),
         ]
-    
+
     def __str__(self):
         return f"{self.order_number} - {self.supplier.name}"
-    
+
     def save(self, *args, **kwargs):
         # Generate order number if not provided
         if not self.order_number:
@@ -345,19 +345,19 @@ class PurchaseOrderItem(models.Model):
     unit_price = models.DecimalField(_('سعر الوحدة'), max_digits=10, decimal_places=2)
     received_quantity = models.PositiveIntegerField(_('الكمية المستلمة'), default=0)
     notes = models.TextField(_('ملاحظات'), blank=True)
-    
+
     class Meta:
         verbose_name = _('عنصر طلب الشراء')
         verbose_name_plural = _('عناصر طلب الشراء')
         ordering = ['purchase_order', 'product']
-    
+
     def __str__(self):
         return f"{self.purchase_order.order_number} - {self.product.name} ({self.quantity})"
-    
+
     @property
     def subtotal(self):
         return self.quantity * self.unit_price
-    
+
     @property
     def is_fully_received(self):
         return self.received_quantity >= self.quantity
@@ -370,7 +370,7 @@ class InventoryAdjustment(models.Model):
         ('increase', _('زيادة')),
         ('decrease', _('نقص')),
     ]
-    
+
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -397,7 +397,7 @@ class InventoryAdjustment(models.Model):
         related_name='inventory_adjustments',
         verbose_name=_('تم بواسطة')
     )
-    
+
     class Meta:
         verbose_name = _('تسوية مخزون')
         verbose_name_plural = _('تسويات المخزون')
@@ -407,10 +407,10 @@ class InventoryAdjustment(models.Model):
             models.Index(fields=['adjustment_type'], name='adjustment_type_idx'),
             models.Index(fields=['date'], name='adjustment_date_idx'),
         ]
-    
+
     def __str__(self):
         return f"{self.product.name} - {self.get_adjustment_type_display()} ({self.quantity_before} -> {self.quantity_after})"
-    
+
     @property
     def adjustment_quantity(self):
         return self.quantity_after - self.quantity_before
@@ -423,14 +423,22 @@ class StockAlert(models.Model):
         ('low_stock', _('مخزون منخفض')),
         ('expiry', _('قرب انتهاء الصلاحية')),
         ('out_of_stock', _('نفاد المخزون')),
+        ('overstock', _('فائض في المخزون')),
+        ('price_change', _('تغير في السعر')),
     ]
-    
+
     STATUS_CHOICES = [
         ('active', _('نشط')),
         ('resolved', _('تمت المعالجة')),
         ('ignored', _('تم تجاهله')),
     ]
-    
+
+    PRIORITY_CHOICES = [
+        ('high', _('عالية')),
+        ('medium', _('متوسطة')),
+        ('low', _('منخفضة')),
+    ]
+
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -439,6 +447,8 @@ class StockAlert(models.Model):
     )
     alert_type = models.CharField(_('نوع التنبيه'), max_length=15, choices=ALERT_TYPES)
     message = models.TextField(_('رسالة التنبيه'))
+    description = models.TextField(_('الوصف'), blank=True)
+    priority = models.CharField(_('الأولوية'), max_length=10, choices=PRIORITY_CHOICES, default='medium')
     status = models.CharField(_('الحالة'), max_length=10, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
     resolved_at = models.DateTimeField(_('تاريخ المعالجة'), null=True, blank=True)
@@ -450,7 +460,7 @@ class StockAlert(models.Model):
         related_name='resolved_stock_alerts',
         verbose_name=_('تمت المعالجة بواسطة')
     )
-    
+
     class Meta:
         verbose_name = _('تنبيه مخزون')
         verbose_name_plural = _('تنبيهات المخزون')
@@ -459,8 +469,53 @@ class StockAlert(models.Model):
             models.Index(fields=['product'], name='alert_product_idx'),
             models.Index(fields=['alert_type'], name='alert_type_idx'),
             models.Index(fields=['status'], name='alert_status_idx'),
+            models.Index(fields=['priority'], name='alert_priority_idx'),
             models.Index(fields=['created_at'], name='alert_created_at_idx'),
         ]
-    
+
     def __str__(self):
         return f"{self.get_alert_type_display()} - {self.product.name}"
+
+    @classmethod
+    def create_low_stock_alert(cls, product):
+        """Create a low stock alert for a product"""
+        if product.current_stock <= product.minimum_stock and product.current_stock > 0:
+            # Check if there's already an active alert
+            existing_alert = cls.objects.filter(
+                product=product,
+                alert_type='low_stock',
+                status='active'
+            ).first()
+
+            if not existing_alert:
+                return cls.objects.create(
+                    product=product,
+                    alert_type='low_stock',
+                    message=f"المنتج {product.name} وصل للحد الأدنى للمخزون",
+                    description=f"المخزون الحالي: {product.current_stock}, الحد الأدنى: {product.minimum_stock}",
+                    priority='medium'
+                )
+            return existing_alert
+        return None
+
+    @classmethod
+    def create_out_of_stock_alert(cls, product):
+        """Create an out of stock alert for a product"""
+        if product.current_stock <= 0:
+            # Check if there's already an active alert
+            existing_alert = cls.objects.filter(
+                product=product,
+                alert_type='out_of_stock',
+                status='active'
+            ).first()
+
+            if not existing_alert:
+                return cls.objects.create(
+                    product=product,
+                    alert_type='out_of_stock',
+                    message=f"المنتج {product.name} نفذ من المخزون",
+                    description=f"المخزون الحالي: {product.current_stock}, يرجى إعادة الطلب",
+                    priority='high'
+                )
+            return existing_alert
+        return None

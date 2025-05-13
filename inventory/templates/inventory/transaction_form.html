@@ -9,7 +9,7 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'home' %}">{% trans "الرئيسية" %}</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'inventory:inventory_list' %}">{% trans "المخزون" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">{% trans "المخزون" %}</a></li>
             <li class="breadcrumb-item"><a href="{% url 'inventory:product_detail' product.pk %}">{{ product.name }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{% trans "تسجيل حركة مخزون" %}</li>
         </ol>
@@ -41,11 +41,11 @@
                         </div>
                         <div class="card-body">
                             <div class="text-center mb-3">
-                                <h3>{{ product.current_stock }} {{ product.get_unit_display }}</h3>
+                                <h3>{{ product.current_stock_calc }} {{ product.get_unit_display }}</h3>
                                 <p class="mb-0">
-                                    {% if product.needs_restock %}
+                                    {% if product.current_stock_calc <= product.minimum_stock and product.current_stock_calc > 0 %}
                                         <span class="badge bg-warning">{% trans "منخفض" %}</span>
-                                    {% elif product.current_stock <= 0 %}
+                                    {% elif product.current_stock_calc <= 0 %}
                                         <span class="badge bg-danger">{% trans "غير متوفر" %}</span>
                                     {% else %}
                                         <span class="badge bg-success">{% trans "متوفر" %}</span>
@@ -53,11 +53,11 @@
                                 </p>
                             </div>
                             <div class="progress" style="height: 20px;">
-                                {% if product.current_stock <= 0 %}
+                                {% if product.current_stock_calc <= 0 %}
                                     <div class="progress-bar bg-danger" role="progressbar" style="width: 100%;" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
                                         {% trans "غير متوفر" %}
                                     </div>
-                                {% elif product.needs_restock %}
+                                {% elif product.current_stock_calc <= product.minimum_stock %}
                                     <div class="progress-bar bg-warning" role="progressbar" style="width: 50%;" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
                                         {% trans "منخفض" %}
                                     </div>
@@ -74,7 +74,7 @@
 
             <form method="post" novalidate>
                 {% csrf_token %}
-                
+
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="transaction_type" class="form-label">{% trans "نوع الحركة" %} *</label>
@@ -85,7 +85,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div class="col-md-6 mb-3">
                         <label for="reason" class="form-label">{% trans "السبب" %} *</label>
                         <select class="form-select" id="reason" name="reason" required>
@@ -96,7 +96,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="quantity" class="form-label">{% trans "الكمية" %} *</label>
@@ -105,19 +105,19 @@
                             <span class="input-group-text">{{ product.get_unit_display }}</span>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-6 mb-3">
                         <label for="reference" class="form-label">{% trans "المرجع" %}</label>
-                        <input type="text" class="form-control" id="reference" name="reference" 
+                        <input type="text" class="form-control" id="reference" name="reference"
                                placeholder="{% trans 'مثال: رقم الفاتورة، رقم الطلب، إلخ' %}">
                     </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label for="notes" class="form-label">{% trans "ملاحظات" %}</label>
                     <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
                 </div>
-                
+
                 <div class="d-flex justify-content-between">
                     <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
@@ -137,38 +137,38 @@
     document.addEventListener('DOMContentLoaded', function() {
         const transactionTypeSelect = document.getElementById('transaction_type');
         const quantityInput = document.getElementById('quantity');
-        const currentStock = {{ product.current_stock }};
-        
+        const currentStock = {{ product.current_stock_calc }};
+
         // Add validation for outgoing transactions
         transactionTypeSelect.addEventListener('change', function() {
             if (this.value === 'out') {
                 quantityInput.setAttribute('max', currentStock);
-                
+
                 // Add validation message
                 const validationMessage = document.createElement('div');
                 validationMessage.className = 'form-text text-danger';
                 validationMessage.id = 'quantity-validation';
                 validationMessage.textContent = '{% trans "الكمية المتاحة للصرف:" %} ' + currentStock;
-                
+
                 // Remove existing message if any
                 const existingMessage = document.getElementById('quantity-validation');
                 if (existingMessage) {
                     existingMessage.remove();
                 }
-                
+
                 // Add message after quantity input
                 quantityInput.parentNode.after(validationMessage);
             } else {
                 // Remove max attribute and validation message for incoming transactions
                 quantityInput.removeAttribute('max');
-                
+
                 const existingMessage = document.getElementById('quantity-validation');
                 if (existingMessage) {
                     existingMessage.remove();
                 }
             }
         });
-        
+
         // Validate quantity on input
         quantityInput.addEventListener('input', function() {
             if (transactionTypeSelect.value === 'out' && parseInt(this.value) > currentStock) {

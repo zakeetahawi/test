@@ -95,6 +95,7 @@ TEMPLATES = [
                 'accounts.context_processors.notifications',
                 'accounts.context_processors.company_info',
                 'accounts.context_processors.footer_settings',
+                'accounts.context_processors.system_settings',
             ],
         },
     },
@@ -107,7 +108,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+            "hosts": [os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")],
         },
     },
 }
@@ -166,6 +167,19 @@ LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -198,25 +212,25 @@ if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true
     # HTTPS/SSL Settings
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # مهم لـ Railway
-    
+
     # Session and CSRF Settings
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_HTTPONLY = True
-    
+
     # HSTS Settings
     SECURE_HSTS_SECONDS = 31536000  # سنة واحدة
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    
+
     # Content Security Settings
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    
+
     # Referrer Policy
     SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-    
+
     # Cross-Origin Opener Policy
     SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 
@@ -229,9 +243,12 @@ if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'http://localhost:5173',  # منفذ Vite الافتراضي
+    'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.up.railway.app'
+    'https://*.up.railway.app',
+    'https://*.railway.app'
 ]
 
 # تعديل إعدادات CORS الإضافية
@@ -250,6 +267,7 @@ CORS_ALLOW_HEADERS = [
     'origin',
     'user-agent',
     'x-requested-with',
+    'x-request-id',  # إضافة هذا الرأس المطلوب
 ]
 
 # تعطيل بعض إعدادات الأمان في بيئة التطوير
@@ -266,10 +284,12 @@ if DEBUG:
     CSRF_TRUSTED_ORIGINS = [
         'http://localhost:3000',
         'http://127.0.0.1:3000',
+        'http://localhost:5173',  # منفذ Vite الافتراضي
+        'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
         'http://localhost:8000',
         'http://127.0.0.1:8000'
     ]
-    
+
     class DisableCSRFMiddleware:
         def __init__(self, get_response):
             self.get_response = get_response
@@ -282,20 +302,23 @@ if DEBUG:
     MIDDLEWARE.insert(0, 'crm.settings.DisableCSRFMiddleware')
 
 # Session settings
-SESSION_COOKIE_SAMESITE = 'Lax' 
+SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 
-# Ensure DEBUG is True during development
-DEBUG = True
+# DEBUG is set from environment variable at the top of the file
+# Do not override it here
 
 # تحديث إعدادات CSRF
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'http://localhost:5173',  # منفذ Vite الافتراضي
+    'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.up.railway.app'
+    'https://*.up.railway.app',
+    'https://*.railway.app'
 ]
 
 CSRF_COOKIE_SAMESITE = None
@@ -312,8 +335,12 @@ SESSION_COOKIE_HTTPONLY = True
 CORS_ORIGIN_WHITELIST = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'http://localhost:5173',  # منفذ Vite الافتراضي
+    'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    'https://*.up.railway.app',
+    'https://*.railway.app'
 ]
 
 # Security Settings

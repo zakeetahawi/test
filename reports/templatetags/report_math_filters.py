@@ -7,9 +7,21 @@ register = template.Library()
 @register.filter
 def currency(value):
     """تنسيق القيمة كعملة"""
+    from django.template import RequestContext
+
     try:
-        return "{:,.2f} ر.س".format(float(value))
+        # الحصول على رمز العملة من السياق
+        # ملاحظة: هذا الفلتر سيستخدم القيمة الافتراضية إذا لم يتم تمرير السياق
+        # سيتم استخدام متغير السياق 'currency_symbol' الذي تم إضافته بواسطة context_processor
+
+        # استخدام القيمة الافتراضية (ريال سعودي) إذا لم يتم العثور على رمز العملة في السياق
+        from accounts.models import SystemSettings
+        settings = SystemSettings.get_settings()
+        currency_symbol = settings.currency_symbol
+
+        return "{:,.2f} {}".format(float(value), currency_symbol)
     except (ValueError, TypeError):
+        # القيمة الافتراضية في حالة حدوث خطأ
         return "0.00 ر.س"
 
 @register.filter
@@ -130,7 +142,7 @@ def format_time(minutes):
         minutes = int(minutes)
         hours = minutes // 60
         remaining_minutes = minutes % 60
-        
+
         if hours > 0 and remaining_minutes > 0:
             return f"{hours} ساعة و {remaining_minutes} دقيقة"
         elif hours > 0:

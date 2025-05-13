@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views, api_views
+from .auth_compat import auth_compat_view
 
 app_name = 'accounts'
 
@@ -12,6 +13,11 @@ urlpatterns = [
     path('api/login/', api_views.login_api, name='api_login'),
     path('api/user/', api_views.current_user, name='api_current_user'),
     path('api/user/info/', api_views.user_info, name='api_user_info'),
+      # مسار API متوافق لتسجيل الدخول (يعمل مع كل من الواجهة القديمة والجديدة)
+    path('auth/login/', auth_compat_view, name='auth_compat_login'),
+    
+    # Add an alias for the new frontend
+    path('api/auth/login/', auth_compat_view, name='auth_compat_login_alias'),
     
     # Notification URLs
     path('notifications/', views.notifications_list, name='notifications'),

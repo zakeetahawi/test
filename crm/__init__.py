@@ -1,3 +1,1 @@
-from .celery import app as celery_app
-
-__all__ = ('celery_app',)
+# تم إزالة استيراد Celery لأننا قمنا بإزالة نظام Celery من التطبيق

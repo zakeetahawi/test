@@ -5,16 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}نظام إدارة العملاء{% endblock %}</title>
-    
+
     <!-- Bootstrap RTL CSS -->
     <link rel="stylesheet" href="{% static 'css/bootstrap.rtl.min.css' %}">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="{% static 'css/fontawesome.min.css' %}">
-    
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    
+
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -34,7 +34,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'home' %}"><i class="fas fa-home"></i> الرئيسية</a>
                     </li>
-                    
+
                     {% if user.is_superuser %}
                         <!-- Show all departments for superuser with dropdown navigation -->
                         {% for dept in parent_departments %}
@@ -51,7 +51,7 @@
                                                 <i class="fas fa-list"></i> {{ dept.name }} الرئيسية
                                             </a></li>
                                         {% endif %}
-                                        
+
                                         <!-- Display child departments -->
                                         {% for child in dept.children.all %}
                                             {% if child.is_active and child.url_name %}
@@ -83,7 +83,7 @@
                                 {% endif %}
                             {% endif %}
                         {% endfor %}
-                        
+
                         <!-- Data Management Dropdown -->
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="dataManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -116,7 +116,7 @@
                                                 <i class="fas fa-list"></i> {{ dept.name }} الرئيسية
                                             </a></li>
                                         {% endif %}
-                                        
+
                                         <!-- Display child departments if user has access -->
                                         {% for child in dept.children.all %}
                                             {% if child.is_active and child in user_departments and child.url_name %}
@@ -201,7 +201,7 @@
                             {% endif %}
                         </ul>
                     </div>
-                    
+
                     <!-- User Dropdown -->
                     <div class="dropdown">
                         <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -229,7 +229,6 @@
                             <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-id-card"></i> الملف الشخصي</a></li>
                             {% if user.is_staff %}
                             <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="fas fa-cog"></i> لوحة الإدارة</a></li>
-                            <li><a class="dropdown-item" href="{% url 'accounts:role_management' %}"><i class="fas fa-user-shield"></i> إدارة الأدوار</a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'accounts:logout' %}"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
@@ -368,7 +367,7 @@
             <div class="text-center footer-bottom">
                 <p class="copyright-text mb-0">
                     <i class="far fa-copyright me-1"></i>
-                    {{ current_year }} 
+                    {{ current_year }}
                     {{ company_info.copyright_text|default:"جميع الحقوق محفوظة لشركة الخواجة للستائر والمفروشات - تطوير zakee tahawi" }}
                 </p>
             </div>
@@ -380,14 +379,14 @@
     .footer-area {
         background: linear-gradient(to right, var(--accent), var(--dark));
     }
-    
+
     .footer-title {
         margin-bottom: 1.5rem;
         font-weight: 700;
         position: relative;
         padding-bottom: 0.5rem;
     }
-    
+
     .footer-title::after {
         content: "";
         position: absolute;
@@ -402,11 +401,11 @@
         opacity: 0.9;
         line-height: 1.6;
     }
-    
+
     .social-icons {
         display: flex;
     }
-    
+
     .social-icon {
         display: inline-flex;
         align-items: center;
@@ -419,22 +418,22 @@
         transition: all 0.3s ease;
         text-decoration: none;
     }
-    
+
     .social-icon:hover {
         background-color: rgba(255,255,255,0.3);
         color: white;
         transform: translateY(-3px);
     }
-    
+
     .footer-links {
         padding: 0;
         list-style: none;
     }
-    
+
     .footer-links li {
         margin-bottom: 0.75rem;
     }
-    
+
     .footer-link {
         color: rgba(255,255,255,0.9);
         text-decoration: none;
@@ -442,21 +441,21 @@
         display: block;
         padding: 0.35rem 0;
     }
-    
+
     .footer-link:hover {
         color: white;
         transform: translateX(-5px);
     }
-    
+
     .footer-contact-info {
         padding: 0;
         list-style: none;
     }
-    
+
     .footer-contact-info li {
         margin-bottom: 1rem;
     }
-    
+
     .footer-contact-item {
         display: flex;
         align-items: center;
@@ -464,11 +463,11 @@
         text-decoration: none;
         transition: all 0.2s ease;
     }
-    
+
     a.footer-contact-item:hover {
         color: white;
     }
-    
+
     .icon-circle {
         width: 36px;
         height: 36px;
@@ -480,16 +479,16 @@
         margin-left: 0.75rem;
         flex-shrink: 0;
     }
-    
+
     .footer-divider {
         margin: 1.5rem 0;
         border-color: rgba(255,255,255,0.2);
     }
-    
+
     .footer-bottom {
         padding-top: 1rem;
     }
-    
+
     .copyright-text {
         font-size: 0.9rem;
         opacity: 0.9;
@@ -498,13 +497,13 @@
 
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
-    
+
     <!-- jQuery -->
     <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
-    
+
     <!-- Custom JS -->
     <script src="{% static 'js/main.js' %}"></script>
-    
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

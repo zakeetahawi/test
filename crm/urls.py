@@ -71,6 +71,7 @@ urlpatterns = [
     path('installations/', include('installations.urls', namespace='installations')),
     path('data-import-export/', include('data_import_export.urls', namespace='data_import_export')),
     path('data-backup/', include('data_backup.urls', namespace='data_backup')),
+    path('db-manager/', include('db_manager.urls', namespace='db_manager')),
 ]
 
 # خدمة الملفات الثابتة في بيئة التطوير

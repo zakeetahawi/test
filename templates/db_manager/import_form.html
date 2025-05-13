@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block title %}{% trans "استيراد قاعدة بيانات" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 30px;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+    .import-header {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+    }
+    .import-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+    }
+    .import-section h4 {
+        margin-bottom: 20px;
+        color: #007bff;
+    }
+    .import-footer {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+        text-align: center;
+    }
+    .file-upload {
+        position: relative;
+        overflow: hidden;
+        margin: 10px 0;
+        text-align: center;
+    }
+    .file-upload input[type=file] {
+        position: absolute;
+        top: 0;
+        right: 0;
+        min-width: 100%;
+        min-height: 100%;
+        font-size: 100px;
+        text-align: right;
+        filter: alpha(opacity=0);
+        opacity: 0;
+        outline: none;
+        background: white;
+        cursor: pointer;
+        display: block;
+    }
+    .file-upload-btn {
+        border: 2px dashed #007bff;
+        color: #007bff;
+        background-color: white;
+        padding: 30px 20px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        width: 100%;
+        transition: all 0.3s;
+    }
+    .file-upload-btn:hover {
+        background-color: #f0f7ff;
+    }
+    .file-upload-content {
+        display: none;
+        margin-top: 15px;
+    }
+    .file-upload-input {
+        position: absolute;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        outline: none;
+        opacity: 0;
+        cursor: pointer;
+    }
+    .file-upload-wrap {
+        position: relative;
+        margin-top: 20px;
+    }
+    .file-info {
+        margin-top: 15px;
+        padding: 10px;
+        background-color: #e9f7fe;
+        border-radius: 5px;
+        display: none;
+    }
+    .file-info i {
+        margin-right: 10px;
+        color: #007bff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="import-container">
+        <div class="import-header">
+            <h1>{% trans "استيراد قاعدة بيانات" %}</h1>
+            <p class="lead">{% trans "قم بتحميل ملف JSON أو SQL لاستيراده إلى قاعدة البيانات" %}</p>
+            {% if default_db %}
+                <div class="alert alert-info">
+                    <i class="fas fa-database"></i>
+                    {% trans "قاعدة البيانات الحالية:" %} <strong>{{ default_db.name }}</strong>
+                    <span class="badge badge-primary">PostgreSQL</span>
+                </div>
+            {% endif %}
+        </div>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="import-section">
+                <h4>{% trans "اختر قاعدة البيانات" %}</h4>
+
+                <div class="form-group">
+                    <label for="{{ form.database_config.id_for_label }}">{% trans "قاعدة البيانات" %}</label>
+                    {% if default_db %}
+                        <div class="alert alert-primary mb-2">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-database me-2"></i>
+                                <div>
+                                    <strong>{% trans "قاعدة البيانات الحالية:" %} {{ default_db.name }}</strong>
+                                    <div><small>{% trans "تم تحديد قاعدة البيانات الافتراضية تلقائيًا" %}</small></div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    {{ form.database_config|add_class:"form-control" }}
+                    <small class="form-text text-muted">{% trans "اختر قاعدة البيانات التي تريد استيراد البيانات إليها" %}</small>
+                    {% if form.database_config.errors %}
+                        <div class="invalid-feedback d-block">{{ form.database_config.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="import-section">
+                <h4>{% trans "ملف الاستيراد" %}</h4>
+
+                <div class="file-upload">
+                    <button type="button" class="file-upload-btn">
+                        <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i><br>
+                        {% trans "اسحب وأفلت ملف هنا أو انقر للاختيار" %}
+                    </button>
+                    <div class="file-upload-wrap">
+                        {{ form.file|add_class:"file-upload-input" }}
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i> {% trans "يمكنك استيراد ملفات بتنسيق JSON أو SQL. تأكد من أن الملف متوافق مع هيكل قاعدة البيانات الحالية." %}
+                </div>
+
+                <div class="file-info">
+                    <i class="fas fa-file-alt"></i> <span id="file-name"></span>
+                    <small class="float-right" id="file-size"></small>
+                </div>
+
+                <small class="form-text text-muted mt-2">{{ form.file.help_text }}</small>
+                {% if form.file.errors %}
+                    <div class="invalid-feedback d-block">{{ form.file.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="import-footer">
+                <button type="submit" class="btn btn-primary btn-lg">{% trans "استيراد" %}</button>
+                <a href="{% url 'db_manager:database_list' %}" class="btn btn-secondary btn-lg">{% trans "إلغاء" %}</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // عرض اسم الملف المختار
+        $('.file-upload-input').change(function() {
+            var file = this.files[0];
+            if (file) {
+                var fileName = file.name;
+                var fileSize = formatFileSize(file.size);
+
+                $('#file-name').text(fileName);
+                $('#file-size').text(fileSize);
+                $('.file-info').show();
+            } else {
+                $('.file-info').hide();
+            }
+        });
+
+        // تنسيق حجم الملف
+        function formatFileSize(bytes) {
+            if (bytes < 1024) {
+                return bytes + ' bytes';
+            } else if (bytes < 1024 * 1024) {
+                return (bytes / 1024).toFixed(2) + ' KB';
+            } else if (bytes < 1024 * 1024 * 1024) {
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            } else {
+                return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            }
+        }
+    });
+</script>
+{% endblock %}

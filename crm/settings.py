@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',  # إضافة دعم القائمة السوداء للتوكن
+    'db_manager',  # إضافة تطبيق إدارة قواعد البيانات
 ]
 
 if not TESTING and DEBUG:
@@ -157,6 +158,16 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# إعدادات النسخ الاحتياطي
+BACKUP_ROOT = os.path.join(BASE_DIR, 'backups')
+os.makedirs(BACKUP_ROOT, exist_ok=True)
+
+# استخدام نفس المجلد للملفات المؤقتة والنسخ الاحتياطية
+DBBACKUP_TMP_DIR = BACKUP_ROOT
+DBBACKUP_STORAGE = 'django.core.files.storage.FileSystemStorage'
+DBBACKUP_STORAGE_OPTIONS = {'location': BACKUP_ROOT}
+DBBACKUP_CLEANUP_KEEP = 5  # الاحتفاظ بآخر 5 نسخ احتياطية فقط
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

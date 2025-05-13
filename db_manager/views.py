@@ -872,155 +872,47 @@ def process_import(import_id):
             db_import.log += f"الاتصال بقاعدة البيانات: {db_config.database_name} على {db_config.host}:{db_config.port or '5432'}\n"
             db_import.save()
 
-            # محاولة استخدام pg_restore
-            try:
-                # التحقق من وجود أداة pg_restore
-                try:
-                    # محاولة تحديد موقع pg_restore
-                    pg_restore_path = 'pg_restore'
-                    subprocess.check_output([pg_restore_path, '--version'], stderr=subprocess.STDOUT, text=True)
+            # استخدام Django loaddata فقط لاستعادة البيانات
+            db_import.log += "استخدام طريقة بديلة للاستعادة...\n"
+            db_import.save()
 
-                    # تنفيذ أمر pg_restore مع تحسينات الأداء
-                    cmd = [
-                        pg_restore_path,
-                        '--dbname=' + db_config.database_name,
-                        '--clean',
-                        '--if-exists',
-                        '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
-                        '--no-owner',  # تجاهل معلومات المالك
-                        '--no-privileges',  # تجاهل الصلاحيات
-                        file_path
-                    ]
+            # التحقق من نوع الملف
+            if file_path.endswith('.json'):
+                # استخدام loaddata لاستعادة ملف JSON
+                db_import.log += "استخدام Django loaddata لاستعادة البيانات...\n"
+                db_import.save()
+
+                try:
+                    # استيراد الوحدات اللازمة
+                    import io
+                    from django.core.management import call_command
+
+                    output = io.StringIO()
+                    call_command('loaddata', file_path, stdout=output)
 
                     # تحديث السجل
-                    db_import.log += f"تنفيذ الأمر: {' '.join(cmd)}\n"
+                    db_import.log += "تم استيراد البيانات بنجاح باستخدام Django loaddata.\n"
+                    db_import.log += "نتيجة العملية:\n"
+                    db_import.log += output.getvalue()
                     db_import.save()
 
-                    # تنفيذ الأمر مع تحديث السجل بشكل دوري
-                    process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        bufsize=1,
-                        universal_newlines=True
-                    )
-                except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                    # pg_restore غير موجود، محاولة استخدام psql
-                    db_import.log += f"أداة pg_restore غير متوفرة: {str(e)}\nمحاولة استخدام psql...\n"
+                    # تعيين الحالة إلى مكتملة
+                    db_import.status = 'completed'
+                    db_import.completed_at = timezone.now()
+                    db_import.log += f"\nاكتملت العملية بنجاح في {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                     db_import.save()
-
-                    try:
-                        # محاولة تحديد موقع psql
-                        psql_path = 'psql'
-                        subprocess.check_output([psql_path, '--version'], stderr=subprocess.STDOUT, text=True)
-
-                        # إنشاء ملف SQL مؤقت من ملف الـ dump
-                        temp_sql_path = file_path + '.sql'
-                        db_import.log += f"تحويل ملف الـ dump إلى SQL...\n"
-                        db_import.save()
-
-                        # استخدام psql لاستعادة النسخة الاحتياطية
-                        cmd = [
-                            psql_path,
-                            '-h', db_config.host,
-                            '-p', db_config.port or '5432',
-                            '-U', db_config.username,
-                            '-d', db_config.database_name,
-                            '-f', file_path
-                        ]
-
-                        # تحديث السجل
-                        db_import.log += f"تنفيذ الأمر: {' '.join(cmd)}\n"
-                        db_import.save()
-
-                        # تنفيذ الأمر مع تحديث السجل بشكل دوري
-                        process = subprocess.Popen(
-                            cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            bufsize=1,
-                            universal_newlines=True
-                        )
-                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                        # psql غير موجود أيضًا، استخدام طريقة بديلة
-                        db_import.log += f"أداة psql غير متوفرة: {str(e)}\nاستخدام طريقة بديلة...\n"
-                        db_import.save()
-
-                        # التحقق من نوع الملف
-                        if file_path.endswith('.json'):
-                            # استخدام loaddata لاستعادة ملف JSON
-                            db_import.log += "استخدام Django loaddata لاستعادة البيانات...\n"
-                            db_import.save()
-
-                            output = io.StringIO()
-                            call_command('loaddata', file_path, stdout=output)
-
-                            # تحديث السجل
-                            db_import.log += "تم استيراد البيانات بنجاح باستخدام Django loaddata.\n"
-                            db_import.log += "نتيجة العملية:\n"
-                            db_import.log += output.getvalue()
-                            db_import.save()
-
-                            # تعيين الحالة إلى مكتملة
-                            db_import.status = 'completed'
-                            db_import.completed_at = timezone.now()
-                            db_import.log += f"\nاكتملت العملية بنجاح في {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                            db_import.save()
-                            return
-                        else:
-                            # لا يمكن استعادة ملف dump بدون أدوات PostgreSQL
-                            db_import.status = 'failed'
-                            db_import.log += "فشل استعادة البيانات: لا يمكن استعادة ملف PostgreSQL dump بدون أدوات PostgreSQL.\n"
-                            db_import.save()
-                            return
-            except Exception as e:
-                # حدث خطأ أثناء محاولة استعادة البيانات
+                    return
+                except Exception as e:
+                    db_import.status = 'failed'
+                    db_import.log += f"فشل استعادة البيانات باستخدام Django loaddata: {str(e)}\n"
+                    db_import.save()
+                    return
+            else:
+                # لا يمكن استعادة ملف dump بدون أدوات PostgreSQL
                 db_import.status = 'failed'
-                db_import.log += f"حدث خطأ أثناء محاولة استعادة البيانات: {str(e)}\n"
+                db_import.log += "فشل استعادة البيانات: لا يمكن استعادة ملف PostgreSQL dump على Railway. يرجى استخدام ملف JSON بدلاً من ذلك.\n"
                 db_import.save()
                 return
-
-            # قراءة المخرجات بشكل تدريجي
-            stdout_lines = []
-            stderr_lines = []
-
-            # قراءة المخرجات القياسية
-            for line in process.stdout:
-                stdout_lines.append(line)
-                # تحديث السجل كل 10 سطور
-                if len(stdout_lines) % 10 == 0:
-                    db_import.log += f"جاري الاستيراد... ({len(stdout_lines)} سطر)\n"
-                    db_import.save()
-
-            # قراءة مخرجات الأخطاء
-            for line in process.stderr:
-                stderr_lines.append(line)
-                # تحديث السجل كل 10 سطور
-                if len(stderr_lines) % 10 == 0:
-                    db_import.log += f"ملاحظات: {line}\n"
-                    db_import.save()
-
-            # انتظار انتهاء العملية
-            process.wait()
-
-            # تحديث السجل بالنتيجة النهائية
-            if process.returncode == 0:
-                db_import.log += "تم استيراد ملف PostgreSQL Dump بنجاح.\n"
-            else:
-                db_import.log += f"انتهت العملية برمز الخروج: {process.returncode}\n"
-
-            # إضافة المخرجات الكاملة إلى السجل
-            if stdout_lines:
-                db_import.log += "\nمخرجات العملية:\n"
-                db_import.log += "".join(stdout_lines)
-
-            if stderr_lines:
-                db_import.log += "\nملاحظات وأخطاء:\n"
-                db_import.log += "".join(stderr_lines)
-
-            db_import.save()
 
         # التحقق من البيانات المكررة بعد الاستعادة
         db_import.log += "\nالتحقق من البيانات المكررة بعد الاستعادة...\n"
@@ -1369,59 +1261,22 @@ def import_data_from_file(request):
                 os.environ['PGUSER'] = db_config.username
                 os.environ['PGPASSWORD'] = db_config.password
 
-                # محاولة استخدام pg_restore
-                import subprocess
-                try:
-                    # التحقق من وجود أداة pg_restore
+                # استخدام Django loaddata فقط لاستعادة البيانات
+                from django.core.management import call_command
+                import io
+
+                # التحقق من نوع الملف
+                if file_path.endswith('.json'):
                     try:
-                        # محاولة تحديد موقع pg_restore
-                        pg_restore_path = 'pg_restore'
-                        subprocess.check_output([pg_restore_path, '--version'], stderr=subprocess.STDOUT, text=True)
+                        # استخدام loaddata لاستعادة ملف JSON
+                        output = io.StringIO()
+                        call_command('loaddata', file_path, stdout=output)
 
-                        # تنفيذ أمر pg_restore
-                        cmd = [
-                            pg_restore_path,
-                            '--dbname=' + db_config.database_name,
-                            '--clean',
-                            '--if-exists',
-                            '--jobs=4',  # استخدام 4 مهام متوازية لتسريع العملية
-                            '--no-owner',  # تجاهل معلومات المالك
-                            '--no-privileges',  # تجاهل الصلاحيات
-                            file_path
-                        ]
-                        result = subprocess.run(cmd, capture_output=True, text=True)
-
-                        if result.returncode == 0:
-                            messages.success(request, _('تم استيراد البيانات بنجاح.'))
-                        else:
-                            messages.warning(request, _('تم استيراد البيانات مع بعض التحذيرات.'))
-                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                        # pg_restore غير موجود، محاولة استخدام psql
-                        try:
-                            # محاولة تحديد موقع psql
-                            psql_path = 'psql'
-                            subprocess.check_output([psql_path, '--version'], stderr=subprocess.STDOUT, text=True)
-
-                            # استخدام psql لاستعادة النسخة الاحتياطية
-                            cmd = [
-                                psql_path,
-                                '-h', db_config.host,
-                                '-p', db_config.port or '5432',
-                                '-U', db_config.username,
-                                '-d', db_config.database_name,
-                                '-f', file_path
-                            ]
-                            result = subprocess.run(cmd, capture_output=True, text=True)
-
-                            if result.returncode == 0:
-                                messages.success(request, _('تم استيراد البيانات بنجاح باستخدام psql.'))
-                            else:
-                                messages.warning(request, _('تم استيراد البيانات مع بعض التحذيرات.'))
-                        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                            # psql غير موجود أيضًا، عرض رسالة خطأ
-                            messages.error(request, _('أدوات PostgreSQL غير متوفرة على الخادم. لا يمكن استيراد ملف PostgreSQL dump.'))
-                except Exception as e:
-                    messages.error(request, _('حدث خطأ أثناء استيراد البيانات: {}').format(str(e)))
+                        messages.success(request, _('تم استيراد البيانات بنجاح باستخدام Django loaddata.'))
+                    except Exception as e:
+                        messages.error(request, _('حدث خطأ أثناء استيراد البيانات: {}').format(str(e)))
+                else:
+                    messages.error(request, _('لا يمكن استعادة ملف PostgreSQL dump على Railway. يرجى استخدام ملف JSON بدلاً من ذلك.'))
             else:
                 messages.error(request, _('نوع قاعدة البيانات غير مدعوم للاستيراد.'))
         except Exception as e:

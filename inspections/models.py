@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from customers.models import Customer
 from accounts.models import User, Branch
+from model_utils.tracker import FieldTracker
 
 class InspectionEvaluation(models.Model):
     CRITERIA_CHOICES = [
@@ -117,13 +118,13 @@ class InspectionReport(models.Model):
 
     def calculate_statistics(self):
         from django.core.cache import cache
-        
+
         # إنشاء مفتاح تخزين مؤقت فريد بناءً على معلمات التقرير
         cache_key = f'inspection_report_stats_{self.branch_id}_{self.date_from}_{self.date_to}'
-        
+
         # محاولة استرداد النتائج من التخزين المؤقت
         cached_stats = cache.get(cache_key)
-        
+
         if cached_stats is None:
             # إذا لم تكن النتائج مخزنة مؤقتًا، قم بحساب الإحصائيات من قاعدة البيانات
             inspections = Inspection.objects.filter(
@@ -135,7 +136,7 @@ class InspectionReport(models.Model):
             self.successful_inspections = inspections.filter(result='passed').count()
             self.pending_inspections = inspections.filter(status='pending').count()
             self.cancelled_inspections = inspections.filter(status='cancelled').count()
-            
+
             # حفظ النتائج في التخزين المؤقت لمدة ساعة واحدة (3600 ثانية)
             cached_stats = {
                 'total': self.total_inspections,
@@ -150,7 +151,7 @@ class InspectionReport(models.Model):
             self.successful_inspections = cached_stats['successful']
             self.pending_inspections = cached_stats['pending']
             self.cancelled_inspections = cached_stats['cancelled']
-            
+
         self.save()
 
 class Inspection(models.Model):
@@ -165,6 +166,9 @@ class Inspection(models.Model):
         ('passed', _('ناجحة')),
         ('failed', _('غير مجدية')),
     ]
+
+    # إضافة متتبع الحقول
+    tracker = FieldTracker(fields=['status', 'result'])
 
     contract_number = models.CharField(_('رقم العقد'), max_length=50, unique=True, blank=True, null=True)
     customer = models.ForeignKey(
@@ -257,13 +261,13 @@ class Inspection(models.Model):
     def __str__(self):
         customer_name = self.customer.name if self.customer else 'عميل جديد'
         return f"{self.contract_number} - {customer_name}"
-    
+
     def clean(self):
         # Ensure scheduled date is not before request date
         if self.scheduled_date and self.request_date:
             if self.scheduled_date < self.request_date:
                 raise ValidationError(_('تاريخ تنفيذ المعاينة لا يمكن أن يكون قبل تاريخ الطلب'))
-        
+
         # Only allow users to create inspections in their branch
         if self.created_by and not self.created_by.is_superuser:
             if self.branch != self.created_by.branch:
@@ -272,17 +276,21 @@ class Inspection(models.Model):
     def save(self, *args, **kwargs):
         if not self.branch and self.created_by:
             self.branch = self.created_by.branch
-            
+
+        # تتبع التغييرات في حقل status
+        status_changed = self.tracker.has_changed('status')
+        old_status = self.tracker.previous('status')
+
         # Set completed_at when status changes to completed
-        if self.status == 'completed' and not self.completed_at:
+        if status_changed and self.status == 'completed' and not self.completed_at:
             self.completed_at = timezone.now()
-        elif self.status != 'completed':
+        elif status_changed and old_status == 'completed' and self.status != 'completed':
             self.completed_at = None
-            
+
         # نسخ ملاحظات الطلب إلى الحقل الجديد إذا كان الطلب موجودًا
         if self.order and self.order.notes and not self.order_notes:
             self.order_notes = self.order.notes
-            
+
         super().save(*args, **kwargs)
 
     def get_status_color(self):

@@ -91,7 +91,7 @@ class Order(models.Model):
 
     modified_at = models.DateTimeField(auto_now=True, help_text='آخر تحديث للطلب')
 
-    tracker = FieldTracker(fields=['tracking_status'])
+    tracker = FieldTracker(fields=['tracking_status', 'status'])
 
     class Meta:
         verbose_name = 'طلب'
@@ -275,7 +275,7 @@ class Order(models.Model):
         send_notification(
             title=title,
             message=message,
-            sender=self.last_modified_by or self.created_by,
+            sender=self.created_by,  # استخدام created_by فقط لأن last_modified_by غير موجود
             sender_department_code='orders',
             target_department_code='customers',
             target_branch=self.branch,

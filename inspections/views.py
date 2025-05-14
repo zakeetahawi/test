@@ -23,16 +23,16 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
         branch_id = self.request.GET.get('branch')
-        
+
         # إنشاء مفتاح تخزين مؤقت فريد
         cache_key = f'dashboard_stats_{"all" if not branch_id else branch_id}_{today}'
         dashboard_data = cache.get(cache_key)
-        
+
         if dashboard_data is None:
             # إذا لم تكن البيانات في التخزين المؤقت، قم بحسابها
             # تحسين الاستعلام باستخدام select_related للعلاقات المستخدمة بكثرة
             inspections = Inspection.objects.select_related('customer', 'branch', 'inspector')
-            
+
             if branch_id:
                 try:
                     branch_id = int(branch_id)
@@ -42,10 +42,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     context['selected_branch'] = None
             else:
                 context['selected_branch'] = None
-            
+
             # استخدام filter بدلاً من عمل استعلامات متعددة
             pending_inspections = inspections.filter(status='pending')
-            
+
             # حساب عدد المعاينات بحسب الحالة
             new_inspections_count = pending_inspections.filter(
                 scheduled_date__gt=today
@@ -59,7 +59,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             overdue_inspections_count = pending_inspections.filter(
                 scheduled_date__lt=today
             ).count()
-            
+
             # تخزين النتائج في كاش لمدة 10 دقائق (600 ثانية)
             dashboard_data = {
                 'new_inspections_count': new_inspections_count,
@@ -68,11 +68,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 'overdue_inspections_count': overdue_inspections_count,
             }
             cache.set(cache_key, dashboard_data, 600)  # 10 دقائق
-        
+
         # إضافة البيانات المخزنة مؤقتاً إلى السياق
         context.update(dashboard_data)
         context['branches'] = Branch.objects.all()
-        
+
         return context
 
 class CompletedInspectionsDetailView(LoginRequiredMixin, ListView):
@@ -127,7 +127,7 @@ class InspectionListView(LoginRequiredMixin, ListView):
         queryset = Inspection.objects.all() if self.request.user.is_superuser else Inspection.objects.filter(
             Q(inspector=self.request.user) | Q(created_by=self.request.user)
         )
-        
+
         # Branch filter
         branch_id = self.request.GET.get('branch')
         if branch_id:
@@ -138,12 +138,12 @@ class InspectionListView(LoginRequiredMixin, ListView):
         from_orders = self.request.GET.get('from_orders')
         is_duplicated = self.request.GET.get('is_duplicated')
         today = timezone.now().date()
-        
+
         if status == 'pending' and from_orders == '1':
             queryset = queryset.filter(status='pending', is_from_orders=True)
         elif status:
             queryset = queryset.filter(status=status)
-            
+
         # Filter for duplicated inspections
         if is_duplicated == '1':
             # Find inspections where notes contain text indicating they are duplicates
@@ -154,22 +154,22 @@ class InspectionListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from accounts.models import Branch
-        
+
         # تحسين استخدام استعلام واحد لجميع إحصائيات المعاينات باستخدام annotate
         from django.db.models import Count, Case, When, IntegerField
-        
+
         # استخدام قاعدة بيانات بحيث تكون أكثر كفاءة
         inspections = Inspection.objects.all()
         if not self.request.user.is_superuser:
             inspections = inspections.filter(
                 Q(inspector=self.request.user) | Q(created_by=self.request.user)
             )
-        
+
         # Branch filter for stats
         branch_id = self.request.GET.get('branch')
         if branch_id:
             inspections = inspections.filter(branch_id=branch_id)
-        
+
         # استخدام طريقة أكثر كفاءة لحساب الإحصائيات - استعلام واحد بدلاً من عدة استعلامات
         stats = inspections.aggregate(
             total_inspections=Count('id'),
@@ -190,13 +190,13 @@ class InspectionListView(LoginRequiredMixin, ListView):
                 output_field=IntegerField(),
             )),
         )
-        
+
         # حساب المعاينات المكررة
         duplicated_inspections = inspections.filter(notes__contains='تكرار من المعاينة رقم:').count()
         stats['duplicated_inspections'] = duplicated_inspections
-        
+
         context['dashboard'] = stats
-        
+
         # Add branches for filter
         context['branches'] = Branch.objects.all()
         return context
@@ -226,7 +226,7 @@ class InspectionCreateView(LoginRequiredMixin, CreateView):
             form.instance.inspector = self.request.user
         if not form.instance.branch and not self.request.user.is_superuser:
             form.instance.branch = self.request.user.branch
-            
+
         # حفظ البائع من الطلب المرتبط
         order_id = self.request.GET.get('order_id')
         if order_id:
@@ -235,31 +235,31 @@ class InspectionCreateView(LoginRequiredMixin, CreateView):
                 order = Order.objects.get(id=order_id)
                 form.instance.order = order
                 form.instance.is_from_orders = True
-                
+
                 # تعيين البائع بشكل صريح من الطلب المرتبط
                 if order.salesperson:
                     form.instance.responsible_employee = order.salesperson
                     # تأكد من حفظ المعاينة قبل عرضها
-                
+
                 # نسخ معلومات أخرى من الطلب
                 if not form.instance.customer and order.customer:
                     form.instance.customer = order.customer
                 if not form.instance.contract_number and order.contract_number:
                     form.instance.contract_number = order.contract_number
-                    
+
             except Order.DoesNotExist:
                 pass
-        
-        # حفظ المعاينة        
+
+        # حفظ المعاينة
         messages.success(self.request, 'تم إنشاء المعاينة بنجاح')
         response = super().form_valid(form)
-        
+
         # للتأكد من حفظ معلومات البائع، نقوم بتحديثها مرة أخرى بعد الحفظ إذا كانت من طلب
         if order_id and hasattr(form.instance, 'order') and form.instance.order and form.instance.order.salesperson:
             if not form.instance.responsible_employee:
                 form.instance.responsible_employee = form.instance.order.salesperson
                 form.instance.save(update_fields=['responsible_employee'])
-                
+
         return response
 
 class InspectionDetailView(LoginRequiredMixin, DetailView):
@@ -269,22 +269,22 @@ class InspectionDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return super().get_queryset().select_related('customer', 'inspector', 'branch', 'created_by', 'order')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         inspection = self.get_object()
-        
+
         # إضافة ملاحظات العميل إذا كان موجودًا
         if inspection.customer:
             from customers.models import CustomerNote
             context['customer_notes'] = CustomerNote.objects.filter(
                 customer=inspection.customer
             ).order_by('-created_at')[:5]
-        
+
         # تخزين ملاحظات الطلب في سياق الصفحة حتى إذا تم تحميلها بشكل غير متزامن
         if hasattr(inspection, 'order') and inspection.order:
             context['order_notes'] = inspection.order.notes
-        
+
         return context
 
 class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -295,31 +295,32 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         inspection = self.get_object()
-        return (self.request.user.is_superuser or 
-                inspection.created_by == self.request.user or 
+        return (self.request.user.is_superuser or
+                inspection.created_by == self.request.user or
                 inspection.inspector == self.request.user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
-        
+
         # إضافة الطلب المرتبط إلى النموذج إذا كان موجوداً
         inspection = self.get_object()
         if hasattr(inspection, 'order') and inspection.order:
             kwargs['order'] = inspection.order
-            
+
         return kwargs
 
     def form_valid(self, form):
         inspection = form.instance
-        old_status = self.get_object().status
-        
+        old_inspection = self.get_object()
+        old_status = old_inspection.status
+
         # Safely get the new status, falling back to the instance's status if not in form
         new_status = form.cleaned_data.get('status', inspection.status)
-        
+
         # Save inspection first to ensure it exists
         response = super().form_valid(form)
-        
+
         # Try to get order if it exists
         try:
             if inspection.order:
@@ -331,24 +332,20 @@ class InspectionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                     inspection.order.tracking_status = 'pending'
                 else:  # pending
                     inspection.order.tracking_status = 'pending'
-                
+
                 inspection.order.save()
                 messages.success(self.request, 'تم تحديث حالة المعاينة والطلب المرتبط')
                 return redirect('orders:order_detail', inspection.order.pk)
         except AttributeError:
             # No order associated with this inspection
             pass
-        
-        # Handle completion status
+
+        # Handle completion status - let the model handle this via the tracker
+        # We don't need to manually set completed_at here anymore
         if new_status == 'completed' and old_status != 'completed':
-            inspection.completed_at = timezone.now()
-            inspection.save()
             if not hasattr(inspection, 'evaluation'):
                 return redirect('inspections:evaluation_create', inspection_pk=inspection.pk)
-        elif new_status != 'completed' and old_status == 'completed':
-            inspection.completed_at = None
-            inspection.save()
-            
+
         messages.success(self.request, 'تم تحديث حالة المعاينة بنجاح')
         return response
 
@@ -472,12 +469,12 @@ def iterate_inspection(request, pk):
     try:
         # Get the original inspection
         original_inspection = get_object_or_404(Inspection, pk=pk)
-        
+
         # Verify the inspection is completed
         if original_inspection.status != 'completed':
             messages.error(request, _('يمكن فقط تكرار المعاينات المكتملة.'))
             return redirect('inspections:inspection_detail', pk=pk)
-        
+
         # Create a new inspection based on the original
         new_inspection = Inspection(
             customer=original_inspection.customer,
@@ -497,14 +494,14 @@ def iterate_inspection(request, pk):
             created_by=request.user,
             order=original_inspection.order
         )
-        
+
         # Generate a new contract number
         new_inspection.contract_number = None  # Will be auto-generated on save
         new_inspection.save()
-        
+
         messages.success(request, _('تم إنشاء معاينة جديدة كتكرار للمعاينة السابقة بنجاح.'))
         return redirect('inspections:inspection_detail', pk=new_inspection.pk)
-        
+
     except Exception as e:
         messages.error(request, _('حدث خطأ أثناء تكرار المعاينة: {0}').format(str(e)))
         return redirect('inspections:inspection_detail', pk=pk)
@@ -520,34 +517,34 @@ def ajax_duplicate_inspection(request):
             inspection_id = request.POST.get('inspection_id')
             scheduled_date = request.POST.get('scheduled_date')
             additional_notes = request.POST.get('additional_notes', '')
-            
+
             # Validate parameters
             if not inspection_id or not scheduled_date:
                 return JsonResponse({
                     'success': False,
                     'error': _('معلومات ناقصة. الرجاء تحديد المعاينة وتاريخ التنفيذ.')
                 })
-                
+
             # Get the original inspection
             original_inspection = get_object_or_404(Inspection, pk=inspection_id)
-            
+
             # Verify the inspection is completed
             if original_inspection.status != 'completed':
                 return JsonResponse({
                     'success': False,
                     'error': _('يمكن فقط تكرار المعاينات المكتملة.')
                 })
-                
+
             # Format notes
             notes = _('تكرار من المعاينة رقم: {0}\nملاحظات المعاينة السابقة:\n{1}').format(
                 original_inspection.contract_number,
                 original_inspection.notes
             )
-            
+
             # Add additional notes if provided
             if additional_notes:
                 notes += f"\n\n{_('ملاحظات إضافية:')}\n{additional_notes}"
-                
+
             # Create a new inspection based on the original
             with transaction.atomic():
                 new_inspection = Inspection(
@@ -565,17 +562,17 @@ def ajax_duplicate_inspection(request):
                     created_by=request.user,
                     order=original_inspection.order
                 )
-                
+
                 # Generate a new contract number
                 new_inspection.contract_number = None  # Will be auto-generated on save
                 new_inspection.save()
-            
+
             return JsonResponse({
                 'success': True,
                 'inspection_id': new_inspection.id,
                 'message': _('تم إنشاء معاينة جديدة كتكرار للمعاينة السابقة بنجاح.'),
             })
-            
+
         except Exception as e:
             return JsonResponse({
                 'success': False,

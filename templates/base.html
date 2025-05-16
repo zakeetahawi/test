@@ -36,203 +36,47 @@
                         <a class="nav-link" href="{% url 'home' %}"><i class="fas fa-home"></i> الرئيسية</a>
                     </li>
 
-                    {% if user.is_superuser %}
-                        <!-- Show all departments for superuser with dropdown navigation -->
-                        {% for dept in parent_departments %}
-                            <!-- Special cases for direct links - all main departments -->
-                            {% if dept.name == 'إدارة البيانات' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/data_management/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'العملاء' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/customers/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'الطلبات' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/orders/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'المخزون' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/inventory/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'المعاينات' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/inspections/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'التركيبات' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/installations/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'المصنع' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/factory/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'التقارير' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/reports/list/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            <!-- Check if department has children or pages -->
-                            {% elif dept.children.count > 0 or dept.has_pages %}
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle" href="#" id="dept{{ dept.id }}Dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                    <ul class="dropdown-menu" aria-labelledby="dept{{ dept.id }}Dropdown">
-                                        <!-- Display link to main department page -->
-                                        {% if dept.url_name %}
-                                            <li><a class="dropdown-item" href="{{ dept.url_name|fix_url }}">
-                                                <i class="fas fa-list"></i> {{ dept.name }} الرئيسية
-                                            </a></li>
-                                        {% endif %}
-
-                                        <!-- Display child departments -->
-                                        {% for child in dept.children.all %}
-                                            {% if child.is_active and child.url_name %}
-                                                <li><a class="dropdown-item" href="{{ child.url_name|fix_url }}">
-                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
-                                                </a></li>
-                                            {% elif child.is_active %}
-                                                <li><span class="dropdown-item">
-                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
-                                                </span></li>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </ul>
-                                </li>
-                            {% else %}
-                                <!-- Display department as normal link if no children -->
-                                {% if dept.url_name %}
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{{ dept.url_name|fix_url }}">
-                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                        </a>
-                                    </li>
-                                {% else %}
-                                    <li class="nav-item">
-                                        <span class="nav-link">
-                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                        </span>
-                                    </li>
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
-
-
-                    {% else %}
-                        <!-- Show only accessible departments for regular users -->
-                        {% for dept in user_parent_departments %}
-                            <!-- Special cases for direct links - all main departments -->
-                            {% if dept.name == 'إدارة البيانات' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/data_management/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'العملاء' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/customers/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'الطلبات' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/orders/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'المخزون' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/inventory/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'المعاينات' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/inspections/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'التركيبات' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/installations/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'المصنع' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/factory/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            {% elif dept.name == 'التقارير' and dept in user_departments %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="/reports/list/">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                </li>
-                            <!-- Check if department has children or pages -->
-                            {% elif dept.children.count > 0 or dept.has_pages %}
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle" href="#" id="dept{{ dept.id }}Dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                    </a>
-                                    <ul class="dropdown-menu" aria-labelledby="dept{{ dept.id }}Dropdown">
-                                        <!-- Display link to main department page -->
-                                        {% if dept.url_name and dept in user_departments %}
-                                            <li><a class="dropdown-item" href="/{{ dept.url_name|cut:':index'|cut:'index' }}">
-                                                <i class="fas fa-list"></i> {{ dept.name }} الرئيسية
-                                            </a></li>
-                                        {% endif %}
-
-                                        <!-- Display child departments if user has access -->
-                                        {% for child in dept.children.all %}
-                                            {% if child.is_active and child in user_departments and child.url_name %}
-                                                <li><a class="dropdown-item" href="{{ child.url_name|fix_url }}">
-                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
-                                                </a></li>
-                                            {% elif child.is_active and child in user_departments %}
-                                                <li><span class="dropdown-item">
-                                                    <i class="{{ child.icon|default:'fas fa-angle-left' }}"></i> {{ child.name }}
-                                                </span></li>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </ul>
-                                </li>
-                            {% else %}
-                                <!-- Display department as normal link if no children -->
-                                {% if dept.url_name and dept in user_departments %}
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{{ dept.url_name|fix_url }}">
-                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                        </a>
-                                    </li>
-                                {% elif dept in user_departments %}
-                                    <li class="nav-item">
-                                        <span class="nav-link">
-                                            <i class="{{ dept.icon }}"></i> {{ dept.name }}
-                                        </span>
-                                    </li>
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
+                    <!-- الأقسام الرئيسية الثابتة -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="/customers/">
+                            <i class="fas fa-users"></i> العملاء
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/orders/">
+                            <i class="fas fa-shopping-cart"></i> الطلبات
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/inventory/">
+                            <i class="fas fa-boxes"></i> المخزون
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/inspections/">
+                            <i class="fas fa-clipboard-check"></i> المعاينات
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/installations/">
+                            <i class="fas fa-tools"></i> التركيبات
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/factory/">
+                            <i class="fas fa-industry"></i> المصنع
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reports/list/">
+                            <i class="fas fa-chart-bar"></i> التقارير
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/data_management/">
+                            <i class="fas fa-database"></i> إدارة البيانات
+                        </a>
+                    </li>
                 </ul>
                 <div class="d-flex align-items-center ms-auto">
                     {% if user.is_authenticated %}

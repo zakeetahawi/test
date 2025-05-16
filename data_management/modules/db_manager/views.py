@@ -6,12 +6,13 @@ import os
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import connections
 
 from .models import DatabaseConfig, DatabaseBackup, DatabaseImport, SetupToken
 from .forms import DatabaseConfigForm, DatabaseBackupForm, DatabaseImportForm, SetupTokenForm, DatabaseSetupForm
@@ -436,6 +437,69 @@ def database_export(request):
     }
 
     return render(request, 'data_management/db_manager/export.html', context)
+
+@login_required
+@user_passes_test(is_superuser)
+def test_current_database_connection(request):
+    """اختبار الاتصال بقاعدة البيانات الحالية"""
+    success = False
+    message = ""
+    db_info = {}
+
+    try:
+        # الحصول على معلومات قاعدة البيانات الحالية من الإعدادات
+        from django.conf import settings
+        db_settings = settings.DATABASES['default']
+
+        # استخراج معلومات الاتصال
+        db_info = {
+            'engine': db_settings.get('ENGINE', '').split('.')[-1],
+            'name': db_settings.get('NAME', ''),
+            'user': db_settings.get('USER', ''),
+            'host': db_settings.get('HOST', ''),
+            'port': db_settings.get('PORT', ''),
+        }
+
+        # اختبار الاتصال باستخدام Django
+        connection = connections['default']
+        connection.ensure_connection()
+
+        # إذا وصلنا إلى هنا، فإن الاتصال ناجح
+        success = True
+        message = _('تم الاتصال بقاعدة البيانات بنجاح.')
+
+        # إضافة معلومات إضافية
+        if 'postgresql' in db_info['engine'].lower():
+            # الحصول على معلومات إضافية من PostgreSQL
+            with connection.cursor() as cursor:
+                # الحصول على إصدار قاعدة البيانات
+                cursor.execute("SELECT version();")
+                version = cursor.fetchone()[0]
+                db_info['version'] = version
+
+                # الحصول على حجم قاعدة البيانات
+                cursor.execute("""
+                SELECT pg_size_pretty(pg_database_size(current_database()));
+                """)
+                size = cursor.fetchone()[0]
+                db_info['size'] = size
+
+                # الحصول على عدد الجداول
+                cursor.execute("""
+                SELECT count(*) FROM information_schema.tables
+                WHERE table_schema = 'public';
+                """)
+                tables_count = cursor.fetchone()[0]
+                db_info['tables_count'] = tables_count
+    except Exception as e:
+        success = False
+        message = str(e)
+
+    return JsonResponse({
+        'success': success,
+        'message': message,
+        'db_info': db_info
+    })
 
 @login_required
 @user_passes_test(is_superuser)

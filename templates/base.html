@@ -16,6 +16,11 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
+    <!-- Database Card CSS -->
+    {% if request.path == '/data_management/db-manager/' %}
+    <link rel="stylesheet" href="{% static 'css/db_card.css' %}">
+    {% endif %}
+
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -431,6 +436,11 @@
 
     <!-- Custom JS -->
     <script src="{% static 'js/main.js' %}"></script>
+
+    <!-- Database Connection Test JS -->
+    {% if request.path == '/data_management/db-manager/' %}
+    <script src="{% static 'js/db_connection_test.js' %}"></script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
 </body>

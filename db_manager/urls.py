@@ -15,6 +15,7 @@ urlpatterns = [
     path('delete/<int:pk>/', views.database_delete, name='database_delete'),
     path('set-default/<int:pk>/', views.database_set_default, name='database_set_default'),
     path('test-connection/<int:pk>/', views.database_test_connection, name='database_test_connection'),
+    path('test-current-connection/', views.test_current_database_connection, name='test_current_connection'),
 
     # النسخ الاحتياطية
     path('backups/', views.backup_list, name='backup_list'),

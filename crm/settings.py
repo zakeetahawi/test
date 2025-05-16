@@ -125,7 +125,7 @@ CHANNEL_LAYERS = {
 # Database
 DATABASES = {
     'default': dj_database_url.config(
-        default=f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}",
+        default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
         conn_max_age=600,
         conn_health_checks=True,
     )

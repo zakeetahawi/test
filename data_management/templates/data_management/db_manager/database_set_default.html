@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "تعيين قاعدة البيانات كافتراضية" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0 d-flex justify-content-between align-items-center">
+                    <h6>{% trans "تعيين قاعدة البيانات كافتراضية" %}</h6>
+                    <a href="{% url 'data_management:database_detail' pk=database.pk %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h4 class="alert-heading">{% trans "تأكيد" %}</h4>
+                        <p>{% trans "هل أنت متأكد من أنك تريد تعيين قاعدة البيانات التالية كافتراضية؟" %}</p>
+                        <hr>
+                        <p class="mb-0">{{ database.name }} ({{ database.get_db_type_display }})</p>
+                        <p class="mb-0">{{ database.host }}:{{ database.port }} - {{ database.database_name }}</p>
+                        <hr>
+                        <p class="mb-0">{% trans "سيؤدي هذا الإجراء إلى تعيين قاعدة البيانات هذه كافتراضية، وإلغاء تعيين أي قاعدة بيانات أخرى كافتراضية." %}</p>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-check"></i> {% trans "نعم، تعيين كافتراضية" %}
+                        </button>
+                        <a href="{% url 'data_management:database_detail' pk=database.pk %}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

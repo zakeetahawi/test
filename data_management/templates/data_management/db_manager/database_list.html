@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "قائمة قواعد البيانات" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0 d-flex justify-content-between align-items-center">
+                    <h6>{% trans "قائمة قواعد البيانات" %}</h6>
+                    <a href="{% url 'data_management:database_create' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> {% trans "إضافة قاعدة بيانات" %}
+                    </a>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2">
+                    {% if databases %}
+                        <div class="table-responsive p-0">
+                            <table class="table align-items-center mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">{% trans "الاسم" %}</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">{% trans "النوع" %}</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">{% trans "المضيف" %}</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">{% trans "اسم قاعدة البيانات" %}</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">{% trans "الحالة" %}</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">{% trans "افتراضية" %}</th>
+                                        <th class="text-secondary opacity-7"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for database in databases %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex px-2 py-1">
+                                                    <div>
+                                                        {% if database.db_type == 'postgresql' %}
+                                                            <i class="fas fa-database text-primary"></i>
+                                                        {% elif database.db_type == 'mysql' %}
+                                                            <i class="fas fa-database text-info"></i>
+                                                        {% elif database.db_type == 'sqlite' %}
+                                                            <i class="fas fa-database text-success"></i>
+                                                        {% else %}
+                                                            <i class="fas fa-database text-secondary"></i>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="d-flex flex-column justify-content-center ms-3">
+                                                        <h6 class="mb-0 text-sm">{{ database.name }}</h6>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <p class="text-xs font-weight-bold mb-0">{{ database.get_db_type_display }}</p>
+                                            </td>
+                                            <td>
+                                                <p class="text-xs font-weight-bold mb-0">{{ database.host }}</p>
+                                            </td>
+                                            <td>
+                                                <p class="text-xs font-weight-bold mb-0">{{ database.database_name }}</p>
+                                            </td>
+                                            <td>
+                                                {% if database.is_active %}
+                                                    <span class="badge badge-sm bg-gradient-success">{% trans "نشطة" %}</span>
+                                                {% else %}
+                                                    <span class="badge badge-sm bg-gradient-secondary">{% trans "غير نشطة" %}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if database.is_default %}
+                                                    <span class="badge badge-sm bg-gradient-primary">{% trans "افتراضية" %}</span>
+                                                {% else %}
+                                                    <span class="badge badge-sm bg-gradient-secondary">{% trans "غير افتراضية" %}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="align-middle">
+                                                <div class="btn-group">
+                                                    <a href="{% url 'data_management:database_detail' pk=database.pk %}" class="btn btn-info btn-sm">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a href="{% url 'data_management:database_update' pk=database.pk %}" class="btn btn-warning btn-sm">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                    <a href="{% url 'data_management:database_delete' pk=database.pk %}" class="btn btn-danger btn-sm">
+                                                        <i class="fas fa-trash"></i>
+                                                    </a>
+                                                    {% if not database.is_default %}
+                                                        <a href="{% url 'data_management:database_set_default' pk=database.pk %}" class="btn btn-primary btn-sm">
+                                                            <i class="fas fa-check"></i>
+                                                        </a>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning mx-4">
+                            {% trans "لا توجد قواعد بيانات." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}تفاصيل سجل المزامنة{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">تفاصيل سجل المزامنة</h6>
+                    <div>
+                        <a href="{% url 'data_management:sync_logs' %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-list"></i> قائمة سجلات المزامنة
+                        </a>
+                        <a href="{% url 'data_management:google_sync' %}" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-arrow-left"></i> العودة إلى لوحة تحكم مزامنة غوغل
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card border-left-info shadow h-100 py-2 mb-4">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-3">
+                                        معلومات المزامنة
+                                    </div>
+                                    <ul class="list-group">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            التاريخ
+                                            <span class="badge badge-info badge-pill">{{ log.timestamp }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            نوع المزامنة
+                                            <span class="badge badge-info badge-pill">{{ log.get_sync_type_display }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            الحالة
+                                            <span class="badge badge-{{ log.status|yesno:'success,danger' }} badge-pill">{{ log.get_status_display }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            السجلات المزامنة
+                                            <span class="badge badge-info badge-pill">{{ log.records_synced }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            وقت المعالجة
+                                            <span class="badge badge-info badge-pill">{{ log.processing_time }} ثانية</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            المستخدم
+                                            <span class="badge badge-info badge-pill">{{ log.user.username }}</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-left-primary shadow h-100 py-2 mb-4">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-3">
+                                        تفاصيل المزامنة
+                                    </div>
+                                    <ul class="list-group">
+                                        {% if log.sync_type == 'sheets' %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            معرف جدول البيانات
+                                            <span class="badge badge-primary badge-pill">{{ log.sheet_id }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            اسم الورقة
+                                            <span class="badge badge-primary badge-pill">{{ log.sheet_name }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            النماذج المزامنة
+                                            <span class="badge badge-primary badge-pill">{{ log.models_synced }}</span>
+                                        </li>
+                                        {% elif log.sync_type == 'gdrive' %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            معرف المجلد
+                                            <span class="badge badge-primary badge-pill">{{ log.folder_id }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            اسم الملف
+                                            <span class="badge badge-primary badge-pill">{{ log.file_name }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            حجم الملف
+                                            <span class="badge badge-primary badge-pill">{{ log.file_size|filesizeformat }}</span>
+                                        </li>
+                                        {% endif %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            السجلات المضافة
+                                            <span class="badge badge-success badge-pill">{{ log.records_added|default:"0" }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            السجلات المحدثة
+                                            <span class="badge badge-warning badge-pill">{{ log.records_updated|default:"0" }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            السجلات المحذوفة
+                                            <span class="badge badge-danger badge-pill">{{ log.records_deleted|default:"0" }}</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">سجل العملية</h6>
+                                </div>
+                                <div class="card-body">
+                                    <pre class="bg-light p-3">{{ log.log_text }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if log.errors %}
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-danger">الأخطاء</h6>
+                                </div>
+                                <div class="card-body">
+                                    <pre class="bg-danger text-white p-3">{{ log.errors }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">الإجراءات</h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if log.sync_type == 'sheets' %}
+                                    <a href="{% url 'data_management:google_sheets_sync' %}" class="btn btn-info">
+                                        <i class="fas fa-sync"></i> إعادة المزامنة
+                                    </a>
+                                    <a href="{% url 'data_management:google_sheets_config' %}" class="btn btn-primary">
+                                        <i class="fas fa-cog"></i> إعدادات المزامنة
+                                    </a>
+                                    {% elif log.sync_type == 'gdrive' %}
+                                    <a href="{% url 'data_management:backup_to_gdrive' %}" class="btn btn-danger">
+                                        <i class="fas fa-cloud-upload-alt"></i> إعادة النسخ الاحتياطي
+                                    </a>
+                                    <a href="{% url 'data_management:gdrive_config' %}" class="btn btn-primary">
+                                        <i class="fas fa-cog"></i> إعدادات غوغل درايف
+                                    </a>
+                                    {% if log.file_id %}
+                                    <a href="https://drive.google.com/file/d/{{ log.file_id }}/view" target="_blank" class="btn btn-success">
+                                        <i class="fas fa-external-link-alt"></i> عرض الملف في غوغل درايف
+                                    </a>
+                                    {% endif %}
+                                    {% endif %}
+                                    <a href="{% url 'data_management:sync_logs' %}" class="btn btn-secondary">
+                                        <i class="fas fa-arrow-left"></i> العودة إلى سجلات المزامنة
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

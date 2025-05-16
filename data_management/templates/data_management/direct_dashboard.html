@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}إدارة البيانات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">لوحة تحكم إدارة البيانات</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- قسم إدارة قواعد البيانات -->
+                        <div class="col-md-3 mb-4">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                إدارة قواعد البيانات</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <a href="/data_management/db-manager/" class="btn btn-primary btn-icon-split">
+                                                    <span class="icon text-white-50">
+                                                        <i class="fas fa-database"></i>
+                                                    </span>
+                                                    <span class="text">إدارة قواعد البيانات</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- قسم النسخ الاحتياطي -->
+                        <div class="col-md-3 mb-4">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                النسخ الاحتياطي</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <a href="/data_management/backup/list/" class="btn btn-success btn-icon-split">
+                                                    <span class="icon text-white-50">
+                                                        <i class="fas fa-save"></i>
+                                                    </span>
+                                                    <span class="text">النسخ الاحتياطي</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- قسم مزامنة غوغل -->
+                        <div class="col-md-3 mb-4">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                مزامنة غوغل</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <a href="/data_management/google-sync/" class="btn btn-info btn-icon-split">
+                                                    <span class="icon text-white-50">
+                                                        <i class="fab fa-google"></i>
+                                                    </span>
+                                                    <span class="text">مزامنة غوغل</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- قسم استيراد/تصدير إكسل -->
+                        <div class="col-md-3 mb-4">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                استيراد/تصدير إكسل</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <a href="/data_management/excel/" class="btn btn-warning btn-icon-split">
+                                                    <span class="icon text-white-50">
+                                                        <i class="fas fa-file-excel"></i>
+                                                    </span>
+                                                    <span class="text">استيراد/تصدير إكسل</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- الإحصائيات -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">إحصائيات النظام</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <h4>إحصائيات قاعدة البيانات</h4>
+                                            <ul class="list-group">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    اسم قاعدة البيانات
+                                                    <span class="badge badge-primary badge-pill">{{ database_name }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    نوع قاعدة البيانات
+                                                    <span class="badge badge-primary badge-pill">{{ database_engine }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    حجم قاعدة البيانات
+                                                    <span class="badge badge-primary badge-pill">{{ database_size|default:"غير متاح" }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h4>إحصائيات النسخ الاحتياطي</h4>
+                                            <ul class="list-group">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد النسخ الاحتياطية
+                                                    <span class="badge badge-success badge-pill">{{ backup_count }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    آخر نسخة احتياطية
+                                                    <span class="badge badge-success badge-pill">{{ last_backup }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    النسخ الاحتياطية على غوغل درايف
+                                                    <span class="badge badge-success badge-pill">{{ gdrive_backup_count|default:"0" }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h4>إحصائيات المزامنة</h4>
+                                            <ul class="list-group">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    آخر مزامنة مع غوغل
+                                                    <span class="badge badge-info badge-pill">{{ last_google_sync|default:"لم تتم المزامنة بعد" }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد عمليات الاستيراد
+                                                    <span class="badge badge-warning badge-pill">{{ import_count|default:"0" }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد عمليات التصدير
+                                                    <span class="badge badge-warning badge-pill">{{ export_count|default:"0" }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- الإجراءات السريعة -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">الإجراءات السريعة</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/backup/create/" class="btn btn-success btn-block">
+                                                <i class="fas fa-save mr-2"></i> إنشاء نسخة احتياطية
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/db-import/" class="btn btn-primary btn-block">
+                                                <i class="fas fa-file-import mr-2"></i> استيراد قاعدة بيانات
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/google-sync/sheets-sync/" class="btn btn-info btn-block">
+                                                <i class="fab fa-google mr-2"></i> مزامنة مع غوغل شيتس
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/excel/import/" class="btn btn-warning btn-block">
+                                                <i class="fas fa-file-excel mr-2"></i> استيراد من إكسل
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/google-sync/backup-to-gdrive/" class="btn btn-danger btn-block">
+                                                <i class="fab fa-google-drive mr-2"></i> نسخ احتياطي لغوغل درايف
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/db-export/" class="btn btn-secondary btn-block">
+                                                <i class="fas fa-file-export mr-2"></i> تصدير قاعدة بيانات
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/schedule-backup/" class="btn btn-dark btn-block">
+                                                <i class="fas fa-calendar-alt mr-2"></i> جدولة النسخ الاحتياطي
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <a href="/data_management/excel/export/" class="btn btn-light btn-block">
+                                                <i class="fas fa-download mr-2"></i> تصدير إلى إكسل
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

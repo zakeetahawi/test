@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+{% load widget_tweaks %}
+
+{% block title %}{% trans "إنشاء رمز إعداد" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0 d-flex justify-content-between align-items-center">
+                    <h6>{% trans "إنشاء رمز إعداد" %}</h6>
+                    <a href="{% url 'data_management:db_dashboard' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h4 class="alert-heading">{% trans "معلومات" %}</h4>
+                        <p>{% trans "سيتم إنشاء رمز إعداد يمكن استخدامه لإعداد النظام. يمكنك تحديد مدة صلاحية الرمز." %}</p>
+                        <p>{% trans "بعد إنشاء الرمز، سيتم عرض رابط الإعداد الذي يمكنك مشاركته مع المستخدمين." %}</p>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.expires_in_hours.id_for_label }}" class="form-control-label">
+                                        {{ form.expires_in_hours.label }}
+                                    </label>
+                                    {{ form.expires_in_hours|add_class:"form-control" }}
+                                    {% if form.expires_in_hours.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.expires_in_hours.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.expires_in_hours.help_text %}
+                                        <small class="form-text text-muted">{{ form.expires_in_hours.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-key"></i> {% trans "إنشاء رمز" %}
+                                </button>
+                                <a href="{% url 'data_management:db_dashboard' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

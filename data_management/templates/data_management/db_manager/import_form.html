@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+{% load widget_tweaks %}
+
+{% block title %}{% trans "استيراد قاعدة بيانات" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0 d-flex justify-content-between align-items-center">
+                    <h6>{% trans "استيراد قاعدة بيانات" %}</h6>
+                    <a href="{% url 'data_management:db_dashboard' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h4 class="alert-heading">{% trans "معلومات" %}</h4>
+                        <p>{% trans "يمكنك استيراد قاعدة بيانات من ملف. الملفات المدعومة هي:" %}</p>
+                        <ul>
+                            <li>{% trans "ملفات JSON (*.json)" %}</li>
+                            <li>{% trans "ملفات SQL (*.sql)" %}</li>
+                            <li>{% trans "ملفات DUMP (*.dump)" %}</li>
+                        </ul>
+                    </div>
+                    
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.database_config.id_for_label }}" class="form-control-label">
+                                        {{ form.database_config.label }}
+                                    </label>
+                                    {{ form.database_config|add_class:"form-control" }}
+                                    {% if form.database_config.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.database_config.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.database_config.help_text %}
+                                        <small class="form-text text-muted">{{ form.database_config.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.file.id_for_label }}" class="form-control-label">
+                                        {{ form.file.label }}
+                                    </label>
+                                    {{ form.file|add_class:"form-control" }}
+                                    {% if form.file.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.file.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.file.help_text %}
+                                        <small class="form-text text-muted">{{ form.file.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-check form-switch">
+                                    {{ form.clear_data|add_class:"form-check-input" }}
+                                    <label class="form-check-label" for="{{ form.clear_data.id_for_label }}">
+                                        {{ form.clear_data.label }}
+                                    </label>
+                                    {% if form.clear_data.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.clear_data.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.clear_data.help_text %}
+                                        <small class="form-text text-muted">{{ form.clear_data.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-file-import"></i> {% trans "استيراد" %}
+                                </button>
+                                <a href="{% url 'data_management:db_dashboard' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

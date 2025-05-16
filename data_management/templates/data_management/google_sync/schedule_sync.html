@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}جدولة المزامنة{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">جدولة المزامنة</h6>
+                    <a href="{% url 'data_management:google_sync' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-arrow-left"></i> العودة إلى لوحة تحكم مزامنة غوغل
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-left-info shadow h-100 py-2 mb-4">
+                                    <div class="card-body">
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-3">
+                                            جدولة مزامنة غوغل شيتس
+                                        </div>
+                                        <div class="form-group">
+                                            <div class="custom-control custom-switch">
+                                                <input type="checkbox" class="custom-control-input" id="sheets_auto_sync" name="sheets_auto_sync" {% if sheets_config and sheets_config.auto_sync %}checked{% endif %}>
+                                                <label class="custom-control-label" for="sheets_auto_sync">تفعيل المزامنة التلقائية</label>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="sheets_sync_interval">الفاصل الزمني للمزامنة (بالدقائق)</label>
+                                            <input type="number" class="form-control" id="sheets_sync_interval" name="sheets_sync_interval" value="{{ sheets_config.sync_interval|default:60 }}" min="5" max="1440">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>أيام المزامنة</label>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_0" name="sheets_sync_days" value="0" {% if '0' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_0">الأحد</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_1" name="sheets_sync_days" value="1" {% if '1' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_1">الإثنين</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_2" name="sheets_sync_days" value="2" {% if '2' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_2">الثلاثاء</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_3" name="sheets_sync_days" value="3" {% if '3' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_3">الأربعاء</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col">
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_4" name="sheets_sync_days" value="4" {% if '4' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_4">الخميس</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_5" name="sheets_sync_days" value="5" {% if '5' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_5">الجمعة</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="sheets_sync_day_6" name="sheets_sync_days" value="6" {% if '6' in sheets_config.sync_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="sheets_sync_day_6">السبت</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="sheets_sync_time">وقت المزامنة</label>
+                                            <input type="time" class="form-control" id="sheets_sync_time" name="sheets_sync_time" value="{{ sheets_config.sync_time|default:'03:00' }}">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-left-danger shadow h-100 py-2 mb-4">
+                                    <div class="card-body">
+                                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-3">
+                                            جدولة النسخ الاحتياطي لغوغل درايف
+                                        </div>
+                                        <div class="form-group">
+                                            <div class="custom-control custom-switch">
+                                                <input type="checkbox" class="custom-control-input" id="drive_auto_backup" name="drive_auto_backup" {% if drive_config and drive_config.auto_backup %}checked{% endif %}>
+                                                <label class="custom-control-label" for="drive_auto_backup">تفعيل النسخ الاحتياطي التلقائي</label>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="drive_backup_interval">الفاصل الزمني للنسخ الاحتياطي (بالأيام)</label>
+                                            <input type="number" class="form-control" id="drive_backup_interval" name="drive_backup_interval" value="{{ drive_config.backup_interval|default:7 }}" min="1" max="30">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>أيام النسخ الاحتياطي</label>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_0" name="drive_backup_days" value="0" {% if '0' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_0">الأحد</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_1" name="drive_backup_days" value="1" {% if '1' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_1">الإثنين</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_2" name="drive_backup_days" value="2" {% if '2' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_2">الثلاثاء</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_3" name="drive_backup_days" value="3" {% if '3' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_3">الأربعاء</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col">
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_4" name="drive_backup_days" value="4" {% if '4' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_4">الخميس</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_5" name="drive_backup_days" value="5" {% if '5' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_5">الجمعة</label>
+                                                    </div>
+                                                    <div class="custom-control custom-checkbox">
+                                                        <input type="checkbox" class="custom-control-input" id="drive_backup_day_6" name="drive_backup_days" value="6" {% if '6' in drive_config.backup_days %}checked{% endif %}>
+                                                        <label class="custom-control-label" for="drive_backup_day_6">السبت</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="drive_backup_time">وقت النسخ الاحتياطي</label>
+                                            <input type="time" class="form-control" id="drive_backup_time" name="drive_backup_time" value="{{ drive_config.backup_time|default:'02:00' }}">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> حفظ الإعدادات
+                                </button>
+                                <a href="{% url 'data_management:google_sync' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> إلغاء
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}استيراد وتصدير إكسل{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">لوحة تحكم استيراد وتصدير إكسل</h6>
+                    <a href="{% url 'data_management:index' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-arrow-left"></i> العودة إلى لوحة التحكم
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- استيراد من إكسل -->
+                        <div class="col-md-6 mb-4">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                استيراد من إكسل</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <a href="{% url 'data_management:excel_import' %}" class="btn btn-warning btn-icon-split">
+                                                    <span class="icon text-white-50">
+                                                        <i class="fas fa-file-import"></i>
+                                                    </span>
+                                                    <span class="text">استيراد من إكسل</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- تصدير إلى إكسل -->
+                        <div class="col-md-6 mb-4">
+                            <div class="card border-left-light shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-dark text-uppercase mb-1">
+                                                تصدير إلى إكسل</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <a href="{% url 'data_management:excel_export' %}" class="btn btn-light btn-icon-split">
+                                                    <span class="icon text-white-50">
+                                                        <i class="fas fa-file-export"></i>
+                                                    </span>
+                                                    <span class="text">تصدير إلى إكسل</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- إحصائيات الاستيراد والتصدير -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">إحصائيات الاستيراد والتصدير</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h4>إحصائيات الاستيراد</h4>
+                                            <ul class="list-group">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد عمليات الاستيراد
+                                                    <span class="badge badge-warning badge-pill">{{ import_count|default:"0" }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    آخر عملية استيراد
+                                                    <span class="badge badge-warning badge-pill">{{ last_import|default:"لم يتم الاستيراد بعد" }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد السجلات المستوردة
+                                                    <span class="badge badge-warning badge-pill">{{ imported_records_count|default:"0" }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h4>إحصائيات التصدير</h4>
+                                            <ul class="list-group">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد عمليات التصدير
+                                                    <span class="badge badge-dark badge-pill">{{ export_count|default:"0" }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    آخر عملية تصدير
+                                                    <span class="badge badge-dark badge-pill">{{ last_export|default:"لم يتم التصدير بعد" }}</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    عدد السجلات المصدرة
+                                                    <span class="badge badge-dark badge-pill">{{ exported_records_count|default:"0" }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- آخر عمليات الاستيراد والتصدير -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">آخر عمليات الاستيراد</h6>
+                                    <a href="{% url 'data_management:excel_import_logs' %}" class="btn btn-sm btn-primary">
+                                        عرض الكل
+                                    </a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" width="100%" cellspacing="0">
+                                            <thead>
+                                                <tr>
+                                                    <th>التاريخ</th>
+                                                    <th>النموذج</th>
+                                                    <th>السجلات</th>
+                                                    <th>الحالة</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for import_log in recent_imports %}
+                                                <tr>
+                                                    <td>{{ import_log.timestamp }}</td>
+                                                    <td>{{ import_log.model_name }}</td>
+                                                    <td>{{ import_log.records_count }}</td>
+                                                    <td>
+                                                        {% if import_log.status == 'success' %}
+                                                        <span class="badge badge-success">ناجح</span>
+                                                        {% elif import_log.status == 'partial' %}
+                                                        <span class="badge badge-warning">جزئي</span>
+                                                        {% else %}
+                                                        <span class="badge badge-danger">فشل</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% empty %}
+                                                <tr>
+                                                    <td colspan="4" class="text-center">لا توجد عمليات استيراد</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">آخر عمليات التصدير</h6>
+                                    <a href="{% url 'data_management:excel_export_logs' %}" class="btn btn-sm btn-primary">
+                                        عرض الكل
+                                    </a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" width="100%" cellspacing="0">
+                                            <thead>
+                                                <tr>
+                                                    <th>التاريخ</th>
+                                                    <th>النموذج</th>
+                                                    <th>السجلات</th>
+                                                    <th>الحالة</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for export_log in recent_exports %}
+                                                <tr>
+                                                    <td>{{ export_log.timestamp }}</td>
+                                                    <td>{{ export_log.model_name }}</td>
+                                                    <td>{{ export_log.records_count }}</td>
+                                                    <td>
+                                                        {% if export_log.status == 'success' %}
+                                                        <span class="badge badge-success">ناجح</span>
+                                                        {% elif export_log.status == 'partial' %}
+                                                        <span class="badge badge-warning">جزئي</span>
+                                                        {% else %}
+                                                        <span class="badge badge-danger">فشل</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% empty %}
+                                                <tr>
+                                                    <td colspan="4" class="text-center">لا توجد عمليات تصدير</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

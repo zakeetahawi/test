@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}النسخ الاحتياطي ومزامنة البيانات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">لوحة تحكم النسخ الاحتياطي ومزامنة البيانات</h6>
+                    <a href="{% url 'data_management:index' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-arrow-left"></i> العودة إلى لوحة التحكم
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- إحصائيات النسخ الاحتياطي -->
+                        <div class="col-md-6">
+                            <div class="card border-left-primary shadow h-100 py-2 mb-4">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                إحصائيات النسخ الاحتياطي</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                <ul class="list-group">
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        إجمالي النسخ الاحتياطية
+                                                        <span class="badge badge-primary badge-pill">{{ backup_stats.total_backups }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        النسخ الناجحة
+                                                        <span class="badge badge-success badge-pill">{{ backup_stats.successful_backups }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        النسخ الفاشلة
+                                                        <span class="badge badge-danger badge-pill">{{ backup_stats.failed_backups }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        النسخ المستعادة
+                                                        <span class="badge badge-info badge-pill">{{ backup_stats.restored_backups }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        إجمالي الحجم
+                                                        <span class="badge badge-primary badge-pill">{{ backup_stats.total_size|filesizeformat }}</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- إعدادات Google Sheets -->
+                        <div class="col-md-6">
+                            <div class="card border-left-info shadow h-100 py-2 mb-4">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                إعدادات مزامنة Google Sheets</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {% if google_sheets_config %}
+                                                <ul class="list-group">
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        معرف جدول البيانات
+                                                        <span class="badge badge-info badge-pill">{{ google_sheets_config.sheet_id }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        المزامنة التلقائية
+                                                        <span class="badge badge-{{ google_sheets_config.auto_sync|yesno:'success,danger' }} badge-pill">{{ google_sheets_config.auto_sync|yesno:'مفعلة,غير مفعلة' }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        الفاصل الزمني للمزامنة
+                                                        <span class="badge badge-info badge-pill">{{ google_sheets_config.sync_interval }} دقيقة</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        آخر مزامنة
+                                                        <span class="badge badge-info badge-pill">{{ google_sheets_config.last_sync|default:'لم تتم المزامنة بعد' }}</span>
+                                                    </li>
+                                                </ul>
+                                                {% else %}
+                                                <div class="alert alert-warning">
+                                                    لم يتم تكوين إعدادات Google Sheets بعد. <a href="{% url 'data_management:google_sheets_config' %}" class="alert-link">إعداد الآن</a>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- آخر النسخ الاحتياطية -->
+                        <div class="col-md-6">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">آخر النسخ الاحتياطية</h6>
+                                    <a href="{% url 'data_management:backup_list' %}" class="btn btn-sm btn-primary">
+                                        عرض الكل
+                                    </a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" width="100%" cellspacing="0">
+                                            <thead>
+                                                <tr>
+                                                    <th>التاريخ</th>
+                                                    <th>النوع</th>
+                                                    <th>الحجم</th>
+                                                    <th>الإجراءات</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for backup in recent_backups %}
+                                                <tr>
+                                                    <td>{{ backup.timestamp }}</td>
+                                                    <td>{{ backup.get_backup_type_display }}</td>
+                                                    <td>{{ backup.file_size|filesizeformat }}</td>
+                                                    <td>
+                                                        <a href="{% url 'data_management:backup_detail' pk=backup.pk %}" class="btn btn-sm btn-info">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        <a href="{% url 'data_management:backup_download' pk=backup.pk %}" class="btn btn-sm btn-primary">
+                                                            <i class="fas fa-download"></i>
+                                                        </a>
+                                                        <a href="{% url 'data_management:restore_backup' pk=backup.pk %}" class="btn btn-sm btn-warning">
+                                                            <i class="fas fa-undo"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% empty %}
+                                                <tr>
+                                                    <td colspan="4" class="text-center">لا توجد نسخ احتياطية</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- آخر عمليات المزامنة -->
+                        <div class="col-md-6">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">آخر عمليات المزامنة</h6>
+                                    <a href="{% url 'data_management:sync_logs' %}" class="btn btn-sm btn-primary">
+                                        عرض الكل
+                                    </a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" width="100%" cellspacing="0">
+                                            <thead>
+                                                <tr>
+                                                    <th>التاريخ</th>
+                                                    <th>الحالة</th>
+                                                    <th>السجلات</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for sync in recent_syncs %}
+                                                <tr>
+                                                    <td>{{ sync.timestamp }}</td>
+                                                    <td>
+                                                        {% if sync.status == 'success' %}
+                                                        <span class="badge badge-success">ناجح</span>
+                                                        {% elif sync.status == 'partial' %}
+                                                        <span class="badge badge-warning">جزئي</span>
+                                                        {% else %}
+                                                        <span class="badge badge-danger">فشل</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ sync.records_synced }}</td>
+                                                </tr>
+                                                {% empty %}
+                                                <tr>
+                                                    <td colspan="3" class="text-center">لا توجد عمليات مزامنة</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- الإجراءات السريعة -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">الإجراءات السريعة</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4 mb-2">
+                                            <a href="{% url 'data_management:create_backup' %}" class="btn btn-success btn-block">
+                                                <i class="fas fa-save mr-2"></i> إنشاء نسخة احتياطية جديدة
+                                            </a>
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <a href="{% url 'data_management:google_sheets_config' %}" class="btn btn-primary btn-block">
+                                                <i class="fas fa-cog mr-2"></i> إعدادات المزامنة
+                                            </a>
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <a href="{% url 'data_management:sync_google_sheets' %}" class="btn btn-info btn-block">
+                                                <i class="fas fa-sync mr-2"></i> مزامنة مع غوغل
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

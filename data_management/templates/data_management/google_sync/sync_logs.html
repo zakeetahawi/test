@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}سجلات المزامنة{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">سجلات المزامنة</h6>
+                    <div>
+                        <a href="{% url 'data_management:google_sync' %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-arrow-left"></i> العودة إلى لوحة تحكم مزامنة غوغل
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <form method="get" class="form-inline">
+                                <div class="form-group mr-2">
+                                    <select class="form-control" name="sync_type">
+                                        <option value="">-- جميع الأنواع --</option>
+                                        <option value="sheets" {% if sync_type == 'sheets' %}selected{% endif %}>غوغل شيتس</option>
+                                        <option value="gdrive" {% if sync_type == 'gdrive' %}selected{% endif %}>غوغل درايف</option>
+                                    </select>
+                                </div>
+                                <div class="form-group mr-2">
+                                    <select class="form-control" name="status">
+                                        <option value="">-- جميع الحالات --</option>
+                                        <option value="success" {% if status == 'success' %}selected{% endif %}>ناجح</option>
+                                        <option value="partial" {% if status == 'partial' %}selected{% endif %}>جزئي</option>
+                                        <option value="failed" {% if status == 'failed' %}selected{% endif %}>فاشل</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter"></i> تصفية
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th>النوع</th>
+                                    <th>الحالة</th>
+                                    <th>السجلات</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td>{{ log.timestamp }}</td>
+                                    <td>
+                                        {% if log.sync_type == 'sheets' %}
+                                        <span class="badge badge-info">غوغل شيتس</span>
+                                        {% elif log.sync_type == 'gdrive' %}
+                                        <span class="badge badge-danger">غوغل درايف</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.status == 'success' %}
+                                        <span class="badge badge-success">ناجح</span>
+                                        {% elif log.status == 'partial' %}
+                                        <span class="badge badge-warning">جزئي</span>
+                                        {% else %}
+                                        <span class="badge badge-danger">فاشل</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ log.records_synced }}</td>
+                                    <td>
+                                        <a href="{% url 'data_management:sync_log_detail' pk=log.pk %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if log.sync_type == 'sheets' %}
+                                        <a href="{% url 'data_management:google_sheets_sync' %}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-sync"></i>
+                                        </a>
+                                        {% elif log.sync_type == 'gdrive' %}
+                                        <a href="{% url 'data_management:backup_to_gdrive' %}" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">لا توجد سجلات مزامنة</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {% if logs.has_other_pages %}
+                    <div class="pagination justify-content-center">
+                        <ul class="pagination">
+                            {% if logs.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if sync_type %}&sync_type={{ sync_type }}{% endif %}{% if status %}&status={{ status }}{% endif %}" aria-label="First">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ logs.previous_page_number }}{% if sync_type %}&sync_type={{ sync_type }}{% endif %}{% if status %}&status={{ status }}{% endif %}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            {% for i in logs.paginator.page_range %}
+                                {% if logs.number == i %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ i }}</span>
+                                </li>
+                                {% elif i > logs.number|add:'-3' and i < logs.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ i }}{% if sync_type %}&sync_type={{ sync_type }}{% endif %}{% if status %}&status={{ status }}{% endif %}">{{ i }}</a>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if logs.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ logs.next_page_number }}{% if sync_type %}&sync_type={{ sync_type }}{% endif %}{% if status %}&status={{ status }}{% endif %}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ logs.paginator.num_pages }}{% if sync_type %}&sync_type={{ sync_type }}{% endif %}{% if status %}&status={{ status }}{% endif %}" aria-label="Last">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

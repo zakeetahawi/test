@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}إنشاء نسخة احتياطية جديدة{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">إنشاء نسخة احتياطية جديدة</h6>
+                    <a href="{% url 'data_management:backup_dashboard' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-arrow-left"></i> العودة إلى لوحة التحكم
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="backup_type">نوع النسخة الاحتياطية</label>
+                                    <select class="form-control" id="backup_type" name="backup_type">
+                                        <option value="full">كاملة (البيانات والهيكل)</option>
+                                        <option value="data_only">البيانات فقط</option>
+                                        <option value="schema_only">الهيكل فقط</option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <ul>
+                                            <li>كاملة: تتضمن جميع البيانات وهيكل قاعدة البيانات</li>
+                                            <li>البيانات فقط: تتضمن البيانات فقط دون هيكل قاعدة البيانات</li>
+                                            <li>الهيكل فقط: تتضمن هيكل قاعدة البيانات فقط دون البيانات</li>
+                                        </ul>
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>خيارات إضافية</label>
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input" id="is_compressed" name="is_compressed" checked>
+                                        <label class="custom-control-label" for="is_compressed">ضغط النسخة الاحتياطية</label>
+                                    </div>
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input" id="is_encrypted" name="is_encrypted">
+                                        <label class="custom-control-label" for="is_encrypted">تشفير النسخة الاحتياطية</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> سيتم حفظ النسخة الاحتياطية في مجلد النسخ الاحتياطية على الخادم. يمكنك تنزيلها لاحقًا من صفحة قائمة النسخ الاحتياطية.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> إنشاء النسخة الاحتياطية
+                                </button>
+                                <a href="{% url 'data_management:backup_dashboard' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> إلغاء
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

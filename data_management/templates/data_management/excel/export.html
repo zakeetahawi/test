@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}تصدير إلى إكسل{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">تصدير إلى إكسل</h6>
+                    <a href="{% url 'data_management:excel_dashboard' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-arrow-left"></i> العودة إلى لوحة تحكم إكسل
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="model_name">النموذج</label>
+                                    <select class="form-control" id="model_name" name="model_name" required>
+                                        <option value="">-- اختر النموذج --</option>
+                                        <option value="customer">العملاء</option>
+                                        <option value="product">المنتجات</option>
+                                        <option value="order">الطلبات</option>
+                                        <option value="inspection">المعاينات</option>
+                                        <option value="installation">التركيبات</option>
+                                        <option value="inventory">المخزون</option>
+                                        <option value="factory">المصنع</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="file_format">تنسيق الملف</label>
+                                    <select class="form-control" id="file_format" name="file_format">
+                                        <option value="xlsx">Excel (XLSX)</option>
+                                        <option value="xls">Excel 97-2003 (XLS)</option>
+                                        <option value="csv">CSV</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sheet_name">اسم الورقة</label>
+                                    <input type="text" class="form-control" id="sheet_name" name="sheet_name" placeholder="اترك فارغًا لاستخدام اسم النموذج">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>خيارات التصدير</label>
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input" id="include_header" name="include_header" checked>
+                                        <label class="custom-control-label" for="include_header">تضمين رأس الجدول</label>
+                                    </div>
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input" id="export_related" name="export_related" checked>
+                                        <label class="custom-control-label" for="export_related">تصدير البيانات المرتبطة</label>
+                                    </div>
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input" id="use_display_names" name="use_display_names" checked>
+                                        <label class="custom-control-label" for="use_display_names">استخدام أسماء العرض</label>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="date_format">تنسيق التاريخ</label>
+                                    <input type="text" class="form-control" id="date_format" name="date_format" value="YYYY-MM-DD">
+                                </div>
+                                <div class="form-group">
+                                    <label for="filter_query">استعلام التصفية (اختياري)</label>
+                                    <input type="text" class="form-control" id="filter_query" name="filter_query" placeholder="مثال: created_at__gte=2023-01-01">
+                                    <small class="form-text text-muted">استعلام تصفية Django للحد من السجلات المصدرة.</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label for="fields">الحقول المراد تصديرها (اختياري)</label>
+                                    <input type="text" class="form-control" id="fields" name="fields" placeholder="اترك فارغًا لتصدير جميع الحقول، أو أدخل أسماء الحقول مفصولة بفواصل">
+                                    <small class="form-text text-muted">أسماء الحقول المراد تصديرها مفصولة بفواصل. اتركه فارغًا لتصدير جميع الحقول.</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-file-export"></i> تصدير
+                                </button>
+                                <a href="{% url 'data_management:excel_dashboard' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> إلغاء
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

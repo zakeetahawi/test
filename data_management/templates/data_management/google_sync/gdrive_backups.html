@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}النسخ الاحتياطية على غوغل درايف{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">النسخ الاحتياطية على غوغل درايف</h6>
+                    <div>
+                        <a href="{% url 'data_management:backup_to_gdrive' %}" class="btn btn-sm btn-danger">
+                            <i class="fas fa-cloud-upload-alt"></i> نسخ احتياطي جديد
+                        </a>
+                        <a href="{% url 'data_management:google_sync' %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-arrow-left"></i> العودة إلى لوحة تحكم مزامنة غوغل
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th>اسم الملف</th>
+                                    <th>الحجم</th>
+                                    <th>النوع</th>
+                                    <th>الحالة</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for backup in backups %}
+                                <tr>
+                                    <td>{{ backup.created_time }}</td>
+                                    <td>{{ backup.name }}</td>
+                                    <td>{{ backup.size|filesizeformat }}</td>
+                                    <td>
+                                        {% if 'full' in backup.name %}
+                                        <span class="badge badge-primary">كاملة</span>
+                                        {% elif 'data' in backup.name %}
+                                        <span class="badge badge-info">البيانات فقط</span>
+                                        {% elif 'schema' in backup.name %}
+                                        <span class="badge badge-warning">الهيكل فقط</span>
+                                        {% else %}
+                                        <span class="badge badge-secondary">غير محدد</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-success">مكتملة</span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ backup.view_link }}" target="_blank" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ backup.download_link }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-warning" data-toggle="modal" data-target="#restoreModal{{ backup.id }}">
+                                            <i class="fas fa-undo"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger" data-toggle="modal" data-target="#deleteModal{{ backup.id }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Restore Modal -->
+                                <div class="modal fade" id="restoreModal{{ backup.id }}" tabindex="-1" role="dialog" aria-labelledby="restoreModalLabel{{ backup.id }}" aria-hidden="true">
+                                    <div class="modal-dialog" role="document">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="restoreModalLabel{{ backup.id }}">استعادة النسخة الاحتياطية</h5>
+                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                    <span aria-hidden="true">&times;</span>
+                                                </button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="alert alert-warning">
+                                                    <h5><i class="fas fa-exclamation-triangle"></i> تحذير!</h5>
+                                                    <p>أنت على وشك استعادة النسخة الاحتياطية التالية من غوغل درايف:</p>
+                                                    <ul>
+                                                        <li><strong>اسم الملف:</strong> {{ backup.name }}</li>
+                                                        <li><strong>التاريخ:</strong> {{ backup.created_time }}</li>
+                                                        <li><strong>الحجم:</strong> {{ backup.size|filesizeformat }}</li>
+                                                    </ul>
+                                                    <hr>
+                                                    <p class="mb-0">سيؤدي هذا الإجراء إلى استبدال جميع البيانات الحالية في قاعدة البيانات بالبيانات الموجودة في هذه النسخة الاحتياطية. هذا الإجراء لا يمكن التراجع عنه.</p>
+                                                </div>
+                                                <form method="post" action="{% url 'data_management:restore_from_gdrive' %}">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="file_id" value="{{ backup.id }}">
+                                                    <div class="form-group">
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" class="custom-control-input" id="confirm{{ backup.id }}" name="confirm" required>
+                                                            <label class="custom-control-label" for="confirm{{ backup.id }}">أؤكد أنني أريد استعادة هذه النسخة الاحتياطية وأفهم أن هذا الإجراء لا يمكن التراجع عنه.</label>
+                                                        </div>
+                                                    </div>
+                                                    <button type="submit" class="btn btn-warning">
+                                                        <i class="fas fa-undo"></i> استعادة النسخة الاحتياطية
+                                                    </button>
+                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Delete Modal -->
+                                <div class="modal fade" id="deleteModal{{ backup.id }}" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel{{ backup.id }}" aria-hidden="true">
+                                    <div class="modal-dialog" role="document">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="deleteModalLabel{{ backup.id }}">حذف النسخة الاحتياطية</h5>
+                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                    <span aria-hidden="true">&times;</span>
+                                                </button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="alert alert-danger">
+                                                    <h5><i class="fas fa-exclamation-triangle"></i> تحذير!</h5>
+                                                    <p>أنت على وشك حذف النسخة الاحتياطية التالية من غوغل درايف:</p>
+                                                    <ul>
+                                                        <li><strong>اسم الملف:</strong> {{ backup.name }}</li>
+                                                        <li><strong>التاريخ:</strong> {{ backup.created_time }}</li>
+                                                        <li><strong>الحجم:</strong> {{ backup.size|filesizeformat }}</li>
+                                                    </ul>
+                                                    <hr>
+                                                    <p class="mb-0">سيؤدي هذا الإجراء إلى حذف ملف النسخة الاحتياطية من غوغل درايف. هذا الإجراء لا يمكن التراجع عنه.</p>
+                                                </div>
+                                                <form method="post" action="{% url 'data_management:delete_from_gdrive' %}">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="file_id" value="{{ backup.id }}">
+                                                    <div class="form-group">
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" class="custom-control-input" id="confirm_delete{{ backup.id }}" name="confirm" required>
+                                                            <label class="custom-control-label" for="confirm_delete{{ backup.id }}">أؤكد أنني أريد حذف هذه النسخة الاحتياطية وأفهم أن هذا الإجراء لا يمكن التراجع عنه.</label>
+                                                        </div>
+                                                    </div>
+                                                    <button type="submit" class="btn btn-danger">
+                                                        <i class="fas fa-trash"></i> حذف النسخة الاحتياطية
+                                                    </button>
+                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center">لا توجد نسخ احتياطية على غوغل درايف</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

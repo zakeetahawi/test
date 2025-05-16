@@ -40,15 +40,14 @@ INSTALLED_APPS = [
     'inventory',
     'orders',
     'reports',
-    'data_import_export.apps.DataImportExportConfig',
-    'data_backup.apps.DataBackupConfig',  # إضافة تطبيق مزامنة البيانات
+    'data_management.apps.DataManagementConfig',  # تطبيق إدارة البيانات الموحد
+    'db_manager',  # تطبيق إدارة قواعد البيانات
     'corsheaders',
     'django_apscheduler', # إضافة مكتبة جدولة المهام
     'dbbackup',  # إضافة تطبيق النسخ الاحتياطي
     'rest_framework',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',  # إضافة دعم القائمة السوداء للتوكن
-    'db_manager',  # إضافة تطبيق إدارة قواعد البيانات
+    'rest_framework_simplejwt.token_blacklist'  # إضافة دعم القائمة السوداء للتوكن
 ]
 
 # Authentication backends
@@ -104,6 +103,7 @@ TEMPLATES = [
                 'accounts.context_processors.company_info',
                 'accounts.context_processors.footer_settings',
                 'accounts.context_processors.system_settings',
+                'data_management.context_processors.data_management_urls',
             ],
         },
     },

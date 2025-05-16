@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة البيانات</title>
+
+    <!-- Bootstrap RTL CSS -->
+    <link rel="stylesheet" href="/static/css/bootstrap.rtl.min.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="/static/css/fontawesome.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <div class="d-flex align-items-center">
+                    <img src="/static/img/logo.png" alt="شعار النظام" class="logo-img">
+                </div>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="fas fa-home"></i> الرئيسية</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/customers/"><i class="fas fa-users"></i> العملاء</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/orders/"><i class="fas fa-shopping-cart"></i> الطلبات</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/inspections/"><i class="fas fa-search"></i> المعاينات</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/inventory/"><i class="fas fa-boxes"></i> المخزون</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/installations/"><i class="fas fa-tools"></i> التركيبات</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/factory/"><i class="fas fa-industry"></i> المصنع</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reports/"><i class="fas fa-chart-bar"></i> التقارير</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/data_management/"><i class="fas fa-database"></i> إدارة البيانات</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mt-4">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                            <h6 class="m-0 font-weight-bold text-primary">لوحة تحكم إدارة البيانات</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- قسم إدارة قواعد البيانات -->
+                                <div class="col-md-3 mb-4">
+                                    <div class="card border-left-primary shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                        إدارة قواعد البيانات</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        <a href="/data_management/db-manager/" class="btn btn-primary btn-icon-split">
+                                                            <span class="icon text-white-50">
+                                                                <i class="fas fa-database"></i>
+                                                            </span>
+                                                            <span class="text">إدارة قواعد البيانات</span>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- قسم النسخ الاحتياطي -->
+                                <div class="col-md-3 mb-4">
+                                    <div class="card border-left-success shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                        النسخ الاحتياطي</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        <a href="/data_management/backup/" class="btn btn-success btn-icon-split">
+                                                            <span class="icon text-white-50">
+                                                                <i class="fas fa-save"></i>
+                                                            </span>
+                                                            <span class="text">النسخ الاحتياطي</span>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- قسم مزامنة غوغل -->
+                                <div class="col-md-3 mb-4">
+                                    <div class="card border-left-info shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                        مزامنة غوغل</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        <a href="/data_management/google-sync/" class="btn btn-info btn-icon-split">
+                                                            <span class="icon text-white-50">
+                                                                <i class="fab fa-google"></i>
+                                                            </span>
+                                                            <span class="text">مزامنة غوغل</span>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- قسم استيراد/تصدير إكسل -->
+                                <div class="col-md-3 mb-4">
+                                    <div class="card border-left-warning shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                        استيراد/تصدير إكسل</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        <a href="/data_management/excel/" class="btn btn-warning btn-icon-split">
+                                                            <span class="icon text-white-50">
+                                                                <i class="fas fa-file-excel"></i>
+                                                            </span>
+                                                            <span class="text">استيراد/تصدير إكسل</span>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- الإجراءات السريعة -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card shadow mb-4">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">الإجراءات السريعة</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/backup/create/" class="btn btn-success btn-block">
+                                                        <i class="fas fa-save mr-2"></i> إنشاء نسخة احتياطية
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/db-import/" class="btn btn-primary btn-block">
+                                                        <i class="fas fa-file-import mr-2"></i> استيراد قاعدة بيانات
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/google-sync/sheets-sync/" class="btn btn-info btn-block">
+                                                        <i class="fab fa-google mr-2"></i> مزامنة مع غوغل شيتس
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/excel/import/" class="btn btn-warning btn-block">
+                                                        <i class="fas fa-file-excel mr-2"></i> استيراد من إكسل
+                                                    </a>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/google-sync/backup-to-gdrive/" class="btn btn-danger btn-block">
+                                                        <i class="fab fa-google-drive mr-2"></i> نسخ احتياطي لغوغل درايف
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/db-export/" class="btn btn-secondary btn-block">
+                                                        <i class="fas fa-file-export mr-2"></i> تصدير قاعدة بيانات
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/schedule-backup/" class="btn btn-dark btn-block">
+                                                        <i class="fas fa-calendar-alt mr-2"></i> جدولة النسخ الاحتياطي
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-3 mb-2">
+                                                    <a href="/data_management/excel/export/" class="btn btn-light btn-block">
+                                                        <i class="fas fa-download mr-2"></i> تصدير إلى إكسل
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+
+    <!-- jQuery -->
+    <script src="/static/js/jquery-3.7.1.min.js"></script>
+
+    <!-- Custom JS -->
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

@@ -57,6 +57,11 @@ class Department(models.Model):
     icon = models.CharField(max_length=50, blank=True, null=True, help_text='Font Awesome icon name', verbose_name='الأيقونة')
     url_name = models.CharField(max_length=100, blank=True, null=True, verbose_name='اسم الرابط')
     is_active = models.BooleanField(default=True, verbose_name='نشط')
+    is_core = models.BooleanField(
+        default=False,
+        verbose_name='قسم أساسي',
+        help_text='حدد هذا الخيار إذا كان هذا القسم من أقسام النظام الأساسية التي لا يمكن حذفها أو تعديلها'
+    )
     order = models.PositiveIntegerField(default=0, verbose_name='الترتيب')
     parent = models.ForeignKey(
         'self',
@@ -88,6 +93,30 @@ class Department(models.Model):
             path.append(current.name)
             current = current.parent
         return ' / '.join(reversed(path))
+
+    def save(self, *args, **kwargs):
+        """حفظ القسم مع التحقق من الأقسام الأساسية"""
+        if self.pk:
+            # إذا كان القسم موجودًا بالفعل، نتحقق مما إذا كان قسمًا أساسيًا
+            try:
+                original = Department.objects.get(pk=self.pk)
+                if original.is_core:
+                    # لا يمكن تغيير الاسم أو الرمز أو نوع القسم أو الرابط للأقسام الأساسية
+                    self.name = original.name
+                    self.code = original.code
+                    self.department_type = original.department_type
+                    self.url_name = original.url_name
+                    self.is_core = True  # لا يمكن تغيير حالة القسم الأساسي
+            except Department.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """حذف القسم مع التحقق من الأقسام الأساسية"""
+        if self.is_core:
+            # لا يمكن حذف الأقسام الأساسية
+            return
+        super().delete(*args, **kwargs)
 
     def __str__(self):
         return f"{self.get_department_type_display()} - {self.name}"

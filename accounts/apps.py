@@ -19,8 +19,13 @@ class AccountsConfig(AppConfig):
         """
         from django.core.management import call_command
         try:
-            # Call the create_departments command
+            # إنشاء الأقسام الأساسية
+            from .core_departments import create_core_departments
+            create_core_departments()
+            print("Core departments created successfully after migration")
+
+            # Call the create_departments command for any additional departments
             call_command('create_departments')
-            print("Departments created successfully after migration")
+            print("Additional departments created successfully after migration")
         except Exception as e:
             print(f"Error creating departments: {e}")

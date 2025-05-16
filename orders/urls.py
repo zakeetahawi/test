@@ -1,18 +1,15 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from . import views
 from .views import OrdersDashboardView
 
 app_name = 'orders'
 
-router = DefaultRouter()
-
 urlpatterns = [
-    # Dashboard as main page
-    path('', OrdersDashboardView.as_view(), name='dashboard'),
+    # Order list as main page
+    path('', views.order_list, name='order_list'),
 
-    # Order Views
-    path('list/', views.order_list, name='order_list'),
+    # Old dashboard (deactivated)
+    path('dashboard/', OrdersDashboardView.as_view(), name='dashboard'),
     path('<int:pk>/', views.order_detail, name='order_detail'),
     path('create/', views.order_create, name='order_create'),
     path('<int:pk>/update/', views.order_update, name='order_update'),
@@ -27,9 +24,4 @@ urlpatterns = [
 
     # Update Order Status
     path('order/<int:order_id>/update-status/', views.update_order_status, name='update_status'),
-
-
-
-    # API Dynamic Pricing
-    path('api/', include(router.urls)),
 ]

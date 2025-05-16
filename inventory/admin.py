@@ -5,7 +5,6 @@ from .models import (
     Category, Product, StockTransaction, Supplier, PurchaseOrder, PurchaseOrderItem,
     Warehouse, WarehouseLocation, ProductBatch, InventoryAdjustment, StockAlert
 )
-from data_import_export.admin import AdminMultiSheetImportExportMixin
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -14,12 +13,12 @@ class CategoryAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
 
 @admin.register(Product)
-class ProductAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'code', 'category', 'price', 'get_current_stock', 'get_stock_status')
     list_filter = ('category', 'created_at')
     search_fields = ('name', 'code', 'description')
     readonly_fields = ('get_current_stock', 'created_at', 'updated_at')
-    
+
     fieldsets = (
         (_('معلومات المنتج'), {
             'fields': ('name', 'code', 'category', 'description')
@@ -54,7 +53,7 @@ class StockTransactionAdmin(admin.ModelAdmin):
     list_filter = ('transaction_type', 'reason', 'date')
     search_fields = ('product__name', 'reference', 'notes')
     readonly_fields = ('date', 'created_by')
-    
+
     fieldsets = (
         (_('معلومات الحركة'), {
             'fields': ('product', 'transaction_type', 'reason', 'quantity')
@@ -67,24 +66,24 @@ class StockTransactionAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def save_model(self, request, obj, form, change):
         if not change:  # If creating new object
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
 @admin.register(Supplier)
-class SupplierAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class SupplierAdmin(admin.ModelAdmin):
     list_display = ('name', 'contact_person', 'phone', 'email')
     search_fields = ('name', 'contact_person', 'phone', 'email', 'address')
 
 @admin.register(PurchaseOrder)
-class PurchaseOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class PurchaseOrderAdmin(admin.ModelAdmin):
     list_display = ('order_number', 'supplier', 'status', 'order_date', 'total_amount')
     list_filter = ('status', 'order_date')
     search_fields = ('order_number', 'supplier__name', 'notes')
     readonly_fields = ('order_date', 'created_by')
-    
+
     fieldsets = (
         (_('معلومات طلب الشراء'), {
             'fields': ('order_number', 'supplier', 'warehouse', 'status')
@@ -103,7 +102,7 @@ class PurchaseOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def save_model(self, request, obj, form, change):
         if not change:  # If creating new object
             obj.created_by = request.user

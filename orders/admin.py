@@ -4,7 +4,6 @@ from django.utils.html import format_html
 # from django.utils import timezone
 from .models import Order, OrderItem, Payment, OrderStatusLog
 from .extended_models import ExtendedOrder, AccessoryItem, FabricOrder
-from data_import_export.admin import AdminMultiSheetImportExportMixin
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -33,7 +32,7 @@ class PaymentInline(admin.TabularInline):
         return super().get_formset(request, obj, **kwargs)
 
 @admin.register(Order)
-class OrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class OrderAdmin(admin.ModelAdmin):
     list_display = ('order_number', 'customer', 'tracking_status', 'final_price', 'payment_status', 'created_at')
     list_filter = (
         'tracking_status',
@@ -99,7 +98,7 @@ class AccessoryItemInline(admin.TabularInline):
         return super().get_formset(request, obj, **kwargs)
 
 @admin.register(ExtendedOrder)
-class ExtendedOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class ExtendedOrderAdmin(admin.ModelAdmin):
     list_display = ('order', 'order_type', 'get_subtype_display', 'branch')
     list_filter = ('order_type', 'goods_type', 'service_type', 'branch')
     search_fields = ('order__order_number', 'invoice_number', 'contract_number')
@@ -125,7 +124,7 @@ class ExtendedOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
     get_subtype_display.short_description = _('النوع الفرعي')
 
 @admin.register(FabricOrder)
-class FabricOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class FabricOrderAdmin(admin.ModelAdmin):
     list_display = ('extended_order', 'fabric_type', 'quantity', 'status', 'sent_to_warehouse', 'cutting_completed')
     list_filter = ('status', 'sent_to_warehouse', 'cutting_completed')
     search_fields = ('extended_order__order__order_number', 'fabric_type__name', 'notes')
@@ -142,7 +141,7 @@ class FabricOrderAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
     )
 
 @admin.register(Payment)
-class PaymentAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class PaymentAdmin(admin.ModelAdmin):
     list_display = ('order', 'amount', 'payment_method', 'payment_date', 'reference_number')
     list_filter = ('payment_method', 'payment_date')
     search_fields = ('order__order_number', 'reference_number', 'notes')

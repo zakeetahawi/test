@@ -2,10 +2,9 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
 from .models import Customer, CustomerCategory, CustomerNote
-from data_import_export.admin import AdminMultiSheetImportExportMixin
 
 @admin.register(CustomerCategory)
-class CustomerCategoryAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class CustomerCategoryAdmin(admin.ModelAdmin):
     list_display = ['name', 'description', 'created_at']
     search_fields = ['name', 'description']
     readonly_fields = ['created_at']
@@ -27,17 +26,17 @@ class CustomerNoteAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 @admin.register(Customer)
-class CustomerAdmin(AdminMultiSheetImportExportMixin, admin.ModelAdmin):
+class CustomerAdmin(admin.ModelAdmin):
     list_display = [
-        'code', 'customer_image', 'name', 'customer_type', 
+        'code', 'customer_image', 'name', 'customer_type',
         'branch', 'phone', 'status', 'category'
     ]
     list_filter = [
-        'status', 'customer_type', 'category', 
+        'status', 'customer_type', 'category',
         'branch', 'created_at'
     ]
     search_fields = [
-        'code', 'name', 'phone', 'email', 
+        'code', 'name', 'phone', 'email',
         'notes', 'category__name'
     ]
     readonly_fields = ['created_by', 'created_at', 'updated_at']

@@ -165,3 +165,130 @@ def format_number(value):
             return f"{value:.0f}"
     except (ValueError, TypeError):
         return "0"
+
+@register.filter
+def div(value, arg):
+    """قسمة قيمة على أخرى"""
+    try:
+        return float(value) / float(arg)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return 0
+
+@register.filter
+def divide(value, arg):
+    """قسمة قيمة على أخرى (اسم بديل لـ div)"""
+    try:
+        return float(value) / float(arg)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return 0
+
+@register.filter
+def mul(value, arg):
+    """ضرب قيمة في أخرى"""
+    try:
+        return float(value) * float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def multiply(value, arg):
+    """ضرب قيمة في أخرى (اسم بديل لـ mul)"""
+    try:
+        return float(value) * float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def sub(value, arg):
+    """طرح قيمة من أخرى"""
+    try:
+        return float(value) - float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def subtract(value, arg):
+    """طرح قيمة من أخرى (اسم بديل لـ sub)"""
+    try:
+        return float(value) - float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def add(value, arg):
+    """جمع قيمتين"""
+    try:
+        return float(value) + float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def sum_attr(items, attr):
+    """جمع قيمة صفة معينة في قائمة من الكائنات"""
+    try:
+        total = 0
+        for item in items:
+            if isinstance(item, dict):
+                total += float(item.get(attr, 0) or 0)
+            else:
+                total += float(getattr(item, attr, 0) or 0)
+        return total
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
+@register.filter
+def avg_attr(items, attr):
+    """حساب متوسط قيمة صفة معينة في قائمة من الكائنات"""
+    try:
+        if not items:
+            return 0
+        total = 0
+        count = 0
+        for item in items:
+            if isinstance(item, dict):
+                value = item.get(attr, 0) or 0
+                total += float(value)
+                count += 1
+            else:
+                value = getattr(item, attr, 0) or 0
+                total += float(value)
+                count += 1
+        return total / count if count > 0 else 0
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
+@register.filter
+def max_attr(items, attr):
+    """الحصول على أقصى قيمة لصفة معينة في قائمة من الكائنات"""
+    try:
+        if not items:
+            return 0
+        values = []
+        for item in items:
+            if isinstance(item, dict):
+                value = item.get(attr, 0) or 0
+                values.append(float(value))
+            else:
+                value = getattr(item, attr, 0) or 0
+                values.append(float(value))
+        return max(values) if values else 0
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
+@register.filter
+def min_attr(items, attr):
+    """الحصول على أدنى قيمة لصفة معينة في قائمة من الكائنات"""
+    try:
+        if not items:
+            return 0
+        values = []
+        for item in items:
+            if isinstance(item, dict):
+                value = item.get(attr, 0) or 0
+                values.append(float(value))
+            else:
+                value = getattr(item, attr, 0) or 0
+                values.append(float(value))
+        return min(values) if values else 0
+    except (ValueError, TypeError, AttributeError):
+        return 0

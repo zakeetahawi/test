@@ -1,19 +1,16 @@
 """
-Create a test order with shipping details to demonstrate the shipping integration
+Create a test order for demonstration purposes
 """
 import os
 import django
-import datetime
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm.settings')
 django.setup()
 
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 from customers.models import Customer
 from accounts.models import Branch
 from orders.models import Order, OrderItem, Product
-from orders.services.shipping_service import ShippingService
 
 def create_test_order():
     # Use the admin user
@@ -69,34 +66,14 @@ def create_test_order():
         item_type='fabric'
     )
 
-    # Create shipping details using the shipping service
-    shipping = ShippingService.create_shipping_details(
-        order=order,
-        shipping_provider='aramex',
-        tracking_number='TEST123456',
-        estimated_delivery_date=timezone.now() + datetime.timedelta(days=3),
-        shipping_cost=50,
-        recipient_name=customer.name,
-        recipient_phone=customer.phone,
-        shipping_notes='طلب تجريبي لاختبار نظام الشحن'
-    )
-
-    # Update shipping status to demonstrate status changes
-    ShippingService.update_shipping_status(
-        order=order,
-        new_status='scheduled',
-        notes='تم جدولة الشحنة للتسليم'
-    )
+    # تم إزالة إنشاء تفاصيل الشحن لأن نظام الشحن تم إزالته من النظام
 
     print(f"""
 تم إنشاء طلب تجريبي بنجاح:
 - رقم الطلب: {order.order_number}
 - العميل: {order.customer.name}
 - عنوان التسليم: {order.delivery_address}
-- حالة الشحن: {shipping.get_shipping_status_display()}
-- شركة الشحن: {shipping.get_shipping_provider_display()}
-- رقم التتبع: {shipping.tracking_number}
-- تاريخ التسليم المتوقع: {shipping.estimated_delivery_date}
+- حالة الطلب: {order.get_tracking_status_display()}
 """)
 
     return order

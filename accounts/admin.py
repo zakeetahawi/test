@@ -165,9 +165,10 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'department_type', 'is_active', 'parent', 'manager')
-    list_filter = (DepartmentFilter, 'department_type', 'is_active', 'parent')
+    list_display = ('name', 'code', 'department_type', 'is_active', 'is_core', 'parent', 'manager')
+    list_filter = (DepartmentFilter, 'department_type', 'is_active', 'is_core', 'parent')
     search_fields = ('name', 'code', 'description')
+    readonly_fields = ('is_core',)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -185,6 +186,11 @@ class DepartmentAdmin(admin.ModelAdmin):
                 department_ids.add(child.id)
         return qs.filter(id__in=department_ids)
 
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.is_core:
+            return False  # لا يمكن حذف الأقسام الأساسية
+        return super().has_delete_permission(request, obj)
+
     fieldsets = (
         (_('معلومات أساسية'), {
             'fields': ('name', 'code', 'department_type', 'description', 'is_active')
@@ -195,6 +201,11 @@ class DepartmentAdmin(admin.ModelAdmin):
         (_('خيارات إضافية'), {
             'fields': ('order', 'icon', 'url_name', 'has_pages'),
             'classes': ('collapse',),
+        }),
+        (_('معلومات النظام'), {
+            'fields': ('is_core',),
+            'classes': ('collapse',),
+            'description': _('الأقسام الأساسية هي جزء من أساس التطبيق ولا يمكن حذفها أو تعديلها بشكل كامل.'),
         }),
     )
     autocomplete_fields = ['parent', 'manager']

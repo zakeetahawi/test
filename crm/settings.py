@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
-import django
+# import django
 
 # Excluir Debug Toolbar cuando se ejecutan pruebas
 TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     'orders',
     'reports',
     'data_management.apps.DataManagementConfig',  # تطبيق إدارة البيانات الموحد
-    'db_manager',  # تطبيق إدارة قواعد البيانات
     'corsheaders',
     'django_apscheduler', # إضافة مكتبة جدولة المهام
     'dbbackup',  # إضافة تطبيق النسخ الاحتياطي
@@ -75,7 +74,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'crm.middleware.PerformanceMiddleware',  # وسيط قياس وتحسين الأداء
-    'crm.middleware.LazyLoadMiddleware',  # وسيط التحميل الكسول للصور
+    'crm.middleware.LazyLoadMiddleware'  # وسيط التحميل الكسول للصور
 ]
 
 if DEBUG:
@@ -123,13 +122,84 @@ CHANNEL_LAYERS = {
 }
 
 # Database
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
+# تحميل إعدادات قاعدة البيانات من الملف الخارجي
+try:
+    from data_management.db_settings import get_active_database_settings, reset_to_default_settings
+
+    # الحصول على إعدادات قاعدة البيانات النشطة
+    db_settings = get_active_database_settings()
+    active_db_id = db_settings.get('active_db')
+
+    if active_db_id and str(active_db_id) in db_settings.get('databases', {}):
+        # استخدام إعدادات قاعدة البيانات النشطة
+        active_db_settings = db_settings['databases'][str(active_db_id)]
+
+        # تحقق من وجود معلمة reset_db في عنوان URL
+        if os.environ.get('RESET_DB') == '1':
+            # إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية
+            reset_to_default_settings()
+            print("تم إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية")
+
+            # استخدام إعدادات قاعدة البيانات الافتراضية
+            DATABASES = {
+                'default': dj_database_url.config(
+                    default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
+                    conn_max_age=600,
+                    conn_health_checks=True,
+                )
+            }
+        else:
+            # استخدام إعدادات قاعدة البيانات النشطة
+            DATABASES = {
+                'default': {
+                    'ENGINE': active_db_settings.get('ENGINE', 'django.db.backends.postgresql'),
+                    'NAME': active_db_settings.get('NAME', 'crm_system'),
+                    'USER': active_db_settings.get('USER', 'crm_user'),
+                    'PASSWORD': active_db_settings.get('PASSWORD', '5525'),
+                    'HOST': active_db_settings.get('HOST', 'localhost'),
+                    'PORT': active_db_settings.get('PORT', '5432'),
+                    'ATOMIC_REQUESTS': False,
+                    'AUTOCOMMIT': True,
+                    'CONN_MAX_AGE': 600,
+                    'CONN_HEALTH_CHECKS': True,
+                }
+            }
+
+            print(f"تم تحميل إعدادات قاعدة البيانات النشطة: {active_db_settings.get('NAME')}")
+    else:
+        # استخدام إعدادات قاعدة البيانات الافتراضية
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
+                conn_max_age=600,
+                conn_health_checks=True,
+            )
+        }
+
+        print("تم تحميل إعدادات قاعدة البيانات الافتراضية")
+except Exception as e:
+    # في حالة حدوث خطأ، استخدم الإعدادات الافتراضية
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+
+    print(f"حدث خطأ أثناء تحميل إعدادات قاعدة البيانات: {str(e)}")
+
+    # محاولة إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية
+    try:
+        from data_management.db_settings import reset_to_default_settings
+        reset_to_default_settings()
+        print("تم إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية")
+    except Exception as reset_error:
+        print(f"حدث خطأ أثناء إعادة تعيين إعدادات قاعدة البيانات: {str(reset_error)}")
+
+# إضافة إعدادات إضافية لقاعدة البيانات
+DATABASES['default']['ATOMIC_REQUESTS'] = False
+DATABASES['default']['AUTOCOMMIT'] = True
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

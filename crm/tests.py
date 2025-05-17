@@ -39,14 +39,13 @@ class HomeViewTest(TestCase):
             name='منتج لوحة المعلومات',
             code='PRDDASH1',
             category=self.category,
-            unit='piece',
             price=100
         )
 
     def test_home_view(self):
         response = self.client.get(reverse('home'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'لوحة')
+        self.assertContains(response, 'مرحباً بك')
 
     def test_about_view(self):
         response = self.client.get(reverse('about'))

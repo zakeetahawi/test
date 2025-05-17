@@ -10,12 +10,11 @@ class ProductModelTest(TestCase):
             name='منتج تجريبي',
             code='PRD001',
             category=self.category,
-            unit='piece',
             price=100
         )
 
     def test_product_str(self):
-        self.assertEqual(str(self.product), 'منتج تجريبي (PRD001)')
+        self.assertEqual(str(self.product), 'منتج تجريبي')
 
     def test_product_code_unique(self):
         with self.assertRaises(Exception):
@@ -23,7 +22,6 @@ class ProductModelTest(TestCase):
                 name='منتج آخر',
                 code='PRD001',
                 category=self.category,
-                unit='piece',
                 price=200
             )
 
@@ -37,13 +35,12 @@ class ProductViewsTest(TestCase):
             name='منتج تجريبي',
             code='PRD002',
             category=self.category,
-            unit='piece',
             price=150
         )
         self.client.login(username='testuser', password='testpass123')
 
     def test_inventory_list_view(self):
-        response = self.client.get(reverse('inventory:inventory_list'))
+        response = self.client.get(reverse('inventory:product_list'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'منتج تجريبي')
 
@@ -52,7 +49,6 @@ class ProductViewsTest(TestCase):
             'name': 'منتج جديد',
             'code': 'PRD003',
             'category': self.category.id,
-            'unit': 'piece',
             'price': 300,
             'description': 'منتج جديد للاختبار',
             'minimum_stock': 5

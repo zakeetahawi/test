@@ -16,6 +16,9 @@ urlpatterns = [
     path('databases/<int:pk>/update/', views.database_update, name='database_update'),
     path('databases/<int:pk>/delete/', views.database_delete, name='database_delete'),
     path('databases/<int:pk>/set-default/', views.database_set_default, name='database_set_default'),
+    path('databases/<int:pk>/set-active/', views.database_set_active, name='database_set_active'),
+    path('databases/reload/', views.database_reload, name='database_reload'),
+    path('databases/reset-settings/', views.reset_database_settings, name='reset_database_settings'),
     path('test-current-connection/', views.test_current_database_connection, name='test_current_connection'),
 
     # النسخ الاحتياطي والاستعادة

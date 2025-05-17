@@ -10,9 +10,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3"><i class="fas fa-tools"></i> لوحة تحكم التركيبات</h1>
         <div>
-            <a href="{% url 'installations:transport_create' %}" class="btn btn-info me-2">
-                <i class="fas fa-truck"></i> طلب نقل جديد
-            </a>
             <a href="{% url 'installations:installation_create' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> تركيب جديد
             </a>
@@ -22,38 +19,38 @@
     <!-- Statistics Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
+            <div class="card bg-warning text-white mb-3">
+                <div class="card-body">
+                    <h6 class="card-title">التركيبات المعلقة</h6>
+                    <h2 class="mb-0">{{ pending_installations_count }}</h2>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <span>بانتظار الجدولة</span>
+                    <i class="fas fa-clock"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card bg-info text-white mb-3">
                 <div class="card-body">
-                    <h6 class="card-title">التركيبات مع النقل المجدول</h6>
-                    <h2 class="mb-0">{{ installations_with_transport }}</h2>
+                    <h6 class="card-title">التركيبات قيد التنفيذ</h6>
+                    <h2 class="mb-0">{{ in_progress_installations_count }}</h2>
                 </div>
                 <div class="card-footer d-flex justify-content-between align-items-center">
-                    <span>تركيب + نقل</span>
-                    <i class="fas fa-shipping-fast"></i>
+                    <span>قيد التنفيذ</span>
+                    <i class="fas fa-cogs"></i>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white mb-3">
-                <div class="card-body">
-                    <h6 class="card-title">طلبات النقل فقط (منفصلة)</h6>
-                    <h2 class="mb-0">{{ separate_transport_requests }}</h2>
-                </div>
-                <div class="card-footer d-flex justify-content-between align-items-center">
-                    <span>النقل فقط</span>
-                    <i class="fas fa-truck"></i>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card bg-danger text-white">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">تركيبات جديدة</h6>
-                            <h2 class="mb-0">{{ new_installations_count }}</h2>
+                            <h6 class="card-title">تركيبات متأخرة</h6>
+                            <h2 class="mb-0">{{ overdue_installations_count }}</h2>
                         </div>
-                        <i class="fas fa-tools fa-2x opacity-50"></i>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
                     </div>
                 </div>
             </div>
@@ -99,14 +96,28 @@
                                 {% for installation in recent_installations %}
                                 <tr>
                                     <td>#{{ installation.id }}</td>
-                                    <td>{{ installation.customer.name }}</td>
+                                    <td>{{ installation.order.customer.name }}</td>
                                     <td>{{ installation.scheduled_date|date:"Y-m-d" }}</td>
                                     <td>
-                                        <span class="badge bg-{{ installation.get_status_color }}">
-                                            {{ installation.get_status_display }}
-                                        </span>
+                                        {% if installation.status == 'pending' %}
+                                            <span class="badge bg-warning">{{ installation.get_status_display }}</span>
+                                        {% elif installation.status == 'scheduled' %}
+                                            <span class="badge bg-info">{{ installation.get_status_display }}</span>
+                                        {% elif installation.status == 'in_progress' %}
+                                            <span class="badge bg-primary">{{ installation.get_status_display }}</span>
+                                        {% elif installation.status == 'completed' %}
+                                            <span class="badge bg-success">{{ installation.get_status_display }}</span>
+                                        {% elif installation.status == 'cancelled' %}
+                                            <span class="badge bg-danger">{{ installation.get_status_display }}</span>
+                                        {% endif %}
                                     </td>
-                                    <td>{{ installation.team_leader.get_full_name }}</td>
+                                    <td>
+                                        {% if installation.team %}
+                                            {{ installation.team.name }}
+                                        {% else %}
+                                            <span class="text-muted">غير محدد</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <a href="{% url 'installations:installation_detail' installation.id %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
@@ -125,28 +136,36 @@
             </div>
         </div>
 
-        <!-- Transport Requests -->
+        <!-- Recent Quality Checks -->
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header bg-light">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-truck"></i> طلبات النقل الأخيرة
+                        <i class="fas fa-clipboard-check"></i> فحوصات الجودة الأخيرة
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="list-group">
-                        {% for transport in recent_transports %}
-                        <a href="{% url 'installations:transport_detail' transport.id %}" class="list-group-item list-group-item-action">
+                        {% for check in recent_quality_checks %}
+                        <div class="list-group-item">
                             <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">#{{ transport.id }} - {{ transport.customer.name }}</h6>
-                                <small class="text-muted">{{ transport.scheduled_date|date:"Y-m-d" }}</small>
+                                <h6 class="mb-1">تركيب #{{ check.installation.id }}</h6>
+                                <small class="text-muted">{{ check.created_at|date:"Y-m-d" }}</small>
                             </div>
-                            <p class="mb-1">{{ transport.address }}</p>
-                            <small class="text-{{ transport.get_status_color }}">{{ transport.get_status_display }}</small>
-                        </a>
+                            <p class="mb-1">{{ check.get_criteria_display }}</p>
+                            <div class="star-rating">
+                                {% for i in "12345"|make_list %}
+                                    {% if forloop.counter <= check.rating %}
+                                        <i class="fas fa-star text-warning"></i>
+                                    {% else %}
+                                        <i class="far fa-star text-muted"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
                         {% empty %}
                         <div class="text-center p-3">
-                            لا توجد طلبات نقل حديثة
+                            لا توجد فحوصات جودة حديثة
                         </div>
                         {% endfor %}
                     </div>
@@ -168,7 +187,7 @@
     </div>
 </div>
 
-{{ new_installations_count|default_if_none:0|json_script:"newCount" }}
+{{ pending_installations_count|default_if_none:0|json_script:"pendingCount" }}
 {{ completed_installations_count|default_if_none:0|json_script:"completedCount" }}
 {{ in_progress_installations_count|default_if_none:0|json_script:"inProgressCount" }}
 {{ overdue_installations_count|default_if_none:0|json_script:"overdueCount" }}
@@ -178,7 +197,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const chartData = {
-        newCount: JSON.parse(document.getElementById('newCount').textContent),
+        pendingCount: JSON.parse(document.getElementById('pendingCount').textContent),
         completedCount: JSON.parse(document.getElementById('completedCount').textContent),
         inProgressCount: JSON.parse(document.getElementById('inProgressCount').textContent),
         overdueCount: JSON.parse(document.getElementById('overdueCount').textContent)
@@ -188,19 +207,19 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['جديدة', 'مكتملة', 'قيد التنفيذ', 'متأخرة'],
+            labels: ['معلقة', 'مكتملة', 'قيد التنفيذ', 'متأخرة'],
             datasets: [{
                 data: [
-                    chartData.newCount,
+                    chartData.pendingCount,
                     chartData.completedCount,
                     chartData.inProgressCount,
                     chartData.overdueCount
                 ],
                 backgroundColor: [
-                    '#0d6efd',
-                    '#198754',
-                    '#0dcaf0',
-                    '#dc3545'
+                    '#ffc107',  // warning for pending
+                    '#198754',  // success for completed
+                    '#0d6efd',  // primary for in_progress
+                    '#dc3545'   // danger for overdue
                 ]
             }]
         },

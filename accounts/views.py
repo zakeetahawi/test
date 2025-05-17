@@ -3,16 +3,14 @@ from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
-from django.utils import timezone
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.contrib.admin.views.decorators import staff_member_required
-from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 
 from .models import Notification, CompanyInfo, FormField, Department, Salesperson, Branch, Role, UserRole
 from .utils import get_user_notifications
-from .forms import CompanyInfoForm, FormFieldForm, DepartmentForm, SalespersonForm, RoleForm, RoleAssignForm, UserRoleForm
+from .forms import CompanyInfoForm, FormFieldForm, DepartmentForm, SalespersonForm, RoleForm, RoleAssignForm
 
 # الحصول على نموذج المستخدم المخصص
 User = get_user_model()
@@ -21,7 +19,7 @@ def login_view(request):
     """
     View for user login
     """
-    from db_manager.models import SetupToken, DatabaseConfig
+    from data_management.modules.db_manager.models import SetupToken, DatabaseConfig
 
     # التحقق من وجود مستخدمين في النظام
     if User.objects.count() == 0:
@@ -41,7 +39,6 @@ def login_view(request):
         # التحقق من وجود قاعدة بيانات نشطة
         if not DatabaseConfig.objects.filter(is_active=True).exists():
             # إنشاء قاعدة بيانات افتراضية
-            from django.conf import settings
             import os
 
             DatabaseConfig.objects.create(
@@ -68,58 +65,43 @@ def login_view(request):
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password')
 
-            # التعامل مع المستخدمين المكررين
+            # استخدام طريقة المصادقة المحسنة
             try:
-                # استخدام raw SQL للحصول على المستخدم
-                from django.db import connection
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "SELECT id FROM accounts_user WHERE username = %s LIMIT 1",
-                        [username]
-                    )
-                    result = cursor.fetchone()
+                # البحث عن المستخدم باستخدام ORM
+                user_obj = User.objects.filter(username=username).first()
 
-                if result:
-                    user_id = result[0]
-                    user_obj = User.objects.get(id=user_id)
-
-                    # التحقق من كلمة المرور يدويًا
-                    if user_obj.check_password(password):
-                        # تسجيل الدخول يدويًا
-                        login(request, user_obj)
-                        messages.success(request, f'مرحباً بك {username}!')
-                        next_url = request.GET.get('next', 'home')
-                        return redirect(next_url)
-                    else:
-                        messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                if user_obj and user_obj.check_password(password):
+                    # تسجيل الدخول مع تحديد backend
+                    from django.contrib.auth import get_backends
+                    backend = get_backends()[0]  # استخدام أول backend متاح
+                    user_obj.backend = f"{backend.__module__}.{backend.__class__.__name__}"
+                    login(request, user_obj)
+                    messages.success(request, f'مرحباً بك {username}!')
+                    next_url = request.GET.get('next', 'home')
+                    return redirect(next_url)
                 else:
                     messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
             except Exception as e:
                 # تسجيل الخطأ
-                import traceback
-                print(f"[Login Error] {e}")
-                traceback.print_exc()
+                import logging
+                logger = logging.getLogger('django')
+                logger.error(f"[Login Error] {e}")
 
                 # محاولة المصادقة العادية كخطة بديلة
-                try:
-                    # استخدام طريقة المصادقة العادية
-                    user = authenticate(username=username, password=password)
-                    if user is not None:
-                        login(request, user)
-                        messages.success(request, f'مرحباً بك {username}!')
-                        next_url = request.GET.get('next', 'home')
-                        return redirect(next_url)
-                    else:
-                        messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
-                except Exception as auth_error:
-                    print(f"[Authentication Error] {auth_error}")
-                    traceback.print_exc()
-                    messages.error(request, 'حدث خطأ أثناء محاولة تسجيل الدخول. يرجى المحاولة مرة أخرى.')
-            else:
-                messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
-                # Add CSS classes to form fields
-                form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
-                form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
+                from django.contrib.auth import get_backends
+                backend = get_backends()[0]  # استخدام أول backend متاح
+                user = authenticate(request=request, username=username, password=password)
+                if user is not None:
+                    login(request, user)
+                    messages.success(request, f'مرحباً بك {username}!')
+                    next_url = request.GET.get('next', 'home')
+                    return redirect(next_url)
+                else:
+                    messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+
+            # Add CSS classes to form fields
+            form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
+            form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
         else:
             messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
             # Add CSS classes to form fields
@@ -268,7 +250,7 @@ def company_info_view(request):
         View for managing company information
         """
         # Get or create company info
-        company, created = CompanyInfo.objects.get_or_create(
+        company, _ = CompanyInfo.objects.get_or_create(
             defaults={
                 'name': 'شركة الخواجه',
                 'address': 'العنوان',

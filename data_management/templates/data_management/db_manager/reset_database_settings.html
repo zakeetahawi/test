@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "إعادة تعيين إعدادات قاعدة البيانات" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0 d-flex justify-content-between align-items-center">
+                    <h6>{% trans "إعادة تعيين إعدادات قاعدة البيانات" %}</h6>
+                    <a href="{% url 'data_management:database_list' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <h4 class="alert-heading">{% trans "تحذير!" %}</h4>
+                        <p>{% trans "سيؤدي هذا الإجراء إلى إعادة تعيين جميع إعدادات قاعدة البيانات إلى الإعدادات الافتراضية." %}</p>
+                        <hr>
+                        <p class="mb-0">{% trans "سيتم استخدام إعدادات قاعدة البيانات الافتراضية المحددة في ملف settings.py." %}</p>
+                        <p class="mb-0">{% trans "يجب إعادة تشغيل الخادم بعد هذا الإجراء لتطبيق التغييرات." %}</p>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-exclamation-triangle"></i> {% trans "نعم، إعادة تعيين إعدادات قاعدة البيانات" %}
+                        </button>
+                        <a href="{% url 'data_management:database_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> {% trans "إلغاء" %}
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,11 +1,8 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.core.exceptions import ValidationError
 from accounts.models import User, Branch
 import uuid
 from datetime import datetime
-from django.core.validators import MinValueValidator
-from django.contrib.auth import get_user_model
 from .managers import ProductManager
 from django.db.models import Sum
 
@@ -386,14 +383,6 @@ class PurchaseOrderItem(models.Model):
     def __str__(self):
         return f"{self.purchase_order.order_number} - {self.product.name} ({self.quantity})"
 
-    @property
-    def subtotal(self):
-        return self.quantity * self.unit_price
-
-    @property
-    def is_fully_received(self):
-        return self.received_quantity >= self.quantity
-
 class InventoryAdjustment(models.Model):
     """
     Model for inventory adjustments
@@ -507,47 +496,3 @@ class StockAlert(models.Model):
 
     def __str__(self):
         return f"{self.get_alert_type_display()} - {self.product.name}"
-
-    @classmethod
-    def create_low_stock_alert(cls, product):
-        """Create a low stock alert for a product"""
-        if product.current_stock <= product.minimum_stock and product.current_stock > 0:
-            # Check if there's already an active alert
-            existing_alert = cls.objects.filter(
-                product=product,
-                alert_type='low_stock',
-                status='active'
-            ).first()
-
-            if not existing_alert:
-                return cls.objects.create(
-                    product=product,
-                    alert_type='low_stock',
-                    message=f"المنتج {product.name} وصل للحد الأدنى للمخزون",
-                    description=f"المخزون الحالي: {product.current_stock}, الحد الأدنى: {product.minimum_stock}",
-                    priority='medium'
-                )
-            return existing_alert
-        return None
-
-    @classmethod
-    def create_out_of_stock_alert(cls, product):
-        """Create an out of stock alert for a product"""
-        if product.current_stock <= 0:
-            # Check if there's already an active alert
-            existing_alert = cls.objects.filter(
-                product=product,
-                alert_type='out_of_stock',
-                status='active'
-            ).first()
-
-            if not existing_alert:
-                return cls.objects.create(
-                    product=product,
-                    alert_type='out_of_stock',
-                    message=f"المنتج {product.name} نفذ من المخزون",
-                    description=f"المخزون الحالي: {product.current_stock}, يرجى إعادة الطلب",
-                    priority='high'
-                )
-            return existing_alert
-        return None

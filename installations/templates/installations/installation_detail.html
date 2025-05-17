@@ -2,6 +2,48 @@
 {% load static %}
 {% load i18n %}
 
+{% block extra_css %}
+<style>
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-bottom: 20px;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -30px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 3px #ddd;
+    }
+
+    .timeline-item:not(:last-child):after {
+        content: '';
+        position: absolute;
+        left: -23px;
+        top: 15px;
+        height: calc(100% - 15px);
+        width: 2px;
+        background-color: #ddd;
+    }
+
+    .star-rating {
+        display: inline-flex;
+    }
+
+    .star-rating i {
+        margin-right: 2px;
+    }
+</style>
+{% endblock %}
+
 {% block title %}{% trans "تفاصيل التركيب" %} #{{ installation.id }}{% endblock %}
 
 {% block content %}
@@ -40,18 +82,24 @@
                             <p>{{ installation.order.order_number }}</p>
                         </div>
                         <div class="col-md-6">
-                            <p class="mb-1"><strong>{% trans "رقم الفاتورة:" %}</strong></p>
-                            <p>{{ installation.invoice_number }}</p>
+                            <p class="mb-1"><strong>{% trans "المعاينة:" %}</strong></p>
+                            <p>
+                                {% if installation.inspection %}
+                                    {{ installation.inspection.contract_number }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "غير مرتبط بمعاينة" %}</span>
+                                {% endif %}
+                            </p>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p class="mb-1"><strong>{% trans "العميل:" %}</strong></p>
-                            <p>{{ installation.customer.name }}</p>
+                            <p>{{ installation.order.customer.name }}</p>
                         </div>
                         <div class="col-md-6">
                             <p class="mb-1"><strong>{% trans "الفرع:" %}</strong></p>
-                            <p>{{ installation.branch.name }}</p>
+                            <p>{{ installation.order.branch.name }}</p>
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -72,12 +120,20 @@
                             </p>
                         </div>
                         <div class="col-md-6">
-                            <p class="mb-1"><strong>{% trans "تم التحقق من السداد:" %}</strong></p>
+                            <p class="mb-1"><strong>{% trans "تقييم الجودة:" %}</strong></p>
                             <p>
-                                {% if installation.payment_verified %}
-                                    <span class="badge bg-success">{% trans "نعم" %}</span>
+                                {% if installation.quality_rating %}
+                                    <div class="star-rating">
+                                        {% for i in "12345"|make_list %}
+                                            {% if forloop.counter <= installation.quality_rating %}
+                                                <i class="fas fa-star text-warning"></i>
+                                            {% else %}
+                                                <i class="far fa-star text-muted"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
                                 {% else %}
-                                    <span class="badge bg-danger">{% trans "لا" %}</span>
+                                    <span class="text-muted">{% trans "غير مقيم" %}</span>
                                 {% endif %}
                             </p>
                         </div>
@@ -87,17 +143,17 @@
                             <p class="mb-1"><strong>{% trans "موعد التركيب:" %}</strong></p>
                             <p>
                                 {% if installation.scheduled_date %}
-                                    {{ installation.scheduled_date|date:"Y-m-d H:i" }}
+                                    {{ installation.scheduled_date|date:"Y-m-d" }}
                                 {% else %}
                                     <span class="text-muted">{% trans "غير محدد" %}</span>
                                 {% endif %}
                             </p>
                         </div>
                         <div class="col-md-6">
-                            <p class="mb-1"><strong>{% trans "الفني المسؤول:" %}</strong></p>
+                            <p class="mb-1"><strong>{% trans "فريق التركيب:" %}</strong></p>
                             <p>
-                                {% if installation.technician %}
-                                    {{ installation.technician.get_full_name }}
+                                {% if installation.team %}
+                                    {{ installation.team.name }}
                                 {% else %}
                                     <span class="text-muted">{% trans "غير محدد" %}</span>
                                 {% endif %}
@@ -121,13 +177,13 @@
                     <div class="row">
                         <div class="col-md-6">
                             <small class="text-muted">
-                                <strong>{% trans "تم الإنشاء بواسطة:" %}</strong> 
+                                <strong>{% trans "تم الإنشاء بواسطة:" %}</strong>
                                 {{ installation.created_by.get_full_name }}
                             </small>
                         </div>
                         <div class="col-md-6">
                             <small class="text-muted">
-                                <strong>{% trans "تاريخ الإنشاء:" %}</strong> 
+                                <strong>{% trans "تاريخ الإنشاء:" %}</strong>
                                 {{ installation.created_at|date:"Y-m-d H:i" }}
                             </small>
                         </div>
@@ -136,103 +192,130 @@
             </div>
         </div>
 
-        <!-- Customer Information -->
+        <!-- Installation Timeline -->
         <div class="col-md-4">
             <div class="card mb-4">
                 <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">{% trans "معلومات العميل" %}</h5>
+                    <h5 class="mb-0">{% trans "جدول التركيب" %}</h5>
                 </div>
                 <div class="card-body">
-                    <p><strong>{% trans "الاسم:" %}</strong> {{ installation.customer.name }}</p>
-                    <p><strong>{% trans "رقم الهاتف:" %}</strong> {{ installation.customer.phone }}</p>
-                    <p><strong>{% trans "البريد الإلكتروني:" %}</strong> 
-                        {% if installation.customer.email %}
-                            {{ installation.customer.email }}
-                        {% else %}
-                            <span class="text-muted">{% trans "غير متوفر" %}</span>
-                        {% endif %}
-                    </p>
-                    <p><strong>{% trans "العنوان:" %}</strong> {{ installation.customer.address }}</p>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if installation.created_at %}bg-success{% else %}bg-light{% endif %}"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-0">{% trans "تم إنشاء التركيب" %}</h6>
+                                <small class="text-muted">{{ installation.created_at|date:"Y-m-d H:i" }}</small>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if installation.status == 'scheduled' or installation.status == 'in_progress' or installation.status == 'completed' %}bg-success{% else %}bg-light{% endif %}"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-0">{% trans "تم جدولة التركيب" %}</h6>
+                                <small class="text-muted">
+                                    {% if installation.scheduled_date %}
+                                        {{ installation.scheduled_date|date:"Y-m-d" }}
+                                    {% else %}
+                                        {% trans "غير محدد" %}
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if installation.actual_start_date %}bg-success{% else %}bg-light{% endif %}"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-0">{% trans "بدء التركيب" %}</h6>
+                                <small class="text-muted">
+                                    {% if installation.actual_start_date %}
+                                        {{ installation.actual_start_date|date:"Y-m-d H:i" }}
+                                    {% else %}
+                                        {% trans "لم يبدأ بعد" %}
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if installation.actual_end_date %}bg-success{% else %}bg-light{% endif %}"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-0">{% trans "اكتمال التركيب" %}</h6>
+                                <small class="text-muted">
+                                    {% if installation.actual_end_date %}
+                                        {{ installation.actual_end_date|date:"Y-m-d H:i" }}
+                                    {% else %}
+                                        {% trans "لم يكتمل بعد" %}
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-footer bg-light">
-                    <a href="#" class="btn btn-sm btn-outline-info w-100">
-                        <i class="fas fa-user"></i> {% trans "عرض ملف العميل" %}
+                    <a href="{% url 'installations:installation_update' installation.id %}" class="btn btn-sm btn-outline-info w-100">
+                        <i class="fas fa-edit"></i> {% trans "تحديث الحالة" %}
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Transport Requests -->
+    <!-- Installation Steps -->
     <div class="card mb-4">
         <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">{% trans "طلبات النقل" %}</h5>
-            <a href="{% url 'installations:transport_create' %}" class="btn btn-sm btn-light">
-                <i class="fas fa-plus"></i> {% trans "إضافة طلب نقل" %}
-            </a>
+            <h5 class="mb-0">{% trans "خطوات التركيب" %}</h5>
+            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addStepModal">
+                <i class="fas fa-plus"></i> {% trans "إضافة خطوة" %}
+            </button>
         </div>
         <div class="card-body">
-            {% if transport_requests %}
+            {% if steps %}
                 <div class="table-responsive">
                     <table class="table table-striped table-hover">
                         <thead>
                             <tr>
-                                <th>{% trans "رقم" %}</th>
-                                <th>{% trans "من موقع" %}</th>
-                                <th>{% trans "إلى موقع" %}</th>
+                                <th>{% trans "الترتيب" %}</th>
+                                <th>{% trans "الخطوة" %}</th>
                                 <th>{% trans "الحالة" %}</th>
-                                <th>{% trans "موعد النقل" %}</th>
-                                <th>{% trans "السائق" %}</th>
+                                <th>{% trans "تاريخ الإكمال" %}</th>
+                                <th>{% trans "تم بواسطة" %}</th>
                                 <th>{% trans "إجراءات" %}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for transport in transport_requests %}
+                            {% for step in steps %}
                                 <tr>
-                                    <td>{{ transport.id }}</td>
-                                    <td>{{ transport.from_location }}</td>
-                                    <td>{{ transport.to_location }}</td>
+                                    <td>{{ step.order }}</td>
+                                    <td>{{ step.name }}</td>
                                     <td>
-                                        {% if transport.status == 'pending' %}
-                                            <span class="badge bg-warning">{{ transport.get_status_display }}</span>
-                                        {% elif transport.status == 'scheduled' %}
-                                            <span class="badge bg-info">{{ transport.get_status_display }}</span>
-                                        {% elif transport.status == 'in_progress' %}
-                                            <span class="badge bg-primary">{{ transport.get_status_display }}</span>
-                                        {% elif transport.status == 'completed' %}
-                                            <span class="badge bg-success">{{ transport.get_status_display }}</span>
-                                        {% elif transport.status == 'cancelled' %}
-                                            <span class="badge bg-danger">{{ transport.get_status_display }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if transport.scheduled_date %}
-                                            {{ transport.scheduled_date|date:"Y-m-d H:i" }}
+                                        {% if step.is_completed %}
+                                            <span class="badge bg-success">{% trans "مكتملة" %}</span>
                                         {% else %}
-                                            <span class="text-muted">{% trans "غير محدد" %}</span>
+                                            <span class="badge bg-warning">{% trans "قيد التنفيذ" %}</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if transport.driver %}
-                                            {{ transport.driver.get_full_name }}
+                                        {% if step.completed_at %}
+                                            {{ step.completed_at|date:"Y-m-d H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">{% trans "غير مكتملة" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if step.completed_by %}
+                                            {{ step.completed_by.get_full_name }}
                                         {% else %}
                                             <span class="text-muted">{% trans "غير محدد" %}</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
-                                            <a href="{% url 'installations:transport_detail' transport.id %}" 
-                                               class="btn btn-sm btn-info" title="{% trans 'عرض التفاصيل' %}">
+                                            <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#viewStepModal{{ step.id }}">
                                                 <i class="fas fa-eye"></i>
-                                            </a>
-                                            <a href="{% url 'installations:transport_update' transport.id %}" 
-                                               class="btn btn-sm btn-warning" title="{% trans 'تعديل' %}">
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editStepModal{{ step.id }}">
                                                 <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="{% url 'installations:transport_delete' transport.id %}" 
-                                               class="btn btn-sm btn-danger" title="{% trans 'حذف' %}">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-success" onclick="markStepComplete({{ step.id }})">
+                                                <i class="fas fa-check"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -242,7 +325,65 @@
                 </div>
             {% else %}
                 <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> {% trans "لا توجد طلبات نقل مرتبطة بهذا التركيب." %}
+                    <i class="fas fa-info-circle"></i> {% trans "لا توجد خطوات مضافة لهذا التركيب." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quality Checks -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{% trans "فحوصات الجودة" %}</h5>
+            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addQualityCheckModal">
+                <i class="fas fa-plus"></i> {% trans "إضافة فحص" %}
+            </button>
+        </div>
+        <div class="card-body">
+            {% if quality_checks %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "معيار التقييم" %}</th>
+                                <th>{% trans "التقييم" %}</th>
+                                <th>{% trans "تم بواسطة" %}</th>
+                                <th>{% trans "تاريخ الفحص" %}</th>
+                                <th>{% trans "إجراءات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for check in quality_checks %}
+                                <tr>
+                                    <td>{{ check.get_criteria_display }}</td>
+                                    <td>
+                                        <div class="star-rating">
+                                            {% for i in "12345"|make_list %}
+                                                {% if forloop.counter <= check.rating %}
+                                                    <i class="fas fa-star text-warning"></i>
+                                                {% else %}
+                                                    <i class="far fa-star text-muted"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    <td>{{ check.checked_by.get_full_name }}</td>
+                                    <td>{{ check.created_at|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#viewQualityCheckModal{{ check.id }}">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> {% trans "لا توجد فحوصات جودة لهذا التركيب." %}
                 </div>
             {% endif %}
         </div>

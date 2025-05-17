@@ -24,14 +24,12 @@
                         <p class="mb-0">{{ database.host }}:{{ database.port }} - {{ database.database_name }}</p>
                         <hr>
                         <p class="mb-0">{% trans "سيؤدي هذا الإجراء إلى حذف إعدادات قاعدة البيانات من النظام، ولكن لن يتم حذف قاعدة البيانات نفسها من الخادم." %}</p>
-                        {% if database.is_active %}
-                            <p class="mb-0 text-danger font-weight-bold">{% trans "تحذير: هذه قاعدة البيانات النشطة حاليًا!" %}</p>
-                        {% endif %}
+                        <p class="mb-0 text-danger font-weight-bold">{% trans "ملاحظة: لا يمكن حذف قاعدة البيانات النشطة. يجب تنشيط قاعدة بيانات أخرى أولاً." %}</p>
                         {% if database.is_default %}
-                            <p class="mb-0 text-danger font-weight-bold">{% trans "تحذير: هذه قاعدة البيانات الافتراضية!" %}</p>
+                            <p class="mb-0 text-warning font-weight-bold">{% trans "تحذير: هذه قاعدة البيانات الافتراضية! سيتم تعيين قاعدة بيانات أخرى كافتراضية." %}</p>
                         {% endif %}
                     </div>
-                    
+
                     <form method="post">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-danger">

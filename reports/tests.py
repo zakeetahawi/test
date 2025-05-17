@@ -19,7 +19,7 @@ class ReportModelTest(TestCase):
 class ReportViewsTest(TestCase):
     def setUp(self):
         self.User = get_user_model()
-        self.user = self.User.objects.create_user(username='reportuser', password='testpass123')
+        self.user = self.User.objects.create_user(username='reportuser', password='testpass123', is_staff=True, is_superuser=True)
         self.client = Client()
         self.client.login(username='reportuser', password='testpass123')
         self.report = Report.objects.create(

@@ -33,8 +33,8 @@
                 </div>
                 <div class="col-md-6">
                     <label for="search" class="form-label">{% trans "بحث" %}</label>
-                    <input type="text" name="search" id="search" class="form-control" 
-                           placeholder="{% trans 'اسم العميل، رقم الفاتورة، ملاحظات...' %}" 
+                    <input type="text" name="search" id="search" class="form-control"
+                           placeholder="{% trans 'رقم الطلب، ملاحظات...' %}"
                            value="{{ search_query }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -53,11 +53,11 @@
                 <thead class="table-dark">
                     <tr>
                         <th>{% trans "رقم" %}</th>
-                        <th>{% trans "العميل" %}</th>
-                        <th>{% trans "رقم الفاتورة" %}</th>
+                        <th>{% trans "رقم الطلب" %}</th>
                         <th>{% trans "الحالة" %}</th>
                         <th>{% trans "موعد التركيب" %}</th>
-                        <th>{% trans "الفرع" %}</th>
+                        <th>{% trans "فريق التركيب" %}</th>
+                        <th>{% trans "تقييم الجودة" %}</th>
                         <th>{% trans "إجراءات" %}</th>
                     </tr>
                 </thead>
@@ -65,8 +65,7 @@
                     {% for installation in installations %}
                         <tr>
                             <td>{{ installation.id }}</td>
-                            <td>{{ installation.customer.name }}</td>
-                            <td>{{ installation.invoice_number }}</td>
+                            <td>{{ installation.order.order_number }}</td>
                             <td>
                                 {% if installation.status == 'pending' %}
                                     <span class="badge bg-warning">{{ installation.get_status_display }}</span>
@@ -82,23 +81,44 @@
                             </td>
                             <td>
                                 {% if installation.scheduled_date %}
-                                    {{ installation.scheduled_date|date:"Y-m-d H:i" }}
+                                    {{ installation.scheduled_date|date:"Y-m-d" }}
                                 {% else %}
                                     <span class="text-muted">{% trans "غير محدد" %}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ installation.branch.name }}</td>
+                            <td>
+                                {% if installation.team %}
+                                    {{ installation.team.name }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "غير محدد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if installation.quality_rating %}
+                                    <div class="star-rating">
+                                        {% for i in "12345"|make_list %}
+                                            {% if forloop.counter <= installation.quality_rating %}
+                                                <i class="fas fa-star text-warning"></i>
+                                            {% else %}
+                                                <i class="far fa-star text-muted"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">{% trans "غير مقيم" %}</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <div class="btn-group" role="group">
-                                    <a href="{% url 'installations:installation_detail' installation.id %}" 
+                                    <a href="{% url 'installations:installation_detail' installation.id %}"
                                        class="btn btn-sm btn-info" title="{% trans 'عرض التفاصيل' %}">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{% url 'installations:installation_update' installation.id %}" 
+                                    <a href="{% url 'installations:installation_update' installation.id %}"
                                        class="btn btn-sm btn-warning" title="{% trans 'تعديل' %}">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{% url 'installations:installation_delete' installation.id %}" 
+                                    <a href="{% url 'installations:installation_delete' installation.id %}"
                                        class="btn btn-sm btn-danger" title="{% trans 'حذف' %}">
                                         <i class="fas fa-trash"></i>
                                     </a>

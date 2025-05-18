@@ -33,6 +33,7 @@ urlpatterns = [
 
     # استيراد البيانات
     path('import/', views.database_import, name='db_import'),
+    path('import/', views.database_import, name='db_import_form'),  # إضافة اسم مسار بديل
     path('import/<int:pk>/', views.import_detail, name='db_import_detail'),
     path('import/<int:pk>/status/', views.import_status, name='import_status'),
 

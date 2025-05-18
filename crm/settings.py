@@ -21,6 +21,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # تفعيل وضع التطوير بشكل دائم للكشف عن الأخطاء
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ['true', 't', '1', 'yes', 'y']
 
+# تفعيل تتبع الأخطاء في الإنتاج
+RAILWAY_DEBUG = os.environ.get('RAILWAY_DEBUG', 'True').lower() in ['true', 't', '1', 'yes', 'y']
+
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,web-production-f91f.up.railway.app').split(',')
 
 # Application definition
@@ -77,6 +80,7 @@ MIDDLEWARE = [
     'crm.middleware.PerformanceMiddleware',  # وسيط قياس وتحسين الأداء
     'crm.middleware.LazyLoadMiddleware',  # وسيط التحميل الكسول للصور
     'data_management.modules.db_manager.middleware.DefaultUserMiddleware',  # وسيط إنشاء المستخدم الافتراضي
+    'data_management.middleware.RailwayDebugMiddleware',  # وسيط تتبع الأخطاء في Railway
 ]
 
 if DEBUG:

@@ -1,11 +1,16 @@
 """
-وسيط إدارة قواعد البيانات
+وسيط إدارة قواعد البيانات وتتبع الأخطاء
 """
 
+import sys
+import traceback
 import logging
 from django.db import connections
 from django.conf import settings
 from django.core.cache import cache
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
 
@@ -127,3 +132,69 @@ class DatabaseSwitchMiddleware:
         connections.close_all()
 
         logger.info(f"تم تحديث إعدادات قاعدة البيانات إلى {database.name}")
+
+
+class RailwayDebugMiddleware(MiddlewareMixin):
+    """
+    وسيط لتتبع الأخطاء في بيئة Railway
+    """
+
+    def process_exception(self, request, exception):
+        """
+        معالجة الاستثناءات وعرض معلومات تفصيلية عنها في بيئة Railway
+        """
+        if hasattr(settings, 'RAILWAY_DEBUG') and settings.RAILWAY_DEBUG:
+            # تسجيل الخطأ
+            logger.error(f"[Railway Exception] {exception}")
+            logger.error(traceback.format_exc())
+
+            # إعداد معلومات الخطأ
+            exc_info = sys.exc_info()
+
+            # إعداد سياق القالب
+            context = {
+                'exception_type': exc_info[0].__name__ if exc_info[0] else 'Unknown',
+                'exception_value': str(exc_info[1]),
+                'exception_traceback': traceback.format_exception(*exc_info),
+                'request': request,
+                'request_meta': dict(request.META),
+                'request_path': request.path,
+                'request_method': request.method,
+                'request_GET': dict(request.GET),
+                'request_POST': dict(request.POST),
+                'request_user': request.user,
+                'settings': {
+                    'DEBUG': settings.DEBUG,
+                    'RAILWAY_DEBUG': getattr(settings, 'RAILWAY_DEBUG', False),
+                    'ALLOWED_HOSTS': settings.ALLOWED_HOSTS,
+                    'INSTALLED_APPS': settings.INSTALLED_APPS,
+                    'MIDDLEWARE': settings.MIDDLEWARE,
+                    'DATABASES': {
+                        'default': {
+                            'ENGINE': settings.DATABASES['default'].get('ENGINE', ''),
+                            'NAME': settings.DATABASES['default'].get('NAME', ''),
+                            'USER': settings.DATABASES['default'].get('USER', ''),
+                            'HOST': settings.DATABASES['default'].get('HOST', ''),
+                            'PORT': settings.DATABASES['default'].get('PORT', ''),
+                        }
+                    }
+                }
+            }
+
+            # عرض معلومات الخطأ كنص عادي
+            error_text = f"""
+            Railway Debug Error:
+
+            Exception Type: {context['exception_type']}
+            Exception Value: {context['exception_value']}
+
+            Traceback:
+            {''.join(context['exception_traceback'])}
+
+            Request Path: {context['request_path']}
+            Request Method: {context['request_method']}
+            """
+            return HttpResponse(error_text, content_type='text/plain', status=500)
+
+        # إذا لم يكن وضع تتبع الأخطاء مفعلاً، دع Django يتعامل مع الخطأ
+        return None

@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
     <!-- Database Card CSS -->
-    {% if request.path == '/data_management/db-manager/' %}
+    {% if 'data_management/db-manager' in request.path %}
     <link rel="stylesheet" href="{% static 'css/db_card.css' %}">
     {% endif %}
 
@@ -438,7 +438,7 @@
     <script src="{% static 'js/main.js' %}"></script>
 
     <!-- Database Connection Test JS -->
-    {% if request.path == '/data_management/db-manager/' %}
+    {% if 'data_management/db-manager' in request.path %}
     <script src="{% static 'js/db_connection_test.js' %}"></script>
     {% endif %}
 

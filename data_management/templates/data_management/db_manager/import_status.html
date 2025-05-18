@@ -160,7 +160,7 @@
                                                 <i class="fas fa-check"></i> {% trans "العودة إلى لوحة التحكم" %}
                                             </a>
                                         {% elif db_import.status == 'failed' %}
-                                            <a href="{% url 'data_management:db_import' %}" class="btn btn-primary">
+                                            <a href="{% url 'data_management:db_manager:db_import_form' %}" class="btn btn-primary">
                                                 <i class="fas fa-redo"></i> {% trans "محاولة مرة أخرى" %}
                                             </a>
                                         {% endif %}
@@ -287,7 +287,7 @@
                 const actionButtons = `
                     ${data.status === 'completed' ?
                         '<a href="{% url "data_management:db_manager:db_dashboard" %}" class="btn btn-success"><i class="fas fa-check"></i> {% trans "العودة إلى لوحة التحكم" %}</a>' :
-                        '<a href="{% url "data_management:db_manager:db_import" %}" class="btn btn-primary"><i class="fas fa-redo"></i> {% trans "محاولة مرة أخرى" %}</a>'}
+                        '<a href="{% url "data_management:db_manager:db_import_form" %}" class="btn btn-primary"><i class="fas fa-redo"></i> {% trans "محاولة مرة أخرى" %}</a>'}
                 `;
                 $('.mt-3.text-end').html(actionButtons);
             }

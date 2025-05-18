@@ -1,4 +1,13 @@
 {
     "active_db": null,
-    "databases": {}
+    "databases": {
+        "2": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "zakee",
+            "USER": "admin",
+            "PASSWORD": "admin123",
+            "HOST": "localhost",
+            "PORT": "5432"
+        }
+    }
 }

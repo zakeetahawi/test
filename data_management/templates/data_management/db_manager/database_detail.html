@@ -12,17 +12,17 @@
                 <div class="card-header pb-0 d-flex justify-content-between align-items-center">
                     <h6>{% trans "تفاصيل قاعدة البيانات" %}</h6>
                     <div>
-                        <a href="{% url 'data_management:database_list' %}" class="btn btn-secondary btn-sm">
+                        <a href="{% url 'data_management:db_manager:database_list' %}" class="btn btn-secondary btn-sm">
                             <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
                         </a>
-                        <a href="{% url 'data_management:database_update' pk=database.pk %}" class="btn btn-warning btn-sm">
+                        <a href="{% url 'data_management:db_manager:database_update' pk=database.pk %}" class="btn btn-warning btn-sm">
                             <i class="fas fa-edit"></i> {% trans "تعديل" %}
                         </a>
-                        <a href="{% url 'data_management:database_delete' pk=database.pk %}" class="btn btn-danger btn-sm">
+                        <a href="{% url 'data_management:db_manager:database_delete' pk=database.pk %}" class="btn btn-danger btn-sm">
                             <i class="fas fa-trash"></i> {% trans "حذف" %}
                         </a>
                         {% if not database.is_default %}
-                            <a href="{% url 'data_management:database_set_default' pk=database.pk %}" class="btn btn-primary btn-sm">
+                            <a href="{% url 'data_management:db_manager:database_set_default' pk=database.pk %}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-check"></i> {% trans "تعيين كافتراضية" %}
                             </a>
                         {% endif %}
@@ -89,7 +89,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header pb-0">
@@ -114,7 +114,7 @@
                                                             <td>{{ backup.get_backup_type_display }}</td>
                                                             <td>{{ backup.created_at|date:"Y-m-d H:i" }}</td>
                                                             <td>
-                                                                <a href="{% url 'data_management:db_backup_detail' pk=backup.pk %}" class="btn btn-info btn-sm">
+                                                                <a href="{% url 'data_management:db_manager:db_backup_detail' pk=backup.pk %}" class="btn btn-info btn-sm">
                                                                     <i class="fas fa-eye"></i>
                                                                 </a>
                                                             </td>
@@ -124,7 +124,7 @@
                                             </table>
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_backup_create' %}" class="btn btn-success btn-sm">
+                                            <a href="{% url 'data_management:db_manager:db_backup_create' %}" class="btn btn-success btn-sm">
                                                 <i class="fas fa-plus"></i> {% trans "إنشاء نسخة احتياطية" %}
                                             </a>
                                         </div>
@@ -133,7 +133,7 @@
                                             {% trans "لا توجد نسخ احتياطية لقاعدة البيانات هذه." %}
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_backup_create' %}" class="btn btn-success btn-sm">
+                                            <a href="{% url 'data_management:db_manager:db_backup_create' %}" class="btn btn-success btn-sm">
                                                 <i class="fas fa-plus"></i> {% trans "إنشاء نسخة احتياطية" %}
                                             </a>
                                         </div>
@@ -142,7 +142,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="row mt-4">
                         <div class="col-12">
                             <div class="card">
@@ -178,7 +178,7 @@
                                                             </td>
                                                             <td>{{ import.created_at|date:"Y-m-d H:i" }}</td>
                                                             <td>
-                                                                <a href="{% url 'data_management:db_import_detail' pk=import.pk %}" class="btn btn-info btn-sm">
+                                                                <a href="{% url 'data_management:db_manager:db_import_detail' pk=import.pk %}" class="btn btn-info btn-sm">
                                                                     <i class="fas fa-eye"></i>
                                                                 </a>
                                                             </td>
@@ -188,7 +188,7 @@
                                             </table>
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_import' %}" class="btn btn-primary btn-sm">
+                                            <a href="{% url 'data_management:db_manager:db_import' %}" class="btn btn-primary btn-sm">
                                                 <i class="fas fa-file-import"></i> {% trans "استيراد بيانات" %}
                                             </a>
                                         </div>
@@ -197,7 +197,7 @@
                                             {% trans "لا توجد عمليات استيراد لقاعدة البيانات هذه." %}
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_import' %}" class="btn btn-primary btn-sm">
+                                            <a href="{% url 'data_management:db_manager:db_import' %}" class="btn btn-primary btn-sm">
                                                 <i class="fas fa-file-import"></i> {% trans "استيراد بيانات" %}
                                             </a>
                                         </div>

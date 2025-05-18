@@ -375,4 +375,4 @@ def db_import(request):
         'title': _('استيراد قاعدة البيانات'),
     }
 
-    return render(request, 'data_management/db_manager/import.html', context)
+    return render(request, 'data_management/db_manager/import_form.html', context)

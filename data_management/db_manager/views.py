@@ -877,11 +877,15 @@ def process_import(import_id):
     try:
         # تحديث الحالة
         db_import.status = 'in_progress'
-        db_import.log = "بدء عملية الاستيراد...\n"
+        db_import.log = "🚀 بدء عملية استيراد قاعدة البيانات...\n"
+        db_import.log += f"⏱️ وقت البدء: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        db_import.log += f"📁 اسم الملف: {os.path.basename(db_import.file.name)}\n"
+        db_import.log += f"💾 قاعدة البيانات: {db_import.database_config.name}\n"
+        db_import.log += f"🔄 حذف البيانات القديمة: {'نعم' if db_import.clear_data else 'لا'}\n\n"
         db_import.save()
 
         # إنشاء نسخة احتياطية قبل الاستيراد
-        db_import.log += "إنشاء نسخة احتياطية قبل الاستيراد...\n"
+        db_import.log += "📦 إنشاء نسخة احتياطية قبل الاستيراد...\n"
         db_import.save()
 
         try:
@@ -925,13 +929,42 @@ def process_import(import_id):
         file_path = db_import.file.path
 
         # تحديد نوع الملف
-        is_json = file_path.lower().endswith('.json')
-        is_dump = file_path.lower().endswith('.dump')
+        file_ext = os.path.splitext(file_path)[1].lower()
+        is_json = file_ext == '.json'
+        is_dump = file_ext == '.dump'
+        is_sql = file_ext == '.sql'
 
         # تحديث السجل
-        db_import.log += f"نوع الملف: {'JSON' if is_json else 'PostgreSQL Dump'}\n"
-        db_import.log += f"مسار الملف: {file_path}\n"
-        db_import.log += "جاري التحضير لعملية الاستيراد...\n"
+        file_type_emoji = '📄'
+        if is_json:
+            file_type_emoji = '📋'
+            file_type_name = 'JSON'
+        elif is_dump:
+            file_type_emoji = '💾'
+            file_type_name = 'PostgreSQL Dump'
+        elif is_sql:
+            file_type_emoji = '📊'
+            file_type_name = 'SQL'
+        else:
+            file_type_name = 'غير معروف'
+
+        db_import.log += f"{file_type_emoji} نوع الملف: {file_type_name}\n"
+        db_import.log += f"📂 مسار الملف: {file_path}\n"
+
+        # حجم الملف
+        try:
+            file_size = os.path.getsize(file_path)
+            if file_size < 1024:
+                file_size_str = f"{file_size} بايت"
+            elif file_size < 1024 * 1024:
+                file_size_str = f"{file_size / 1024:.2f} كيلوبايت"
+            else:
+                file_size_str = f"{file_size / (1024 * 1024):.2f} ميجابايت"
+            db_import.log += f"📏 حجم الملف: {file_size_str}\n"
+        except:
+            pass
+
+        db_import.log += "\n🔄 جاري التحضير لعملية الاستيراد...\n"
         db_import.save()
 
         # التحقق مما إذا كان المستخدم قد اختار حذف البيانات القديمة
@@ -1335,8 +1368,40 @@ def process_import(import_id):
     except Exception as e:
         # تحديث الحالة في حالة الفشل
         db_import.status = 'failed'
-        db_import.log += f"\nفشلت العملية بسبب الخطأ التالي:\n{str(e)}\n"
+        db_import.log += f"\n❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n"
+
+        # إضافة تفاصيل الخطأ
+        error_traceback = traceback.format_exc()
+        db_import.log += "\n🔍 تفاصيل الخطأ:\n"
+        db_import.log += "=" * 50 + "\n"
+        db_import.log += error_traceback
+        db_import.log += "=" * 50 + "\n\n"
+
+        # إضافة اقتراحات للإصلاح
+        db_import.log += "💡 اقتراحات للإصلاح:\n"
+
+        if "duplicate key value violates unique constraint" in str(e):
+            db_import.log += "- يبدو أن هناك بيانات مكررة. حاول تفعيل خيار 'حذف البيانات القديمة' قبل الاستيراد.\n"
+        elif "permission denied" in str(e).lower():
+            db_import.log += "- مشكلة في صلاحيات الوصول لقاعدة البيانات. تأكد من أن المستخدم لديه الصلاحيات المناسبة.\n"
+        elif "no such file or directory" in str(e).lower():
+            db_import.log += "- لم يتم العثور على الملف. تأكد من وجود الملف وصلاحيته.\n"
+        elif "could not connect to server" in str(e).lower():
+            db_import.log += "- تعذر الاتصال بالخادم. تأكد من تشغيل خدمة قاعدة البيانات وصحة بيانات الاتصال.\n"
+        elif "invalid input syntax" in str(e).lower():
+            db_import.log += "- بنية البيانات غير صالحة. تأكد من تنسيق الملف وتوافقه مع هيكل قاعدة البيانات.\n"
+        else:
+            db_import.log += "- حاول التحقق من تنسيق الملف وتوافقه مع هيكل قاعدة البيانات.\n"
+            db_import.log += "- تأكد من أن لديك صلاحيات كافية للوصول إلى قاعدة البيانات.\n"
+            db_import.log += "- تحقق من اتصال قاعدة البيانات وتأكد من أنها تعمل بشكل صحيح.\n"
+
+        db_import.log += "\n⏱️ وقت الفشل: " + timezone.now().strftime('%Y-%m-%d %H:%M:%S') + "\n"
+        db_import.completed_at = timezone.now()
         db_import.save()
+
+        # تسجيل الخطأ في السجل
+        print(f"Error during import: {str(e)}")
+        traceback.print_exc()
 
 
 @login_required
@@ -1464,19 +1529,50 @@ def import_status(request, pk):
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             # استجابة AJAX لتحديث الحالة
             try:
-                return JsonResponse({
+                # تحليل السجل لاستخراج معلومات إضافية
+                log = db_import.log or ''
+                progress_info = analyze_import_log(log, db_import.status)
+
+                # إعداد البيانات للاستجابة
+                response_data = {
                     'status': db_import.status,
                     'completed_at': db_import.completed_at.isoformat() if db_import.completed_at else None,
-                    'log': db_import.log or '',
-                })
+                    'log': log,
+                    'progress': progress_info['progress'],
+                    'current_step': progress_info['current_step'],
+                    'total_steps': progress_info['total_steps'],
+                    'estimated_time_remaining': progress_info['estimated_time_remaining'],
+                    'file_info': {
+                        'name': os.path.basename(db_import.file.name) if db_import.file else '',
+                        'size': db_import.file.size if db_import.file else 0,
+                    },
+                    'database_info': {
+                        'name': db_import.database_config.name,
+                        'type': db_import.database_config.get_db_type_display(),
+                    },
+                    'created_at': db_import.created_at.isoformat(),
+                    'duration': (db_import.completed_at - db_import.created_at).total_seconds() if db_import.completed_at else (timezone.now() - db_import.created_at).total_seconds(),
+                }
+
+                # إضافة معلومات الخطأ إذا كانت العملية فاشلة
+                if db_import.status == 'failed':
+                    error_info = extract_error_info(log)
+                    response_data.update({
+                        'error_message': error_info['message'],
+                        'error_details': error_info['details'],
+                        'error_suggestions': error_info['suggestions'],
+                    })
+
+                return JsonResponse(response_data)
             except Exception as e:
                 # في حالة حدوث خطأ في استجابة AJAX
                 return JsonResponse({
                     'status': 'error',
                     'error': str(e),
+                    'log': db_import.log or '',
                 })
 
-        return render(request, 'db_manager/import_status.html', {
+        return render(request, 'data_management/db_manager/import_status.html', {
             'db_import': db_import,
         })
     except Exception as e:
@@ -1488,7 +1584,92 @@ def import_status(request, pk):
         traceback.print_exc()
 
         # إعادة توجيه المستخدم إلى صفحة قائمة النسخ الاحتياطية
-        return redirect('db_manager:backup_list')
+        return redirect('data_management:db_dashboard')
+
+
+def analyze_import_log(log, status):
+    """تحليل سجل الاستيراد لاستخراج معلومات التقدم"""
+    result = {
+        'progress': 0,
+        'current_step': '',
+        'total_steps': 5,  # عدد الخطوات الافتراضي
+        'estimated_time_remaining': None,
+    }
+
+    if not log:
+        return result
+
+    # تحديد الخطوات الرئيسية في عملية الاستيراد
+    steps = [
+        {'keyword': 'بدء عملية استيراد', 'weight': 5, 'step': 'بدء الاستيراد'},
+        {'keyword': 'إنشاء نسخة احتياطية', 'weight': 10, 'step': 'إنشاء نسخة احتياطية'},
+        {'keyword': 'جاري التحضير لعملية الاستيراد', 'weight': 20, 'step': 'تحضير الاستيراد'},
+        {'keyword': 'بدء استيراد ملف', 'weight': 30, 'step': 'استيراد البيانات'},
+        {'keyword': 'تم استيراد البيانات', 'weight': 80, 'step': 'اكتمال الاستيراد'},
+        {'keyword': 'التحقق من البيانات المكررة', 'weight': 90, 'step': 'التحقق من البيانات'},
+        {'keyword': 'اكتملت العملية بنجاح', 'weight': 100, 'step': 'اكتمال العملية'},
+    ]
+
+    # تحديد الخطوة الحالية والتقدم
+    current_progress = 0
+    current_step = 'بدء الاستيراد'
+
+    for step in steps:
+        if step['keyword'] in log:
+            current_progress = step['weight']
+            current_step = step['step']
+
+    # تعديل التقدم بناءً على الحالة
+    if status == 'completed':
+        current_progress = 100
+        current_step = 'اكتمال العملية'
+    elif status == 'failed':
+        current_step = 'فشل العملية'
+
+    # تقدير الوقت المتبقي (تقريبي جدًا)
+    estimated_time_remaining = None
+    if status == 'in_progress' and current_progress > 0 and current_progress < 100:
+        # تقدير بسيط: إذا كان التقدم 50% والوقت المنقضي 5 دقائق، فالوقت المتبقي 5 دقائق أيضًا
+        # هذا تقدير بسيط جدًا ويمكن تحسينه بتحليل أكثر تعقيدًا
+        estimated_time_remaining = "غير معروف"
+
+    result['progress'] = current_progress
+    result['current_step'] = current_step
+    result['estimated_time_remaining'] = estimated_time_remaining
+
+    return result
+
+
+def extract_error_info(log):
+    """استخراج معلومات الخطأ من سجل الاستيراد"""
+    result = {
+        'message': '',
+        'details': '',
+        'suggestions': [],
+    }
+
+    if not log:
+        return result
+
+    # استخراج رسالة الخطأ
+    error_marker = "❌ فشلت العملية بسبب الخطأ التالي:"
+    details_marker = "🔍 تفاصيل الخطأ:"
+    suggestions_marker = "💡 اقتراحات للإصلاح:"
+
+    if error_marker in log:
+        error_section = log.split(error_marker)[1].split(details_marker)[0].strip()
+        result['message'] = error_section
+
+    if details_marker in log:
+        details_section = log.split(details_marker)[1].split(suggestions_marker)[0].strip()
+        result['details'] = details_section
+
+    if suggestions_marker in log:
+        suggestions_section = log.split(suggestions_marker)[1].strip()
+        suggestions = [s.strip() for s in suggestions_section.split('\n') if s.strip() and s.strip().startswith('-')]
+        result['suggestions'] = suggestions
+
+    return result
 
 
 @login_required

@@ -5,6 +5,8 @@
 from django.urls import path
 from . import views
 
+app_name = 'db_manager'
+
 urlpatterns = [
     # الصفحة الرئيسية
     path('', views.dashboard, name='db_dashboard'),
@@ -32,6 +34,7 @@ urlpatterns = [
     # استيراد البيانات
     path('import/', views.database_import, name='db_import'),
     path('import/<int:pk>/', views.import_detail, name='db_import_detail'),
+    path('import/<int:pk>/status/', views.import_status, name='import_status'),
 
     # تصدير البيانات
     path('export/', views.database_export, name='db_export'),

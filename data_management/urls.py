@@ -21,8 +21,6 @@ urlpatterns = [
 
     # وحدة إدارة قواعد البيانات
     path('db-manager/', include('data_management.modules.db_manager.urls')),
-    path('db-export/', views.db_export, name='db_export'),
-    path('db-import/', views.db_import, name='db_import'),
 
     # وحدة مزامنة غوغل
     path('google-sync/', views.google_sync_dashboard, name='google_sync'),

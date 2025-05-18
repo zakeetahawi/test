@@ -11,7 +11,7 @@
             <div class="card mb-4">
                 <div class="card-header pb-0 d-flex justify-content-between align-items-center">
                     <h6>{% trans "حذف النسخة الاحتياطية" %}</h6>
-                    <a href="{% url 'data_management:db_backup_detail' pk=backup.pk %}" class="btn btn-secondary btn-sm">
+                    <a href="{% url 'data_management:db_manager:db_backup_detail' pk=backup.pk %}" class="btn btn-secondary btn-sm">
                         <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
                     </a>
                 </div>
@@ -26,13 +26,13 @@
                         <hr>
                         <p class="mb-0">{% trans "سيؤدي هذا الإجراء إلى حذف النسخة الاحتياطية نهائيًا من النظام." %}</p>
                     </div>
-                    
+
                     <form method="post">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-danger">
                             <i class="fas fa-trash"></i> {% trans "نعم، حذف النسخة الاحتياطية" %}
                         </button>
-                        <a href="{% url 'data_management:db_backup_detail' pk=backup.pk %}" class="btn btn-secondary">
+                        <a href="{% url 'data_management:db_manager:db_backup_detail' pk=backup.pk %}" class="btn btn-secondary">
                             <i class="fas fa-times"></i> {% trans "إلغاء" %}
                         </a>
                     </form>

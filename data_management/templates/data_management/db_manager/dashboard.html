@@ -13,100 +13,101 @@
                     <h6>{% trans "لوحة تحكم إدارة قواعد البيانات" %}</h6>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <!-- إحصائيات قواعد البيانات -->
-                        <div class="col-xl-3 col-sm-6 mb-4">
-                            <div class="card">
-                                <div class="card-body p-3">
-                                    <div class="row">
-                                        <div class="col-8">
-                                            <div class="numbers">
-                                                <p class="text-sm mb-0 text-capitalize font-weight-bold">{% trans "قواعد البيانات" %}</p>
-                                                <h5 class="font-weight-bolder mb-0">
+                    <!-- بطاقات الإحصائيات -->
+                    <div class="row mb-4">
+                        <!-- إحصائية قواعد البيانات -->
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <a href="{% url 'data_management:db_manager:database_list' %}" class="text-decoration-none">
+                                <div class="card border-left-primary shadow h-100 py-2" style="border-left: 4px solid #4e73df; border-radius: 0.35rem;">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1" style="color: #4e73df !important; font-size: 0.8rem; font-weight: 700;">
+                                                    {% trans "قواعد البيانات" %}
+                                                </div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800" style="color: #5a5c69 !important; font-size: 1.25rem; font-weight: 700;">
                                                     {{ database_count }}
-                                                </h5>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="col-4 text-end">
-                                            <div class="icon icon-shape bg-gradient-primary shadow text-center border-radius-md">
-                                                <i class="ni ni-money-coins text-lg opacity-10" aria-hidden="true"></i>
+                                            <div class="col-auto">
+                                                <i class="fas fa-database fa-2x text-gray-300" style="color: #dddfeb !important; font-size: 2rem;"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                         </div>
-                        
-                        <!-- إحصائيات النسخ الاحتياطية -->
-                        <div class="col-xl-3 col-sm-6 mb-4">
-                            <div class="card">
-                                <div class="card-body p-3">
-                                    <div class="row">
-                                        <div class="col-8">
-                                            <div class="numbers">
-                                                <p class="text-sm mb-0 text-capitalize font-weight-bold">{% trans "النسخ الاحتياطية" %}</p>
-                                                <h5 class="font-weight-bolder mb-0">
+
+                        <!-- إحصائية النسخ الاحتياطية -->
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <a href="{% url 'data_management:db_manager:db_backup_list' %}" class="text-decoration-none">
+                                <div class="card border-left-success shadow h-100 py-2" style="border-left: 4px solid #1cc88a; border-radius: 0.35rem;">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1" style="color: #1cc88a !important; font-size: 0.8rem; font-weight: 700;">
+                                                    {% trans "النسخ الاحتياطية" %}
+                                                </div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800" style="color: #5a5c69 !important; font-size: 1.25rem; font-weight: 700;">
                                                     {{ backup_count }}
-                                                </h5>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="col-4 text-end">
-                                            <div class="icon icon-shape bg-gradient-success shadow text-center border-radius-md">
-                                                <i class="ni ni-paper-diploma text-lg opacity-10" aria-hidden="true"></i>
+                                            <div class="col-auto">
+                                                <i class="fas fa-save fa-2x text-gray-300" style="color: #dddfeb !important; font-size: 2rem;"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                         </div>
-                        
-                        <!-- إحصائيات الاستيراد -->
-                        <div class="col-xl-3 col-sm-6 mb-4">
-                            <div class="card">
-                                <div class="card-body p-3">
-                                    <div class="row">
-                                        <div class="col-8">
-                                            <div class="numbers">
-                                                <p class="text-sm mb-0 text-capitalize font-weight-bold">{% trans "عمليات الاستيراد" %}</p>
-                                                <h5 class="font-weight-bolder mb-0">
+
+                        <!-- إحصائية عمليات الاستيراد -->
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <a href="{% url 'data_management:db_manager:db_import' %}" class="text-decoration-none">
+                                <div class="card border-left-info shadow h-100 py-2" style="border-left: 4px solid #36b9cc; border-radius: 0.35rem;">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1" style="color: #36b9cc !important; font-size: 0.8rem; font-weight: 700;">
+                                                    {% trans "عمليات الاستيراد" %}
+                                                </div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800" style="color: #5a5c69 !important; font-size: 1.25rem; font-weight: 700;">
                                                     {{ import_count }}
-                                                </h5>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="col-4 text-end">
-                                            <div class="icon icon-shape bg-gradient-info shadow text-center border-radius-md">
-                                                <i class="ni ni-world text-lg opacity-10" aria-hidden="true"></i>
+                                            <div class="col-auto">
+                                                <i class="fas fa-file-import fa-2x text-gray-300" style="color: #dddfeb !important; font-size: 2rem;"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                         </div>
-                        
-                        <!-- رموز الإعداد -->
-                        <div class="col-xl-3 col-sm-6 mb-4">
-                            <div class="card">
-                                <div class="card-body p-3">
-                                    <div class="row">
-                                        <div class="col-8">
-                                            <div class="numbers">
-                                                <p class="text-sm mb-0 text-capitalize font-weight-bold">{% trans "رموز الإعداد النشطة" %}</p>
-                                                <h5 class="font-weight-bolder mb-0">
-                                                    {{ setup_tokens|length }}
-                                                </h5>
+
+                        <!-- إحصائية رموز الإعداد -->
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <a href="{% url 'data_management:db_manager:create_setup_token' %}" class="text-decoration-none">
+                                <div class="card border-left-warning shadow h-100 py-2" style="border-left: 4px solid #f6c23e; border-radius: 0.35rem;">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1" style="color: #f6c23e !important; font-size: 0.8rem; font-weight: 700;">
+                                                    {% trans "رموز الإعداد" %}
+                                                </div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800" style="color: #5a5c69 !important; font-size: 1.25rem; font-weight: 700;">
+                                                    {{ setup_token_count }}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="col-4 text-end">
-                                            <div class="icon icon-shape bg-gradient-warning shadow text-center border-radius-md">
-                                                <i class="ni ni-cart text-lg opacity-10" aria-hidden="true"></i>
+                                            <div class="col-auto">
+                                                <i class="fas fa-key fa-2x text-gray-300" style="color: #dddfeb !important; font-size: 2rem;"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                         </div>
                     </div>
-                    
+
                     <div class="row">
                         <!-- قاعدة البيانات النشطة -->
                         <div class="col-md-6 mb-4">
@@ -120,39 +121,43 @@
                                             <table class="table align-items-center mb-0">
                                                 <tbody>
                                                     <tr>
-                                                        <td>{% trans "الاسم" %}</td>
+                                                        <th>{% trans "الاسم" %}</th>
                                                         <td>{{ active_database.name }}</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>{% trans "النوع" %}</td>
+                                                        <th>{% trans "النوع" %}</th>
                                                         <td>{{ active_database.get_db_type_display }}</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>{% trans "المضيف" %}</td>
+                                                        <th>{% trans "المضيف" %}</th>
                                                         <td>{{ active_database.host }}</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>{% trans "اسم قاعدة البيانات" %}</td>
+                                                        <th>{% trans "المنفذ" %}</th>
+                                                        <td>{{ active_database.port }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>{% trans "اسم قاعدة البيانات" %}</th>
                                                         <td>{{ active_database.database_name }}</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:database_detail' pk=active_database.pk %}" class="btn btn-primary btn-sm">{% trans "عرض التفاصيل" %}</a>
+                                            <a href="{% url 'data_management:db_manager:database_detail' pk=active_database.pk %}" class="btn btn-primary btn-sm">{% trans "عرض التفاصيل" %}</a>
                                         </div>
                                     {% else %}
                                         <div class="alert alert-warning">
                                             {% trans "لا توجد قاعدة بيانات نشطة." %}
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:database_create' %}" class="btn btn-primary btn-sm">{% trans "إنشاء قاعدة بيانات" %}</a>
+                                            <a href="{% url 'data_management:db_manager:database_create' %}" class="btn btn-primary btn-sm">{% trans "إنشاء قاعدة بيانات" %}</a>
                                         </div>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- النسخ الاحتياطية الأخيرة -->
                         <div class="col-md-6 mb-4">
                             <div class="card">
@@ -178,7 +183,7 @@
                                                             <td>{{ backup.get_backup_type_display }}</td>
                                                             <td>{{ backup.created_at|date:"Y-m-d H:i" }}</td>
                                                             <td>
-                                                                <a href="{% url 'data_management:db_backup_detail' pk=backup.pk %}" class="btn btn-info btn-sm">{% trans "عرض" %}</a>
+                                                                <a href="{% url 'data_management:db_manager:db_backup_detail' pk=backup.pk %}" class="btn btn-info btn-sm">{% trans "عرض" %}</a>
                                                             </td>
                                                         </tr>
                                                     {% endfor %}
@@ -186,22 +191,22 @@
                                             </table>
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_backup_list' %}" class="btn btn-primary btn-sm">{% trans "عرض الكل" %}</a>
-                                            <a href="{% url 'data_management:db_backup_create' %}" class="btn btn-success btn-sm">{% trans "إنشاء نسخة احتياطية" %}</a>
+                                            <a href="{% url 'data_management:db_manager:db_backup_list' %}" class="btn btn-primary btn-sm">{% trans "عرض الكل" %}</a>
+                                            <a href="{% url 'data_management:db_manager:db_backup_create' %}" class="btn btn-success btn-sm">{% trans "إنشاء نسخة احتياطية" %}</a>
                                         </div>
                                     {% else %}
                                         <div class="alert alert-warning">
                                             {% trans "لا توجد نسخ احتياطية." %}
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_backup_create' %}" class="btn btn-success btn-sm">{% trans "إنشاء نسخة احتياطية" %}</a>
+                                            <a href="{% url 'data_management:db_manager:db_backup_create' %}" class="btn btn-success btn-sm">{% trans "إنشاء نسخة احتياطية" %}</a>
                                         </div>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="row">
                         <!-- عمليات الاستيراد الأخيرة -->
                         <div class="col-md-6 mb-4">
@@ -228,7 +233,7 @@
                                                             <td>{{ import.get_status_display }}</td>
                                                             <td>{{ import.created_at|date:"Y-m-d H:i" }}</td>
                                                             <td>
-                                                                <a href="{% url 'data_management:db_import_detail' pk=import.pk %}" class="btn btn-info btn-sm">{% trans "عرض" %}</a>
+                                                                <a href="{% url 'data_management:db_manager:db_import_detail' pk=import.pk %}" class="btn btn-info btn-sm">{% trans "عرض" %}</a>
                                                             </td>
                                                         </tr>
                                                     {% endfor %}
@@ -236,20 +241,20 @@
                                             </table>
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_import' %}" class="btn btn-primary btn-sm">{% trans "استيراد بيانات" %}</a>
+                                            <a href="{% url 'data_management:db_manager:db_import' %}" class="btn btn-primary btn-sm">{% trans "استيراد بيانات" %}</a>
                                         </div>
                                     {% else %}
                                         <div class="alert alert-warning">
                                             {% trans "لا توجد عمليات استيراد." %}
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:db_import' %}" class="btn btn-primary btn-sm">{% trans "استيراد بيانات" %}</a>
+                                            <a href="{% url 'data_management:db_manager:db_import' %}" class="btn btn-primary btn-sm">{% trans "استيراد بيانات" %}</a>
                                         </div>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- رموز الإعداد النشطة -->
                         <div class="col-md-6 mb-4">
                             <div class="card">
@@ -277,14 +282,14 @@
                                             </table>
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:create_setup_token' %}" class="btn btn-primary btn-sm">{% trans "إنشاء رمز جديد" %}</a>
+                                            <a href="{% url 'data_management:db_manager:create_setup_token' %}" class="btn btn-primary btn-sm">{% trans "إنشاء رمز جديد" %}</a>
                                         </div>
                                     {% else %}
                                         <div class="alert alert-warning">
                                             {% trans "لا توجد رموز إعداد نشطة." %}
                                         </div>
                                         <div class="mt-3">
-                                            <a href="{% url 'data_management:create_setup_token' %}" class="btn btn-primary btn-sm">{% trans "إنشاء رمز جديد" %}</a>
+                                            <a href="{% url 'data_management:db_manager:create_setup_token' %}" class="btn btn-primary btn-sm">{% trans "إنشاء رمز جديد" %}</a>
                                         </div>
                                     {% endif %}
                                 </div>

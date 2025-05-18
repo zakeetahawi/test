@@ -3,6 +3,8 @@
 """
 
 import os
+import traceback
+import threading
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
@@ -41,6 +43,7 @@ def dashboard(request):
 
     # رموز الإعداد
     setup_tokens = SetupToken.objects.filter(is_used=False, expires_at__gt=timezone.now())
+    setup_token_count = setup_tokens.count()
 
     context = {
         'database_count': database_count,
@@ -51,6 +54,7 @@ def dashboard(request):
         'import_count': import_count,
         'recent_imports': recent_imports,
         'setup_tokens': setup_tokens,
+        'setup_token_count': setup_token_count,
         'title': _('إدارة قواعد البيانات'),
     }
 
@@ -407,10 +411,10 @@ def backup_create(request):
                 )
 
                 messages.success(request, _('تم إنشاء النسخة الاحتياطية بنجاح.'))
-                return redirect('data_management:db_backup_detail', pk=backup.pk)
+                return redirect('data_management:db_manager:db_backup_detail', pk=backup.pk)
             except Exception as e:
                 messages.error(request, _(f'حدث خطأ أثناء إنشاء النسخة الاحتياطية: {str(e)}'))
-                return redirect('data_management:db_backup_create')
+                return redirect('data_management:db_manager:db_backup_create')
     else:
         form = DatabaseBackupForm()
 
@@ -444,7 +448,7 @@ def backup_download(request, pk):
     file_path = os.path.join(settings.MEDIA_ROOT, backup.file.name)
     if not os.path.exists(file_path):
         messages.error(request, _('ملف النسخة الاحتياطية غير موجود.'))
-        return redirect('data_management:db_backup_detail', pk=backup.pk)
+        return redirect('data_management:db_manager:db_backup_detail', pk=backup.pk)
 
     # تنزيل الملف
     with open(file_path, 'rb') as f:
@@ -468,10 +472,10 @@ def backup_restore(request, pk):
             database_service.restore_backup(backup.id, clear_data)
 
             messages.success(request, _('تم استعادة النسخة الاحتياطية بنجاح.'))
-            return redirect('data_management:db_backup_list')
+            return redirect('data_management:db_manager:db_backup_list')
         except Exception as e:
             messages.error(request, _(f'حدث خطأ أثناء استعادة النسخة الاحتياطية: {str(e)}'))
-            return redirect('data_management:db_backup_detail', pk=backup.pk)
+            return redirect('data_management:db_manager:db_backup_detail', pk=backup.pk)
 
     context = {
         'backup': backup,
@@ -497,7 +501,7 @@ def backup_delete(request, pk):
         backup.delete()
 
         messages.success(request, _('تم حذف النسخة الاحتياطية بنجاح.'))
-        return redirect('data_management:db_backup_list')
+        return redirect('data_management:db_manager:db_backup_list')
 
     context = {
         'backup': backup,
@@ -522,34 +526,98 @@ def database_import(request):
             try:
                 # استيراد قاعدة البيانات
                 database_service = DatabaseService(import_record.database_config.id)
-                database_service.import_database(
-                    import_record.file.path,
-                    import_record.database_config,
-                    import_record.clear_data,
-                    request.user
-                )
 
-                # تحديث حالة الاستيراد
-                import_record.status = 'completed'
-                import_record.completed_at = timezone.now()
-                import_record.save()
+                # تحديد خيارات الاستيراد
+                import_options = {
+                    'file_path': import_record.file.path,
+                    'database_config': import_record.database_config,
+                    'user': request.user,
+                    'clear_data': import_record.clear_data,
+                }
 
-                messages.success(request, _('تم استيراد قاعدة البيانات بنجاح.'))
-                return redirect('data_management:db_import_detail', pk=import_record.pk)
+                # إضافة خيارات الاستيراد الانتقائي من النموذج
+                import_mode = form.cleaned_data.get('import_mode', 'merge')
+                if import_mode == 'selective':
+                    import_options.update({
+                        'import_mode': 'selective',
+                        'import_settings': form.cleaned_data.get('import_settings', True),
+                        'import_users': form.cleaned_data.get('import_users', False),
+                        'import_customers': form.cleaned_data.get('import_customers', True),
+                        'import_products': form.cleaned_data.get('import_products', True),
+                        'import_orders': form.cleaned_data.get('import_orders', True),
+                        'import_inspections': form.cleaned_data.get('import_inspections', True),
+                        'conflict_resolution': form.cleaned_data.get('conflict_resolution', 'skip'),
+                    })
+                else:
+                    import_options.update({
+                        'import_mode': import_mode,
+                        'conflict_resolution': form.cleaned_data.get('conflict_resolution', 'skip'),
+                    })
+
+                # بدء عملية الاستيراد في خلفية منفصلة
+                import threading
+
+                def import_task():
+                    try:
+                        # تحديث حالة الاستيراد
+                        import_record.status = 'processing'
+                        import_record.log = 'بدء عملية استيراد البيانات...\n'
+                        import_record.save()
+
+                        # استيراد البيانات
+                        result = database_service.import_database_advanced(**import_options)
+
+                        # تحديث إحصائيات الاستيراد
+                        import_record.total_records = result.get('total_records', 0)
+                        import_record.imported_records = result.get('imported_records', 0)
+                        import_record.skipped_records = result.get('skipped_records', 0)
+                        import_record.failed_records = result.get('failed_records', 0)
+
+                        # تحديث حالة الاستيراد
+                        import_record.status = 'completed'
+                        import_record.completed_at = timezone.now()
+                        import_record.log += '\nاكتملت عملية الاستيراد بنجاح.\n'
+                        import_record.log += f'\nإجمالي السجلات: {import_record.total_records}\n'
+                        import_record.log += f'السجلات المستوردة: {import_record.imported_records}\n'
+                        import_record.log += f'السجلات المتخطاة: {import_record.skipped_records}\n'
+                        import_record.log += f'السجلات الفاشلة: {import_record.failed_records}\n'
+                        import_record.save()
+                    except Exception as e:
+                        # تحديث حالة الاستيراد في حالة الخطأ
+                        import_record.status = 'failed'
+                        import_record.log += f'\n❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n'
+                        import_record.log += f'\n🔍 تفاصيل الخطأ:\n{traceback.format_exc()}\n'
+                        import_record.log += '\n💡 اقتراحات للإصلاح:\n'
+                        import_record.log += '- تأكد من صحة تنسيق ملف الاستيراد.\n'
+                        import_record.log += '- تأكد من توافق إصدار قاعدة البيانات.\n'
+                        import_record.log += '- تحقق من صلاحيات المستخدم.\n'
+                        import_record.save()
+
+                # بدء العملية في خلفية منفصلة
+                thread = threading.Thread(target=import_task)
+                thread.daemon = True
+                thread.start()
+
+                messages.success(request, _('تم بدء عملية استيراد البيانات بنجاح. يمكنك متابعة حالة الاستيراد من صفحة التفاصيل.'))
+                return redirect('data_management:db_manager:import_status', pk=import_record.pk)
             except Exception as e:
                 # تحديث حالة الاستيراد في حالة الخطأ
                 import_record.status = 'failed'
-                import_record.log = str(e)
+                import_record.log = f'❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n'
                 import_record.save()
 
-                messages.error(request, _(f'حدث خطأ أثناء استيراد قاعدة البيانات: {str(e)}'))
-                return redirect('data_management:db_import_detail', pk=import_record.pk)
+                messages.error(request, _(f'حدث خطأ أثناء بدء عملية استيراد البيانات: {str(e)}'))
+                return redirect('data_management:db_manager:import_detail', pk=import_record.pk)
     else:
         form = DatabaseImportForm()
+
+    # الحصول على قائمة قواعد البيانات النشطة
+    active_databases = DatabaseConfig.objects.filter(is_active=True)
 
     context = {
         'form': form,
         'title': _('استيراد قاعدة بيانات'),
+        'active_databases': active_databases,
     }
 
     return render(request, 'data_management/db_manager/import_form.html', context)
@@ -569,6 +637,159 @@ def import_detail(request, pk):
 
 @login_required
 @user_passes_test(is_superuser)
+def import_status(request, pk):
+    """عرض حالة عملية الاستيراد"""
+    try:
+        db_import = get_object_or_404(DatabaseImport, pk=pk)
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            # استجابة AJAX لتحديث الحالة
+            try:
+                # تحليل السجل لاستخراج معلومات إضافية
+                log = db_import.log or ''
+                progress_info = analyze_import_log(log, db_import.status)
+
+                # إعداد البيانات للاستجابة
+                response_data = {
+                    'status': db_import.status,
+                    'completed_at': db_import.completed_at.isoformat() if db_import.completed_at else None,
+                    'log': log,
+                    'progress': progress_info['progress'],
+                    'current_step': progress_info['current_step'],
+                    'total_steps': progress_info['total_steps'],
+                    'estimated_time_remaining': progress_info['estimated_time_remaining'],
+                    'file_info': {
+                        'name': os.path.basename(db_import.file.name) if db_import.file else '',
+                        'size': db_import.file.size if db_import.file else 0,
+                    },
+                    'database_info': {
+                        'name': db_import.database_config.name,
+                        'type': db_import.database_config.get_db_type_display(),
+                    },
+                    'created_at': db_import.created_at.isoformat(),
+                    'duration': (db_import.completed_at - db_import.created_at).total_seconds() if db_import.completed_at else (timezone.now() - db_import.created_at).total_seconds(),
+                }
+
+                # إضافة معلومات الخطأ إذا كانت العملية فاشلة
+                if db_import.status == 'failed':
+                    error_info = extract_error_info(log)
+                    response_data.update({
+                        'error_message': error_info['message'],
+                        'error_details': error_info['details'],
+                        'error_suggestions': error_info['suggestions'],
+                    })
+
+                return JsonResponse(response_data)
+            except Exception as e:
+                # في حالة حدوث خطأ في استجابة AJAX
+                return JsonResponse({
+                    'status': 'error',
+                    'error': str(e),
+                    'log': db_import.log or '',
+                })
+
+        return render(request, 'data_management/db_manager/import_status.html', {
+            'db_import': db_import,
+        })
+    except Exception as e:
+        # في حالة حدوث خطأ غير متوقع
+        messages.error(request, _('حدث خطأ أثناء عرض حالة الاستيراد: {}').format(str(e)))
+
+        # تسجيل الخطأ
+        import traceback
+        traceback.print_exc()
+
+        # إعادة توجيه المستخدم إلى صفحة لوحة التحكم
+        return redirect('data_management:db_manager:db_dashboard')
+
+
+def analyze_import_log(log, status):
+    """تحليل سجل الاستيراد لاستخراج معلومات التقدم"""
+    result = {
+        'progress': 0,
+        'current_step': '',
+        'total_steps': 5,  # عدد الخطوات الافتراضي
+        'estimated_time_remaining': None,
+    }
+
+    if not log:
+        return result
+
+    # تحديد الخطوات الرئيسية في عملية الاستيراد
+    steps = [
+        {'keyword': 'بدء عملية استيراد', 'weight': 5, 'step': 'بدء الاستيراد'},
+        {'keyword': 'إنشاء نسخة احتياطية', 'weight': 10, 'step': 'إنشاء نسخة احتياطية'},
+        {'keyword': 'جاري التحضير لعملية الاستيراد', 'weight': 20, 'step': 'تحضير الاستيراد'},
+        {'keyword': 'بدء استيراد ملف', 'weight': 30, 'step': 'استيراد البيانات'},
+        {'keyword': 'تم استيراد البيانات', 'weight': 80, 'step': 'اكتمال الاستيراد'},
+        {'keyword': 'التحقق من البيانات المكررة', 'weight': 90, 'step': 'التحقق من البيانات'},
+        {'keyword': 'اكتملت العملية بنجاح', 'weight': 100, 'step': 'اكتمال العملية'},
+    ]
+
+    # تحديد الخطوة الحالية والتقدم
+    current_progress = 0
+    current_step = 'بدء الاستيراد'
+
+    for step in steps:
+        if step['keyword'] in log:
+            current_progress = step['weight']
+            current_step = step['step']
+
+    # تعديل التقدم بناءً على الحالة
+    if status == 'completed':
+        current_progress = 100
+        current_step = 'اكتمال العملية'
+    elif status == 'failed':
+        current_step = 'فشل العملية'
+
+    # تقدير الوقت المتبقي (تقريبي جدًا)
+    estimated_time_remaining = None
+    if status == 'in_progress' and current_progress > 0 and current_progress < 100:
+        # تقدير بسيط: إذا كان التقدم 50% والوقت المنقضي 5 دقائق، فالوقت المتبقي 5 دقائق أيضًا
+        # هذا تقدير بسيط جدًا ويمكن تحسينه بتحليل أكثر تعقيدًا
+        estimated_time_remaining = "غير معروف"
+
+    result['progress'] = current_progress
+    result['current_step'] = current_step
+    result['estimated_time_remaining'] = estimated_time_remaining
+
+    return result
+
+
+def extract_error_info(log):
+    """استخراج معلومات الخطأ من سجل الاستيراد"""
+    result = {
+        'message': '',
+        'details': '',
+        'suggestions': [],
+    }
+
+    if not log:
+        return result
+
+    # استخراج رسالة الخطأ
+    error_marker = "❌ فشلت العملية بسبب الخطأ التالي:"
+    details_marker = "🔍 تفاصيل الخطأ:"
+    suggestions_marker = "💡 اقتراحات للإصلاح:"
+
+    if error_marker in log:
+        error_section = log.split(error_marker)[1].split(details_marker)[0].strip()
+        result['message'] = error_section
+
+    if details_marker in log:
+        details_section = log.split(details_marker)[1].split(suggestions_marker)[0].strip()
+        result['details'] = details_section
+
+    if suggestions_marker in log:
+        suggestions_section = log.split(suggestions_marker)[1].strip()
+        suggestions = [s.strip() for s in suggestions_section.split('\n') if s.strip() and s.strip().startswith('-')]
+        result['suggestions'] = suggestions
+
+    return result
+
+
+@login_required
+@user_passes_test(is_superuser)
 def database_export(request):
     """تصدير قاعدة البيانات"""
     if request.method == 'POST':
@@ -585,7 +806,7 @@ def database_export(request):
             database_config = DatabaseConfig.objects.filter(is_active=True).first()
             if not database_config:
                 messages.error(request, _('لا توجد قاعدة بيانات نشطة.'))
-                return redirect('data_management:db_export')
+                return redirect('data_management:db_manager:db_export')
 
             database_service = DatabaseService(database_config.id)
             backup = database_service.create_backup(
@@ -601,10 +822,10 @@ def database_export(request):
             )
 
             messages.success(request, _('تم تصدير قاعدة البيانات بنجاح.'))
-            return redirect('data_management:db_backup_detail', pk=backup.pk)
+            return redirect('data_management:db_manager:db_backup_detail', pk=backup.pk)
         except Exception as e:
             messages.error(request, _(f'حدث خطأ أثناء تصدير قاعدة البيانات: {str(e)}'))
-            return redirect('data_management:db_export')
+            return redirect('data_management:db_manager:db_export')
 
     # الحصول على قائمة قواعد البيانات النشطة
     active_database = DatabaseConfig.objects.filter(is_active=True).first()

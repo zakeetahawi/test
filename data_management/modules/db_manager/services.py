@@ -468,6 +468,15 @@ class DatabaseService:
         with open(file_path, 'r') as f:
             subprocess.run(cmd, check=True, stdin=f)
 
+    def _check_pg_tools_available(self):
+        """التحقق من وجود أدوات PostgreSQL"""
+        try:
+            # محاولة تنفيذ أمر pg_restore --version للتحقق من وجود الأداة
+            result = subprocess.run(['pg_restore', '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            return result.returncode == 0
+        except Exception:
+            return False
+
     def _restore_sqlite_backup(self, database_config, file_path, clear_data):
         """استعادة نسخة احتياطية لقاعدة بيانات SQLite"""
         # نسخ ملف النسخة الاحتياطية إلى ملف قاعدة البيانات
@@ -872,75 +881,122 @@ class DatabaseService:
                         env['PGPASSWORD'] = database_config.password
 
                     # تحقق مما إذا كنا على Railway
-                    is_railway = "railway" in (database_config.host or "")
+                    is_railway = "railway" in (database_config.host or "") or os.environ.get('RAILWAY_ENVIRONMENT') == 'production'
 
-                    # إذا كنا على Railway، نستخدم طريقة مختلفة للاستيراد
-                    if is_railway:
-                        logger.info("تم اكتشاف بيئة Railway، استخدام طريقة استيراد خاصة...")
+                    # التحقق من وجود أدوات PostgreSQL
+                    has_pg_tools = self._check_pg_tools_available()
 
-                        # استخدام psql بدلاً من pg_restore على Railway
-                        # أولاً، نقوم بتحويل ملف dump إلى SQL
-                        sql_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql')
-                        sql_file_path = sql_file.name
-                        sql_file.close()
+                    # إذا كنا على Railway أو لا توجد أدوات PostgreSQL، نستخدم طريقة بديلة للاستيراد
+                    if is_railway or not has_pg_tools:
+                        logger.info("تم اكتشاف بيئة Railway أو عدم وجود أدوات PostgreSQL، استخدام طريقة استيراد بديلة...")
 
-                        # تحويل ملف dump إلى SQL
-                        convert_cmd = [
-                            'pg_restore',
-                            '--format=custom',
-                            '--file=' + sql_file_path,
-                            file_path
-                        ]
+                        # استخدام طريقة بديلة للاستيراد باستخدام Python فقط
+                        try:
+                            # قراءة محتوى ملف الاستيراد
+                            with open(file_path, 'rb') as f:
+                                dump_content = f.read()
 
-                        with open(log_file_path, 'w') as log:
-                            process = subprocess.run(
-                                convert_cmd,
-                                env=env,
-                                stdout=log,
-                                stderr=subprocess.STDOUT,
-                                check=False
+                            # تحليل محتوى ملف الاستيراد
+                            logger.info("جاري تحليل محتوى ملف الاستيراد...")
+
+                            # استخدام اتصال مباشر بقاعدة البيانات
+                            import psycopg2
+
+                            # إنشاء اتصال بقاعدة البيانات
+                            conn = psycopg2.connect(
+                                dbname=database_config.database_name,
+                                user=database_config.username,
+                                password=database_config.password,
+                                host=database_config.host,
+                                port=database_config.port
                             )
 
-                        # إذا نجح التحويل، نستخدم psql لتنفيذ ملف SQL
-                        if process.returncode == 0:
-                            logger.info("تم تحويل ملف DUMP إلى SQL بنجاح، جاري استيراد البيانات...")
+                            # تعطيل الالتزام التلقائي
+                            conn.autocommit = False
 
-                            # استيراد ملف SQL باستخدام psql
-                            psql_cmd = [
-                                'psql',
-                                f"--dbname={database_config.database_name}",
-                            ]
+                            # إنشاء مؤشر
+                            cursor = conn.cursor()
 
-                            if database_config.username:
-                                psql_cmd.append(f"--username={database_config.username}")
+                            # إذا كان مطلوبًا مسح البيانات، نقوم بتنظيف الجداول
+                            if clear_data:
+                                logger.info("جاري تنظيف الجداول...")
 
-                            if database_config.host:
-                                psql_cmd.append(f"--host={database_config.host}")
+                                # الحصول على قائمة الجداول
+                                cursor.execute("""
+                                    SELECT table_name FROM information_schema.tables
+                                    WHERE table_schema = 'public'
+                                    AND table_type = 'BASE TABLE'
+                                    AND table_name NOT IN ('django_migrations', 'django_content_type', 'auth_permission')
+                                """)
 
-                            if database_config.port:
-                                psql_cmd.append(f"--port={database_config.port}")
+                                tables = [row[0] for row in cursor.fetchall()]
 
-                            psql_cmd.append(f"--file={sql_file_path}")
+                                # تعطيل القيود الخارجية مؤقتًا
+                                cursor.execute("SET CONSTRAINTS ALL DEFERRED;")
 
-                            with open(log_file_path, 'w') as log:
-                                process = subprocess.run(
-                                    psql_cmd,
-                                    env=env,
-                                    stdout=log,
-                                    stderr=subprocess.STDOUT,
-                                    check=False
-                                )
+                                # تنظيف الجداول
+                                for table in tables:
+                                    try:
+                                        cursor.execute(f'TRUNCATE TABLE "{table}" CASCADE;')
+                                    except Exception as e:
+                                        logger.warning(f"فشل تنظيف الجدول {table}: {e}")
 
-                            # حذف ملف SQL المؤقت
-                            os.unlink(sql_file_path)
+                            # استيراد البيانات من ملف SQL
+                            logger.info("جاري استيراد البيانات...")
 
-                        # قراءة سجل العملية
-                        with open(log_file_path, 'r') as log:
-                            log_content = log.read()
+                            # إنشاء ملف SQL مؤقت
+                            sql_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql', mode='w+')
+                            sql_file_path = sql_file.name
 
-                        # إذا فشلت العملية، نرفع استثناء
-                        if process.returncode != 0:
-                            raise Exception(f"فشل استيراد البيانات على Railway: {log_content}")
+                            # كتابة محتوى ملف الاستيراد إلى ملف SQL
+                            try:
+                                # محاولة تحويل ملف dump إلى SQL باستخدام Python
+                                from django.core.management import call_command
+                                from io import StringIO
+
+                                # استخدام أمر dumpdata لاستيراد البيانات
+                                output = StringIO()
+                                call_command('loaddata', file_path, stdout=output)
+
+                                # الالتزام بالتغييرات
+                                conn.commit()
+
+                                logger.info("تم استيراد البيانات بنجاح باستخدام Django loaddata.")
+                            except Exception as e:
+                                logger.error(f"فشل استيراد البيانات باستخدام Django loaddata: {e}")
+
+                                # محاولة استيراد البيانات باستخدام psycopg2 مباشرة
+                                try:
+                                    # تحويل ملف dump إلى نص SQL إذا كان بتنسيق مختلف
+                                    if file_path.endswith('.dump') or file_path.endswith('.backup'):
+                                        # محاولة قراءة الملف كنص SQL
+                                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                            sql_content = f.read()
+                                    else:
+                                        # افتراض أن الملف هو نص SQL
+                                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                            sql_content = f.read()
+
+                                    # تنفيذ الأوامر SQL
+                                    cursor.execute(sql_content)
+
+                                    # الالتزام بالتغييرات
+                                    conn.commit()
+
+                                    logger.info("تم استيراد البيانات بنجاح باستخدام psycopg2.")
+                                except Exception as e2:
+                                    logger.error(f"فشل استيراد البيانات باستخدام psycopg2: {e2}")
+                                    conn.rollback()
+                                    raise Exception(f"فشل استيراد البيانات: {e}\n{e2}")
+
+                            # إغلاق الاتصال
+                            cursor.close()
+                            conn.close()
+
+                            logger.info("تم استيراد البيانات بنجاح.")
+                        except Exception as e:
+                            logger.error(f"حدث خطأ أثناء استيراد البيانات: {e}")
+                            raise Exception(f"فشل استيراد البيانات على Railway: {e}")
                     else:
                         # على البيئة المحلية، نستخدم pg_restore
 

@@ -1004,13 +1004,28 @@ def setup_with_token(request, token):
             )
             database_config.save()
 
-            # إنشاء مستخدم مدير
+            # إنشاء مستخدم مدير (أو استخدام المستخدم الموجود)
             User = get_user_model()
-            admin_user = User.objects.create_superuser(
-                username=form.cleaned_data['admin_username'],
-                password=form.cleaned_data['admin_password'],
-                email=form.cleaned_data['admin_email']
-            )
+            admin_username = form.cleaned_data['admin_username']
+
+            # التحقق من وجود المستخدم
+            try:
+                admin_user = User.objects.get(username=admin_username)
+                # تحديث كلمة المرور والبريد الإلكتروني إذا كان المستخدم موجودًا
+                admin_user.set_password(form.cleaned_data['admin_password'])
+                admin_user.email = form.cleaned_data['admin_email']
+                admin_user.is_staff = True
+                admin_user.is_superuser = True
+                admin_user.save()
+                messages.info(request, _(f'تم تحديث بيانات المستخدم {admin_username} الموجود.'))
+            except User.DoesNotExist:
+                # إنشاء مستخدم جديد إذا لم يكن موجودًا
+                admin_user = User.objects.create_superuser(
+                    username=admin_username,
+                    password=form.cleaned_data['admin_password'],
+                    email=form.cleaned_data['admin_email']
+                )
+                messages.success(request, _(f'تم إنشاء المستخدم {admin_username} بنجاح.'))
 
             # استيراد البيانات إذا تم تحميل ملف
             import_file = form.cleaned_data.get('import_file')

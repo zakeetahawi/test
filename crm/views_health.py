@@ -11,19 +11,19 @@ def health_check(request):
     """
     فحص صحة التطبيق لـ Railway
     يتحقق من:
-    1. اتصال قاعدة البيانات
-    2. استخدام الذاكرة
-    3. استخدام وحدة المعالجة المركزية
-    4. مساحة القرص
+    1. اتصال قاعدة البيانات (فقط للطلبات المفصلة)
+    2. استخدام الذاكرة (فقط للطلبات المفصلة)
+    3. استخدام وحدة المعالجة المركزية (فقط للطلبات المفصلة)
+    4. مساحة القرص (فقط للطلبات المفصلة)
     """
-    # تسجيل طلب فحص الصحة
-    logger.info(f"Health check requested from {request.META.get('REMOTE_ADDR')} - Path: {request.path}")
-
-    # إذا كان المسار هو '/health/' بالضبط (كما يتوقع Railway)، نعيد استجابة بسيطة
-    if request.path == '/health/':
+    # إذا كان المسار هو '/health/' بالضبط (كما يتوقع Railway)، نعيد استجابة بسيطة وسريعة
+    if request.path == '/health/' or request.path == '/health':
         return HttpResponse("OK", content_type="text/plain")
 
-    # التحقق من اتصال قاعدة البيانات
+    # تسجيل طلب فحص الصحة المفصل فقط
+    logger.info(f"Detailed health check requested from {request.META.get('REMOTE_ADDR')} - Path: {request.path}")
+
+    # التحقق من اتصال قاعدة البيانات (فقط للطلبات المفصلة)
     db_status = "healthy"
     db_error = None
     try:
@@ -35,11 +35,15 @@ def health_check(request):
         db_error = str(e)
         logger.error(f"Database connection error: {str(e)}")
 
-    # معلومات النظام
+    # معلومات النظام (مبسطة وأسرع)
     try:
+        # استخدام interval=None لتجنب التأخير
+        cpu = psutil.cpu_percent(interval=None)
         memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        cpu = psutil.cpu_percent(interval=0.1)
+        # تجنب فحص القرص إذا كنا في بيئة Railway (حيث لا نحتاج إلى هذه المعلومات)
+        disk = None
+        if not os.environ.get('RAILWAY_ENVIRONMENT'):
+            disk = psutil.disk_usage('/')
     except Exception as e:
         logger.error(f"Error getting system info: {str(e)}")
         memory = None
@@ -51,17 +55,17 @@ def health_check(request):
         "database": {
             "status": db_status,
             "error": db_error,
-            "engine": settings.DATABASES['default'].get('ENGINE', "dj_database_url (PostgreSQL)"),
         },
     }
 
-    # إضافة معلومات النظام إذا كانت متاحة
-    if memory and disk and cpu is not None:
+    # إضافة معلومات النظام إذا كانت متاحة (بشكل مبسط)
+    if memory and cpu is not None:
         response_data["system"] = {
             "memory_usage_percent": memory.percent,
             "cpu_usage_percent": cpu,
-            "disk_usage_percent": disk.percent,
         }
+        if disk:
+            response_data["system"]["disk_usage_percent"] = disk.percent
 
     response_data["environment"] = "production" if not settings.DEBUG else "development"
 

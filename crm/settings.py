@@ -267,8 +267,8 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
         'TIMEOUT': 300,  # 5 minutes
         'OPTIONS': {
-            'MAX_ENTRIES': 1000,
-            'CULL_FREQUENCY': 3,
+            'MAX_ENTRIES': 500,  # تقليل عدد العناصر المخزنة لتوفير الذاكرة
+            'CULL_FREQUENCY': 2,  # زيادة تكرار التنظيف
         }
     }
 }
@@ -468,3 +468,42 @@ SESSION_CLEANUP_SCHEDULE = {
     'hour': 3,  # تنفيذ المهمة في الساعة 3 صباحًا
     'minute': 0,  # تنفيذ المهمة في الدقيقة 0
 }
+
+# إعدادات تحسين الأداء لـ Railway
+if os.environ.get('RAILWAY_ENVIRONMENT'):
+    # تقليل عدد الاستعلامات المسموح بها في صفحة واحدة
+    DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+
+    # تعطيل التسجيل المفصل في الإنتاج
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'level': 'WARNING',
+            },
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': True,
+            },
+            'django.db.backends': {
+                'handlers': ['console'],
+                'level': 'ERROR',
+                'propagate': False,
+            },
+        },
+        'root': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+        },
+    }
+
+    # تقليل عدد الاتصالات المتزامنة بقاعدة البيانات
+    DATABASES['default']['CONN_MAX_AGE'] = 300  # 5 دقائق
+
+    # تعطيل التصحيح التلقائي للمخطط
+    DATABASES['default']['AUTOCOMMIT'] = False

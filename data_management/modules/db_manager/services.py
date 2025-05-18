@@ -331,32 +331,115 @@ class DatabaseService:
         if clear_data:
             self._clear_postgresql_database(database_config)
 
-        # استعادة النسخة الاحتياطية
-        cmd = [
-            'pg_restore',
-            '--format=custom',
-            '--clean',
-            '--if-exists',
-            f"--dbname={database_config.database_name}",
-        ]
+        # تحقق مما إذا كنا على Railway
+        is_railway = "railway" in (database_config.host or "")
 
-        if database_config.username:
-            cmd.append(f"--username={database_config.username}")
+        # إنشاء ملف مؤقت للسجل
+        log_file = tempfile.NamedTemporaryFile(delete=False, suffix='.log', mode='w+')
+        log_file_path = log_file.name
+        log_file.close()
 
-        if database_config.host:
-            cmd.append(f"--host={database_config.host}")
-
-        if database_config.port:
-            cmd.append(f"--port={database_config.port}")
-
-        cmd.append(file_path)
-
-        # تنفيذ الأمر
+        # إعداد بيئة التنفيذ
         env = os.environ.copy()
         if database_config.password:
             env['PGPASSWORD'] = database_config.password
 
-        subprocess.run(cmd, check=True, env=env)
+        try:
+            # إذا كنا على Railway، نستخدم طريقة مختلفة للاستيراد
+            if is_railway:
+                logger.info("تم اكتشاف بيئة Railway، استخدام طريقة استيراد خاصة...")
+
+                # استخدام psql بدلاً من pg_restore على Railway
+                # أولاً، نقوم بتحويل ملف dump إلى SQL
+                sql_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql')
+                sql_file_path = sql_file.name
+                sql_file.close()
+
+                # تحويل ملف dump إلى SQL
+                convert_cmd = [
+                    'pg_restore',
+                    '--format=custom',
+                    '--file=' + sql_file_path,
+                    file_path
+                ]
+
+                with open(log_file_path, 'w') as log:
+                    process = subprocess.run(
+                        convert_cmd,
+                        env=env,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        check=False
+                    )
+
+                # إذا نجح التحويل، نستخدم psql لتنفيذ ملف SQL
+                if process.returncode == 0:
+                    logger.info("تم تحويل ملف DUMP إلى SQL بنجاح، جاري استيراد البيانات...")
+
+                    # استيراد ملف SQL باستخدام psql
+                    psql_cmd = [
+                        'psql',
+                        f"--dbname={database_config.database_name}",
+                    ]
+
+                    if database_config.username:
+                        psql_cmd.append(f"--username={database_config.username}")
+
+                    if database_config.host:
+                        psql_cmd.append(f"--host={database_config.host}")
+
+                    if database_config.port:
+                        psql_cmd.append(f"--port={database_config.port}")
+
+                    psql_cmd.append(f"--file={sql_file_path}")
+
+                    with open(log_file_path, 'w') as log:
+                        process = subprocess.run(
+                            psql_cmd,
+                            env=env,
+                            stdout=log,
+                            stderr=subprocess.STDOUT,
+                            check=True
+                        )
+
+                    # حذف ملف SQL المؤقت
+                    os.unlink(sql_file_path)
+                else:
+                    # قراءة سجل العملية
+                    with open(log_file_path, 'r') as log:
+                        log_content = log.read()
+
+                    # رفع استثناء
+                    raise Exception(f"فشل تحويل ملف DUMP إلى SQL: {log_content}")
+            else:
+                # استعادة النسخة الاحتياطية باستخدام pg_restore
+                cmd = [
+                    'pg_restore',
+                    '--format=custom',
+                    '--clean',
+                    '--if-exists',
+                    '--no-owner',  # تجاهل معلومات المالك
+                    '--no-privileges',  # تجاهل معلومات الصلاحيات
+                    f"--dbname={database_config.database_name}",
+                ]
+
+                if database_config.username:
+                    cmd.append(f"--username={database_config.username}")
+
+                if database_config.host:
+                    cmd.append(f"--host={database_config.host}")
+
+                if database_config.port:
+                    cmd.append(f"--port={database_config.port}")
+
+                cmd.append(file_path)
+
+                # تنفيذ الأمر
+                subprocess.run(cmd, check=True, env=env)
+        finally:
+            # حذف ملف السجل المؤقت
+            if os.path.exists(log_file_path):
+                os.unlink(log_file_path)
 
     def _restore_mysql_backup(self, database_config, file_path, clear_data):
         """استعادة نسخة احتياطية لقاعدة بيانات MySQL"""
@@ -777,35 +860,182 @@ class DatabaseService:
                     tables_to_import.extend(['inspections_inspection', 'inspections_inspectionitem'])
 
                 # استيراد الجداول المحددة فقط
-                cmd = [
-                    'pg_restore',
-                    '--format=custom',
-                    '--clean',
-                    '--if-exists',
-                    f"--dbname={database_config.database_name}",
-                ]
+                try:
+                    # إنشاء ملف مؤقت للسجل
+                    log_file = tempfile.NamedTemporaryFile(delete=False, suffix='.log', mode='w+')
+                    log_file_path = log_file.name
+                    log_file.close()
 
-                if database_config.username:
-                    cmd.append(f"--username={database_config.username}")
+                    # إعداد بيئة التنفيذ
+                    env = os.environ.copy()
+                    if database_config.password:
+                        env['PGPASSWORD'] = database_config.password
 
-                if database_config.host:
-                    cmd.append(f"--host={database_config.host}")
+                    # تحقق مما إذا كنا على Railway
+                    is_railway = "railway" in (database_config.host or "")
 
-                if database_config.port:
-                    cmd.append(f"--port={database_config.port}")
+                    # إذا كنا على Railway، نستخدم طريقة مختلفة للاستيراد
+                    if is_railway:
+                        logger.info("تم اكتشاف بيئة Railway، استخدام طريقة استيراد خاصة...")
 
-                # إضافة الجداول المحددة
-                for table in tables_to_import:
-                    cmd.append(f"--table={table}")
+                        # استخدام psql بدلاً من pg_restore على Railway
+                        # أولاً، نقوم بتحويل ملف dump إلى SQL
+                        sql_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql')
+                        sql_file_path = sql_file.name
+                        sql_file.close()
 
-                cmd.append(file_path)
+                        # تحويل ملف dump إلى SQL
+                        convert_cmd = [
+                            'pg_restore',
+                            '--format=custom',
+                            '--file=' + sql_file_path,
+                            file_path
+                        ]
 
-                # تنفيذ الأمر
-                env = os.environ.copy()
-                if database_config.password:
-                    env['PGPASSWORD'] = database_config.password
+                        with open(log_file_path, 'w') as log:
+                            process = subprocess.run(
+                                convert_cmd,
+                                env=env,
+                                stdout=log,
+                                stderr=subprocess.STDOUT,
+                                check=False
+                            )
 
-                subprocess.run(cmd, check=True, env=env)
+                        # إذا نجح التحويل، نستخدم psql لتنفيذ ملف SQL
+                        if process.returncode == 0:
+                            logger.info("تم تحويل ملف DUMP إلى SQL بنجاح، جاري استيراد البيانات...")
+
+                            # استيراد ملف SQL باستخدام psql
+                            psql_cmd = [
+                                'psql',
+                                f"--dbname={database_config.database_name}",
+                            ]
+
+                            if database_config.username:
+                                psql_cmd.append(f"--username={database_config.username}")
+
+                            if database_config.host:
+                                psql_cmd.append(f"--host={database_config.host}")
+
+                            if database_config.port:
+                                psql_cmd.append(f"--port={database_config.port}")
+
+                            psql_cmd.append(f"--file={sql_file_path}")
+
+                            with open(log_file_path, 'w') as log:
+                                process = subprocess.run(
+                                    psql_cmd,
+                                    env=env,
+                                    stdout=log,
+                                    stderr=subprocess.STDOUT,
+                                    check=False
+                                )
+
+                            # حذف ملف SQL المؤقت
+                            os.unlink(sql_file_path)
+
+                        # قراءة سجل العملية
+                        with open(log_file_path, 'r') as log:
+                            log_content = log.read()
+
+                        # إذا فشلت العملية، نرفع استثناء
+                        if process.returncode != 0:
+                            raise Exception(f"فشل استيراد البيانات على Railway: {log_content}")
+                    else:
+                        # على البيئة المحلية، نستخدم pg_restore
+
+                        # محاولة استيراد الملف بدون تحديد جداول (استيراد كامل)
+                        cmd = [
+                            'pg_restore',
+                            '--format=custom',
+                            '--clean',
+                            '--if-exists',
+                            '--no-owner',  # تجاهل معلومات المالك
+                            '--no-privileges',  # تجاهل معلومات الصلاحيات
+                            f"--dbname={database_config.database_name}",
+                        ]
+
+                        if database_config.username:
+                            cmd.append(f"--username={database_config.username}")
+
+                        if database_config.host:
+                            cmd.append(f"--host={database_config.host}")
+
+                        if database_config.port:
+                            cmd.append(f"--port={database_config.port}")
+
+                        cmd.append(file_path)
+
+                        # تنفيذ الأمر مع توجيه المخرجات إلى ملف السجل
+                        with open(log_file_path, 'w') as log:
+                            process = subprocess.run(
+                                cmd,
+                                env=env,
+                                stdout=log,
+                                stderr=subprocess.STDOUT,
+                                check=False  # لا نريد رفع استثناء في حالة الفشل
+                            )
+
+                        # قراءة سجل العملية
+                        with open(log_file_path, 'r') as log:
+                            log_content = log.read()
+
+                        # إذا فشلت العملية، نحاول طريقة بديلة
+                        if process.returncode != 0:
+                            # تسجيل الخطأ
+                            logger.warning(f"فشل استيراد الملف بالكامل: {log_content}")
+
+                            # محاولة استيراد الجداول المحددة فقط
+                            cmd = [
+                                'pg_restore',
+                                '--format=custom',
+                                '--clean',
+                                '--if-exists',
+                                '--no-owner',
+                                '--no-privileges',
+                                '--data-only',  # استيراد البيانات فقط
+                                f"--dbname={database_config.database_name}",
+                            ]
+
+                            if database_config.username:
+                                cmd.append(f"--username={database_config.username}")
+
+                            if database_config.host:
+                                cmd.append(f"--host={database_config.host}")
+
+                            if database_config.port:
+                                cmd.append(f"--port={database_config.port}")
+
+                            # إضافة الجداول المحددة
+                            for table in tables_to_import:
+                                cmd.append(f"--table={table}")
+
+                            cmd.append(file_path)
+
+                            # تنفيذ الأمر مع توجيه المخرجات إلى ملف السجل
+                            with open(log_file_path, 'w') as log:
+                                process = subprocess.run(
+                                    cmd,
+                                    env=env,
+                                    stdout=log,
+                                    stderr=subprocess.STDOUT,
+                                    check=False
+                                )
+
+                            # قراءة سجل العملية
+                            with open(log_file_path, 'r') as log:
+                                log_content = log.read()
+
+                            # إذا فشلت العملية مرة أخرى، نرفع استثناء
+                            if process.returncode != 0:
+                                raise Exception(f"فشل استيراد الجداول المحددة: {log_content}")
+
+                    # حذف ملف السجل المؤقت
+                    os.unlink(log_file_path)
+
+                except Exception as e:
+                    logger.error(f"حدث خطأ أثناء استيراد ملف DUMP: {str(e)}")
+                    raise
             else:
                 # استيراد جميع البيانات
                 self._restore_postgresql_backup(database_config, file_path, clear_data)

@@ -19,106 +19,143 @@ def login_view(request):
     """
     View for user login
     """
-    from data_management.modules.db_manager.models import SetupToken, DatabaseConfig
+    import logging
+    logger = logging.getLogger('django')
 
-    # التحقق من وجود مستخدمين في النظام
-    if User.objects.count() == 0:
-        # لا يوجد مستخدمين في النظام، توجيه المستخدم إلى صفحة الإعداد الأولي
+    try:
+        from data_management.modules.db_manager.models import SetupToken, DatabaseConfig
 
-        # التحقق من وجود رمز إعداد صالح
-        valid_token = SetupToken.objects.filter(is_used=False, is_expired=False).first()
+        # التحقق من وجود مستخدمين في النظام
+        if User.objects.count() == 0:
+            # لا يوجد مستخدمين في النظام، توجيه المستخدم إلى صفحة الإعداد الأولي
+            logger.info("No users found in the system, redirecting to setup page")
 
-        if not valid_token:
-            # إنشاء رمز إعداد جديد
-            from datetime import datetime, timedelta
-            valid_token = SetupToken.objects.create(
-                expires_at=datetime.now() + timedelta(hours=24)
-            )
-            messages.info(request, 'تم إنشاء رمز إعداد جديد للنظام. يرجى استخدامه لإعداد النظام لأول مرة.')
+            # التحقق من وجود رمز إعداد صالح
+            valid_token = SetupToken.objects.filter(is_used=False, is_expired=False).first()
 
-        # التحقق من وجود قاعدة بيانات نشطة
-        if not DatabaseConfig.objects.filter(is_active=True).exists():
-            # إنشاء قاعدة بيانات افتراضية
-            import os
+            if not valid_token:
+                # إنشاء رمز إعداد جديد
+                from datetime import datetime, timedelta
+                valid_token = SetupToken.objects.create(
+                    expires_at=datetime.now() + timedelta(hours=24)
+                )
+                messages.info(request, 'تم إنشاء رمز إعداد جديد للنظام. يرجى استخدامه لإعداد النظام لأول مرة.')
 
-            DatabaseConfig.objects.create(
-                name="قاعدة البيانات الرئيسية",
-                db_type="postgresql",
-                host=os.environ.get('DB_HOST', 'localhost'),
-                port=os.environ.get('DB_PORT', '5432'),
-                username=os.environ.get('DB_USER', 'crm_user'),
-                password=os.environ.get('DB_PASSWORD', '5525'),
-                database_name=os.environ.get('DB_NAME', 'crm_system'),
-                is_active=True,
-                is_default=True
-            )
+            # التحقق من وجود قاعدة بيانات نشطة
+            if not DatabaseConfig.objects.filter(is_active=True).exists():
+                # إنشاء قاعدة بيانات افتراضية
+                import os
+                logger.info("No active database found, creating default database")
 
-        # توجيه المستخدم إلى صفحة الإعداد
-        return redirect('db_manager:setup_with_token', token=valid_token.token)
+                try:
+                    DatabaseConfig.objects.create(
+                        name="قاعدة البيانات الرئيسية",
+                        db_type="postgresql",
+                        host=os.environ.get('DB_HOST', 'localhost'),
+                        port=os.environ.get('DB_PORT', '5432'),
+                        username=os.environ.get('DB_USER', 'crm_user'),
+                        password=os.environ.get('DB_PASSWORD', '5525'),
+                        database_name=os.environ.get('DB_NAME', 'crm_system'),
+                        is_active=True,
+                        is_default=True
+                    )
+                except Exception as e:
+                    logger.error(f"Error creating default database: {e}")
+                    # إنشاء قاعدة بيانات افتراضية بقيم ثابتة في حالة فشل القراءة من المتغيرات البيئية
+                    DatabaseConfig.objects.create(
+                        name="قاعدة البيانات الرئيسية",
+                        db_type="postgresql",
+                        host="localhost",
+                        port="5432",
+                        username="crm_user",
+                        password="5525",
+                        database_name="crm_system",
+                        is_active=True,
+                        is_default=True
+                    )
 
-    if request.user.is_authenticated:
-        return redirect('home')
+            # توجيه المستخدم إلى صفحة الإعداد
+            return redirect('data_management:db_manager:setup_with_token', token=valid_token.token)
 
-    if request.method == 'POST':
-        form = AuthenticationForm(request, data=request.POST)
-        if form.is_valid():
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password')
+        if request.user.is_authenticated:
+            return redirect('home')
 
-            # استخدام طريقة المصادقة المحسنة
-            try:
-                # البحث عن المستخدم باستخدام ORM
-                user_obj = User.objects.filter(username=username).first()
+        if request.method == 'POST':
+            form = AuthenticationForm(request, data=request.POST)
+            if form.is_valid():
+                username = form.cleaned_data.get('username')
+                password = form.cleaned_data.get('password')
+                logger.info(f"Login attempt for user: {username}")
 
-                if user_obj and user_obj.check_password(password):
-                    # تسجيل الدخول مع تحديد backend
-                    from django.contrib.auth import get_backends
-                    backend = get_backends()[0]  # استخدام أول backend متاح
-                    user_obj.backend = f"{backend.__module__}.{backend.__class__.__name__}"
-                    login(request, user_obj)
-                    messages.success(request, f'مرحباً بك {username}!')
-                    next_url = request.GET.get('next', 'home')
-                    return redirect(next_url)
-                else:
-                    messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
-            except Exception as e:
-                # تسجيل الخطأ
-                import logging
-                logger = logging.getLogger('django')
-                logger.error(f"[Login Error] {e}")
+                # استخدام طريقة المصادقة المحسنة
+                try:
+                    # البحث عن المستخدم باستخدام ORM
+                    user_obj = User.objects.filter(username=username).first()
 
-                # محاولة المصادقة العادية كخطة بديلة
-                from django.contrib.auth import get_backends
-                backend = get_backends()[0]  # استخدام أول backend متاح
-                user = authenticate(request=request, username=username, password=password)
-                if user is not None:
-                    login(request, user)
-                    messages.success(request, f'مرحباً بك {username}!')
-                    next_url = request.GET.get('next', 'home')
-                    return redirect(next_url)
-                else:
-                    messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                    if user_obj and user_obj.check_password(password):
+                        # تسجيل الدخول مع تحديد backend
+                        from django.contrib.auth import get_backends
+                        backend = get_backends()[0]  # استخدام أول backend متاح
+                        user_obj.backend = f"{backend.__module__}.{backend.__class__.__name__}"
+                        login(request, user_obj)
+                        messages.success(request, f'مرحباً بك {username}!')
+                        next_url = request.GET.get('next', 'home')
+                        return redirect(next_url)
+                    else:
+                        messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                except Exception as e:
+                    # تسجيل الخطأ
+                    logger.error(f"[Login Error] {e}")
 
-            # Add CSS classes to form fields
-            form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
-            form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
+                    # محاولة المصادقة العادية كخطة بديلة
+                    try:
+                        user = authenticate(request=request, username=username, password=password)
+                        if user is not None:
+                            login(request, user)
+                            messages.success(request, f'مرحباً بك {username}!')
+                            next_url = request.GET.get('next', 'home')
+                            return redirect(next_url)
+                        else:
+                            messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                    except Exception as auth_error:
+                        logger.error(f"[Authentication Error] {auth_error}")
+                        messages.error(request, 'حدث خطأ أثناء محاولة تسجيل الدخول. يرجى المحاولة مرة أخرى.')
+
+                # Add CSS classes to form fields
+                form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
+                form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
+            else:
+                messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+                # Add CSS classes to form fields
+                form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
+                form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
         else:
-            messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة.')
+            form = AuthenticationForm()
             # Add CSS classes to form fields
             form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
             form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
-    else:
+
+        context = {
+            'form': form,
+            'title': 'تسجيل الدخول',
+        }
+
+        return render(request, 'accounts/login.html', context)
+    except Exception as e:
+        logger.error(f"[Critical Login Error] {e}")
+        # في حالة حدوث خطأ غير متوقع، نعرض صفحة تسجيل دخول بسيطة
         form = AuthenticationForm()
         # Add CSS classes to form fields
         form.fields['username'].widget.attrs.update({'class': 'form-control', 'placeholder': 'اسم المستخدم'})
         form.fields['password'].widget.attrs.update({'class': 'form-control', 'placeholder': 'كلمة المرور'})
 
-    context = {
-        'form': form,
-        'title': 'تسجيل الدخول',
-    }
+        context = {
+            'form': form,
+            'title': 'تسجيل الدخول',
+            'error_message': 'حدث خطأ في النظام. يرجى الاتصال بمسؤول النظام.'
+        }
 
-    return render(request, 'accounts/login.html', context)
+        return render(request, 'accounts/login.html', context)
 
 def logout_view(request):
     """

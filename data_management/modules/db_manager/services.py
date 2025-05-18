@@ -9,6 +9,7 @@ import json
 import datetime
 import uuid
 import shutil
+import logging
 from django.conf import settings
 from django.utils import timezone
 from django.db import connection, connections
@@ -18,6 +19,9 @@ from django.urls import reverse
 from django.utils.crypto import get_random_string
 
 from .models import DatabaseConfig, DatabaseBackup, DatabaseImport, SetupToken
+
+# إعداد المسجل
+logger = logging.getLogger(__name__)
 
 class DatabaseService:
     """خدمة إدارة قواعد البيانات"""
@@ -145,6 +149,32 @@ class DatabaseService:
             self._restore_sqlite_backup(database_config, file_path, clear_data)
         else:
             raise ValueError(f"نوع قاعدة البيانات '{database_config.db_type}' غير مدعوم للاستعادة")
+
+        # تحديث إعدادات قاعدة البيانات في ملف db_settings.json
+        try:
+            from data_management.db_settings import add_database_settings, set_active_database
+
+            # إنشاء إعدادات قاعدة البيانات
+            db_settings = {
+                'ENGINE': f"django.db.backends.{database_config.db_type}",
+                'NAME': database_config.database_name,
+                'USER': database_config.username,
+                'PASSWORD': database_config.password,
+                'HOST': database_config.host,
+                'PORT': database_config.port,
+            }
+
+            # إضافة إعدادات قاعدة البيانات
+            add_database_settings(database_config.id, db_settings)
+
+            # تعيين قاعدة البيانات النشطة
+            set_active_database(database_config.id)
+
+            # تنظيف ذاكرة التخزين المؤقت
+            from django.core.cache import cache
+            cache.clear()
+        except Exception as e:
+            logger.error(f"حدث خطأ أثناء تحديث إعدادات قاعدة البيانات: {str(e)}")
 
         return True
 
@@ -500,7 +530,12 @@ class DatabaseService:
         # تحديد الجداول التي سيتم استيرادها
         tables_to_import = []
 
-        if import_mode == 'selective':
+        # إذا تم إلغاء تحديد جميع الخيارات، نقوم باستيراد جميع البيانات
+        if not any([import_settings, import_users, import_customers, import_products, import_orders, import_inspections]):
+            # استيراد جميع الجداول
+            tables_to_import = None
+            import_mode = 'full'
+        elif import_mode == 'selective':
             # تحديد الجداول حسب الخيارات المحددة
             if import_settings:
                 tables_to_import.extend(['auth_group', 'auth_permission', 'django_content_type', 'django_site', 'django_session'])
@@ -583,7 +618,12 @@ class DatabaseService:
         # تحديد الجداول التي سيتم استيرادها
         tables_to_import = []
 
-        if import_mode == 'selective':
+        # إذا تم إلغاء تحديد جميع الخيارات، نقوم باستيراد جميع البيانات
+        if not any([import_settings, import_users, import_customers, import_products, import_orders, import_inspections]):
+            # استيراد جميع الجداول
+            tables_to_import = []
+            import_mode = 'full'
+        elif import_mode == 'selective':
             # تحديد الجداول حسب الخيارات المحددة
             if import_settings:
                 tables_to_import.extend(['auth_group', 'auth_permission', 'django_content_type', 'django_site', 'django_session'])
@@ -711,7 +751,12 @@ class DatabaseService:
             # تحديد الجداول التي سيتم استيرادها
             tables_to_import = []
 
-            if import_mode == 'selective':
+            # إذا تم إلغاء تحديد جميع الخيارات، نقوم باستيراد جميع البيانات
+            if not any([import_settings, import_users, import_customers, import_products, import_orders, import_inspections]):
+                # استيراد جميع الجداول
+                tables_to_import = []
+                import_mode = 'full'
+            elif import_mode == 'selective':
                 # تحديد الجداول حسب الخيارات المحددة
                 if import_settings:
                     tables_to_import.extend(['auth_group', 'auth_permission', 'django_content_type', 'django_site', 'django_session'])

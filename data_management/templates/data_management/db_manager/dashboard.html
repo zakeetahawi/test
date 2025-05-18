@@ -130,7 +130,13 @@
                                                     </tr>
                                                     <tr>
                                                         <th>{% trans "المضيف" %}</th>
-                                                        <td>{{ active_database.host }}</td>
+                                                        <td>
+                                                            {% if "railway" in active_database.host %}
+                                                                <span class="badge badge-success" style="background-color: #1cc88a; color: white; padding: 5px 10px; border-radius: 5px;">Railway</span>
+                                                            {% else %}
+                                                                {{ active_database.host }}
+                                                            {% endif %}
+                                                        </td>
                                                     </tr>
                                                     <tr>
                                                         <th>{% trans "المنفذ" %}</th>
@@ -139,6 +145,18 @@
                                                     <tr>
                                                         <th>{% trans "اسم قاعدة البيانات" %}</th>
                                                         <td>{{ active_database.database_name }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>{% trans "الحالة" %}</th>
+                                                        <td>
+                                                            <span class="badge badge-success" style="background-color: #1cc88a; color: white; padding: 5px 10px; border-radius: 5px;">
+                                                                {% if "railway" in active_database.host %}
+                                                                    {% trans "متصل بـ Railway" %}
+                                                                {% else %}
+                                                                    {% trans "متصل" %}
+                                                                {% endif %}
+                                                            </span>
+                                                        </td>
                                                     </tr>
                                                 </tbody>
                                             </table>

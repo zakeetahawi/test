@@ -75,7 +75,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'crm.middleware.PerformanceMiddleware',  # وسيط قياس وتحسين الأداء
-    'crm.middleware.LazyLoadMiddleware'  # وسيط التحميل الكسول للصور
+    'crm.middleware.LazyLoadMiddleware',  # وسيط التحميل الكسول للصور
+    'data_management.modules.db_manager.middleware.DefaultUserMiddleware',  # وسيط إنشاء المستخدم الافتراضي
 ]
 
 if DEBUG:

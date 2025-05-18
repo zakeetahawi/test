@@ -17,44 +17,44 @@
         white-space: pre-wrap;
         word-wrap: break-word;
     }
-    
+
     .status-badge {
         font-size: 1rem;
         padding: 0.5rem 1rem;
     }
-    
+
     .progress {
         height: 20px;
     }
-    
+
     .progress-bar {
         transition: width 0.5s ease;
     }
-    
+
     .log-line {
         margin-bottom: 0.25rem;
     }
-    
+
     .log-line.error {
         color: #dc3545;
     }
-    
+
     .log-line.success {
         color: #28a745;
     }
-    
+
     .log-line.warning {
         color: #ffc107;
     }
-    
+
     .log-line.info {
         color: #17a2b8;
     }
-    
+
     .refresh-btn {
         cursor: pointer;
     }
-    
+
     .auto-refresh-toggle {
         cursor: pointer;
     }
@@ -76,7 +76,7 @@
                         <a href="#" class="refresh-btn btn btn-sm btn-info me-2">
                             <i class="fas fa-sync-alt"></i> {% trans "تحديث" %}
                         </a>
-                        <a href="{% url 'data_management:db_dashboard' %}" class="btn btn-secondary btn-sm">
+                        <a href="{% url 'data_management:db_manager:db_dashboard' %}" class="btn btn-secondary btn-sm">
                             <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
                         </a>
                     </div>
@@ -136,7 +136,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header pb-0">
@@ -144,19 +144,19 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="progress mb-3">
-                                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
+                                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
                                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
                                             0%
                                         </div>
                                     </div>
-                                    
+
                                     <div id="statusMessage" class="alert alert-info">
                                         {% trans "جاري معالجة الاستيراد..." %}
                                     </div>
-                                    
+
                                     <div class="mt-3 text-end">
                                         {% if db_import.status == 'completed' %}
-                                            <a href="{% url 'data_management:db_dashboard' %}" class="btn btn-success">
+                                            <a href="{% url 'data_management:db_manager:db_dashboard' %}" class="btn btn-success">
                                                 <i class="fas fa-check"></i> {% trans "العودة إلى لوحة التحكم" %}
                                             </a>
                                         {% elif db_import.status == 'failed' %}
@@ -169,7 +169,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-12">
                             <div class="card">
@@ -203,7 +203,7 @@
         let autoRefresh = true;
         let refreshInterval;
         let currentStatus = "{{ db_import.status }}";
-        
+
         // تحديث حالة الاستيراد
         function updateImportStatus() {
             $.ajax({
@@ -217,7 +217,7 @@
                     // تحديث الحالة
                     currentStatus = data.status;
                     updateStatusUI(data);
-                    
+
                     // إيقاف التحديث التلقائي إذا اكتملت العملية
                     if (data.status === 'completed' || data.status === 'failed') {
                         stopAutoRefresh();
@@ -228,7 +228,7 @@
                 }
             });
         }
-        
+
         // تحديث واجهة المستخدم
         function updateStatusUI(data) {
             // تحديث شارة الحالة
@@ -236,7 +236,7 @@
             let progressValue = 0;
             let alertClass = 'alert-info';
             let statusMessage = '';
-            
+
             switch(data.status) {
                 case 'completed':
                     statusHtml = '<span class="badge bg-success">{% trans "مكتمل" %}</span>';
@@ -262,17 +262,17 @@
                     alertClass = 'alert-secondary';
                     statusMessage = '{% trans "في انتظار بدء الاستيراد..." %}';
             }
-            
+
             // تحديث العناصر
             $('#statusBadge').html(statusHtml);
             $('#progressBar').css('width', progressValue + '%').attr('aria-valuenow', progressValue).text(progressValue + '%');
             $('#statusMessage').removeClass('alert-info alert-success alert-danger alert-secondary').addClass(alertClass).text(statusMessage);
-            
+
             // تحديث تاريخ الانتهاء
             if (data.completed_at) {
                 $('#completedAt').text(formatDateTime(data.completed_at));
             }
-            
+
             // تحديث سجل العملية
             if (data.log) {
                 const formattedLog = formatLog(data.log);
@@ -281,47 +281,47 @@
                 const logContainer = document.getElementById('logContainer');
                 logContainer.scrollTop = logContainer.scrollHeight;
             }
-            
+
             // إظهار أزرار إضافية عند اكتمال العملية
             if (data.status === 'completed' || data.status === 'failed') {
                 const actionButtons = `
-                    ${data.status === 'completed' ? 
-                        '<a href="{% url "data_management:db_dashboard" %}" class="btn btn-success"><i class="fas fa-check"></i> {% trans "العودة إلى لوحة التحكم" %}</a>' : 
-                        '<a href="{% url "data_management:db_import" %}" class="btn btn-primary"><i class="fas fa-redo"></i> {% trans "محاولة مرة أخرى" %}</a>'}
+                    ${data.status === 'completed' ?
+                        '<a href="{% url "data_management:db_manager:db_dashboard" %}" class="btn btn-success"><i class="fas fa-check"></i> {% trans "العودة إلى لوحة التحكم" %}</a>' :
+                        '<a href="{% url "data_management:db_manager:db_import" %}" class="btn btn-primary"><i class="fas fa-redo"></i> {% trans "محاولة مرة أخرى" %}</a>'}
                 `;
                 $('.mt-3.text-end').html(actionButtons);
             }
         }
-        
+
         // حساب نسبة التقدم من السجل
         function calculateProgress(log) {
             if (!log) return 10;
-            
+
             // تقدير التقدم بناءً على طول السجل ووجود كلمات رئيسية
             const totalSteps = 5; // عدد الخطوات الرئيسية في عملية الاستيراد
             let completedSteps = 0;
-            
+
             if (log.includes('بدء عملية الاستيراد')) completedSteps++;
             if (log.includes('إنشاء نسخة احتياطية')) completedSteps++;
             if (log.includes('جاري التحضير لعملية الاستيراد')) completedSteps++;
             if (log.includes('بدء استيراد ملف')) completedSteps++;
             if (log.includes('تم استيراد')) completedSteps++;
-            
+
             return Math.min(Math.round((completedSteps / totalSteps) * 100), 95);
         }
-        
+
         // تنسيق السجل
         function formatLog(log) {
             if (!log) return '';
-            
+
             // تقسيم السجل إلى أسطر
             const lines = log.split('\n');
             let formattedLog = '';
-            
+
             // تنسيق كل سطر
             lines.forEach(line => {
                 let lineClass = 'log-line';
-                
+
                 if (line.includes('خطأ') || line.includes('فشل')) {
                     lineClass += ' error';
                 } else if (line.includes('تم') || line.includes('نجاح')) {
@@ -331,24 +331,24 @@
                 } else if (line.includes('بدء') || line.includes('جاري')) {
                     lineClass += ' info';
                 }
-                
+
                 formattedLog += `<div class="${lineClass}">${line}</div>`;
             });
-            
+
             return formattedLog;
         }
-        
+
         // تنسيق التاريخ والوقت
         function formatDateTime(isoString) {
             const date = new Date(isoString);
             return date.toLocaleString('ar-EG');
         }
-        
+
         // بدء التحديث التلقائي
         function startAutoRefresh() {
             autoRefresh = true;
             $('#autoRefresh').prop('checked', true);
-            
+
             if (!refreshInterval) {
                 refreshInterval = setInterval(function() {
                     if (autoRefresh && (currentStatus === 'in_progress' || currentStatus === 'pending')) {
@@ -357,24 +357,24 @@
                 }, 3000); // تحديث كل 3 ثواني
             }
         }
-        
+
         // إيقاف التحديث التلقائي
         function stopAutoRefresh() {
             autoRefresh = false;
             $('#autoRefresh').prop('checked', false);
-            
+
             if (refreshInterval) {
                 clearInterval(refreshInterval);
                 refreshInterval = null;
             }
         }
-        
+
         // معالجة النقر على زر التحديث
         $('.refresh-btn').on('click', function(e) {
             e.preventDefault();
             updateImportStatus();
         });
-        
+
         // معالجة تبديل التحديث التلقائي
         $('#autoRefresh').on('change', function() {
             if ($(this).is(':checked')) {
@@ -383,10 +383,10 @@
                 stopAutoRefresh();
             }
         });
-        
+
         // تحديث الحالة عند تحميل الصفحة
         updateImportStatus();
-        
+
         // بدء التحديث التلقائي إذا كانت العملية قيد التنفيذ
         if (currentStatus === 'in_progress' || currentStatus === 'pending') {
             startAutoRefresh();

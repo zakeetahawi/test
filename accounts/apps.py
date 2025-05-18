@@ -11,21 +11,16 @@ class AccountsConfig(AppConfig):
         from . import signals  # noqa
 
         # Register post_migrate signal to create departments
-        post_migrate.connect(self.create_departments, sender=self)
+        # استخدام وظيفة مساعدة لتجنب الوصول إلى قاعدة البيانات مباشرة
+        post_migrate.connect(self._post_migrate_callback, sender=self)
 
-    def create_departments(self, *args, **kwargs):
+    def _post_migrate_callback(self, *args, **kwargs):
         """
-        Create departments after migration
+        وظيفة مساعدة لتجنب الوصول إلى قاعدة البيانات أثناء تهيئة التطبيق
         """
+        # استخدام استدعاء متأخر لإنشاء الأقسام
         from django.core.management import call_command
-        try:
-            # إنشاء الأقسام الأساسية
-            from .core_departments import create_core_departments
-            create_core_departments()
-            print("Core departments created successfully after migration")
 
-            # Call the create_departments command for any additional departments
-            call_command('create_departments')
-            print("Additional departments created successfully after migration")
-        except Exception as e:
-            print(f"Error creating departments: {e}")
+        # استخدام أمر الإدارة بدلاً من الوصول المباشر إلى قاعدة البيانات
+        call_command('create_core_departments')
+        call_command('create_departments')

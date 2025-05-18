@@ -17,33 +17,8 @@ class DataManagementConfig(AppConfig):
             # تجاهل الخطأ إذا لم يكن ملف الإشارات موجودًا
             pass
 
-        # نتأكد من عدم تشغيل المجدول أثناء المهام الإدارية لتفادي أخطاء قاعدة البيانات
-        if 'runserver' in sys.argv and 'makemigrations' not in sys.argv and 'migrate' not in sys.argv and 'shell' not in sys.argv:
-            try:
-                from .scheduler import start_scheduler
-                start_scheduler()
-            except Exception as e:
-                print(f"خطأ في تشغيل المجدول: {str(e)}")
-                pass
+        # تأجيل تشغيل المجدول لتجنب الوصول إلى قاعدة البيانات أثناء تهيئة التطبيق
+        # سيتم تشغيل المجدول عند الحاجة من خلال طلب HTTP بدلاً من ذلك
 
-        # إنشاء مستخدم افتراضي إذا لم يكن هناك مستخدمين
-        self.create_default_user()
-
-    def create_default_user(self):
-        """إنشاء مستخدم افتراضي إذا لم يكن هناك مستخدمين"""
-        try:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-
-            # التحقق من وجود مستخدمين
-            if User.objects.count() == 0:
-                # إنشاء مستخدم افتراضي
-                User.objects.create_superuser(
-                    username='admin',
-                    password='admin',
-                    email='admin@example.com'
-                )
-                print("تم إنشاء مستخدم افتراضي (admin/admin)")
-        except Exception as e:
-            print(f"خطأ في إنشاء المستخدم الافتراضي: {str(e)}")
-            pass
+        # ملاحظة: تم إزالة إنشاء المستخدم الافتراضي التلقائي لأسباب أمنية
+        # استخدم الأمر: python manage.py create_admin_user لإنشاء مستخدم مسؤول عند الحاجة

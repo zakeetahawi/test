@@ -207,7 +207,7 @@
         // تحديث حالة الاستيراد
         function updateImportStatus() {
             $.ajax({
-                url: "{% url 'data_management:import_status' pk=db_import.id %}",
+                url: "{% url 'data_management:db_manager:import_status' pk=db_import.id %}",
                 type: "GET",
                 dataType: "json",
                 headers: {

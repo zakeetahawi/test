@@ -23,6 +23,34 @@ def get_active_database_settings():
         dict: إعدادات قاعدة البيانات النشطة
     """
     try:
+        # التحقق من وجود متغيرات البيئة الخاصة بـ Railway
+        if 'PGHOST' in os.environ and os.environ.get('RAILWAY_ENVIRONMENT', '') == 'production':
+            # استخدام إعدادات Railway مباشرة
+            logger.info("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
+
+            # إنشاء معرف فريد لقاعدة بيانات Railway
+            railway_db_id = 'railway_db'
+
+            # إنشاء إعدادات قاعدة بيانات Railway
+            railway_settings = {
+                'active_db': railway_db_id,
+                'databases': {
+                    railway_db_id: {
+                        'ENGINE': 'django.db.backends.postgresql',
+                        'NAME': os.environ.get('PGDATABASE', 'railway'),
+                        'USER': os.environ.get('PGUSER', 'postgres'),
+                        'PASSWORD': os.environ.get('PGPASSWORD', ''),
+                        'HOST': os.environ.get('PGHOST', 'postgres.railway.internal'),
+                        'PORT': os.environ.get('PGPORT', '5432'),
+                    }
+                }
+            }
+
+            # حفظ إعدادات Railway
+            save_database_settings(railway_settings)
+
+            return railway_settings
+
         # التحقق من وجود ملف الإعدادات
         if not os.path.exists(DB_SETTINGS_FILE):
             # إنشاء ملف إعدادات افتراضي
@@ -53,9 +81,23 @@ def save_database_settings(settings):
         settings (dict): إعدادات قاعدة البيانات
     """
     try:
-        # حفظ ملف الإعدادات
-        with open(DB_SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=4)
+        # التحقق مما إذا كنا في بيئة Railway
+        if os.environ.get('RAILWAY_ENVIRONMENT', '') == 'production':
+            # في بيئة Railway، نحاول حفظ الإعدادات ولكن لا نتوقف إذا فشلت العملية
+            try:
+                # حفظ ملف الإعدادات
+                with open(DB_SETTINGS_FILE, 'w') as f:
+                    json.dump(settings, f, indent=4)
+                logger.info("تم حفظ إعدادات قاعدة البيانات في بيئة Railway")
+            except Exception as railway_error:
+                logger.warning(f"تعذر حفظ إعدادات قاعدة البيانات في بيئة Railway: {str(railway_error)}")
+                # لا نرفع استثناء في بيئة Railway لأن الملفات قد تكون للقراءة فقط
+                pass
+        else:
+            # في البيئة المحلية، نحفظ الإعدادات كالمعتاد
+            with open(DB_SETTINGS_FILE, 'w') as f:
+                json.dump(settings, f, indent=4)
+            logger.info("تم حفظ إعدادات قاعدة البيانات في البيئة المحلية")
     except Exception as e:
         logger.error(f"حدث خطأ أثناء حفظ إعدادات قاعدة البيانات: {str(e)}")
 

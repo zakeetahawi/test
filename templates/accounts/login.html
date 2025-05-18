@@ -42,7 +42,11 @@
 
                         <div class="mb-3">
                             <label for="{{ form.username.id_for_label }}" class="form-label">اسم المستخدم</label>
-                            {{ form.username }}
+                            {% if form.username %}
+                                {{ form.username }}
+                            {% else %}
+                                <input type="text" name="username" class="form-control" placeholder="اسم المستخدم" required>
+                            {% endif %}
                             {% if form.username.errors %}
                             <div class="text-danger">
                                 {% for error in form.username.errors %}
@@ -54,7 +58,11 @@
 
                         <div class="mb-3">
                             <label for="{{ form.password.id_for_label }}" class="form-label">كلمة المرور</label>
-                            {{ form.password }}
+                            {% if form.password %}
+                                {{ form.password }}
+                            {% else %}
+                                <input type="password" name="password" class="form-control" placeholder="كلمة المرور" required>
+                            {% endif %}
                             {% if form.password.errors %}
                             <div class="text-danger">
                                 {% for error in form.password.errors %}
@@ -70,6 +78,11 @@
                             </button>
                         </div>
                     </form>
+                </div>
+                <div class="card-footer text-center">
+                    <small class="text-muted">
+                        إذا واجهت مشكلة في تسجيل الدخول، يرجى التواصل مع مسؤول النظام.
+                    </small>
                 </div>
             </div>
         </div>

@@ -129,7 +129,16 @@ def get_active_database_id():
         settings = get_active_database_settings()
 
         # إرجاع معرف قاعدة البيانات النشطة
-        return settings.get('active_db')
+        active_db = settings.get('active_db')
+
+        # محاولة تحويل المعرف إلى رقم إذا كان ممكنًا
+        if active_db is not None:
+            try:
+                return int(active_db)
+            except (ValueError, TypeError):
+                # إذا لم يكن ممكنًا تحويله إلى رقم، أرجع القيمة كما هي
+                return active_db
+        return None
     except Exception as e:
         logger.error(f"حدث خطأ أثناء الحصول على معرف قاعدة البيانات النشطة: {str(e)}")
         return None

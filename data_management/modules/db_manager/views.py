@@ -63,8 +63,14 @@ def dashboard(request):
             display_name = known_databases.get(db_name, {}).get('name', db_name)
 
             # إنشاء كائن مؤقت لقاعدة البيانات النشطة
+            # تحويل معرف قاعدة البيانات إلى رقم إذا كان ممكنًا، وإلا استخدم 0
+            try:
+                db_id = int(active_db_id)
+            except (ValueError, TypeError):
+                db_id = 0
+
             active_database = DatabaseConfig(
-                id=int(active_db_id),
+                id=db_id,
                 name=display_name,
                 db_type=active_db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
                 host=active_db_settings.get('HOST', ''),
@@ -163,8 +169,14 @@ def database_list(request):
             # استخدام الاسم المعروف إذا كان متاحًا
             display_name = known_databases.get(db_name, {}).get('name', db_name)
 
+            # تحويل معرف قاعدة البيانات إلى رقم إذا كان ممكنًا، وإلا استخدم 0
+            try:
+                numeric_db_id = int(db_id)
+            except (ValueError, TypeError):
+                numeric_db_id = 0
+
             db_config = DatabaseConfig(
-                id=int(db_id),
+                id=numeric_db_id,
                 name=display_name,
                 db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
                 host=db_settings.get('HOST', ''),
@@ -395,7 +407,7 @@ def database_detail(request, pk):
             db_settings = settings_data['databases'][str(pk)]
             db_name = db_settings.get('NAME', 'غير معروف')
             database = DatabaseConfig(
-                id=int(pk),
+                id=int(pk) if isinstance(pk, int) or (isinstance(pk, str) and pk.isdigit()) else 0,
                 name=f"{db_name} (ID: {pk})",
                 db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
                 host=db_settings.get('HOST', ''),
@@ -527,7 +539,7 @@ def database_delete(request, pk):
 
             # إنشاء كائن مؤقت لقاعدة البيانات
             database = DatabaseConfig(
-                id=int(pk),
+                id=int(pk) if isinstance(pk, int) or (isinstance(pk, str) and pk.isdigit()) else 0,
                 name=display_name,
                 db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
                 host=db_settings.get('HOST', ''),
@@ -547,7 +559,7 @@ def database_delete(request, pk):
                     if db_settings.get('NAME') == db_name:
                         # إذا وجدنا قاعدة بيانات معروفة، قم بإنشاء كائن مؤقت لها
                         database = DatabaseConfig(
-                            id=int(db_id),
+                            id=int(db_id) if isinstance(db_id, int) or (isinstance(db_id, str) and db_id.isdigit()) else 0,
                             name=db_info['name'],
                             db_type=db_info['db_type'],
                             host=db_settings.get('HOST', 'localhost'),
@@ -567,7 +579,7 @@ def database_delete(request, pk):
             if not found:
                 # إنشاء كائن مؤقت لقاعدة البيانات
                 database = DatabaseConfig(
-                    id=int(pk),
+                    id=int(pk) if isinstance(pk, int) or (isinstance(pk, str) and pk.isdigit()) else 0,
                     name=f"قاعدة بيانات {pk}",
                     db_type='postgresql',
                     host='localhost',
@@ -678,7 +690,7 @@ def database_set_default(request, pk):
 
             # إنشاء كائن مؤقت لقاعدة البيانات
             database = DatabaseConfig(
-                id=int(pk),
+                id=int(pk) if isinstance(pk, int) or (isinstance(pk, str) and pk.isdigit()) else 0,
                 name=display_name,
                 db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
                 host=db_settings.get('HOST', ''),
@@ -754,7 +766,7 @@ def database_set_active(request, pk):
             db_settings = settings_data['databases'][str(pk)]
             db_name = db_settings.get('NAME', 'غير معروف')
             database = DatabaseConfig(
-                id=int(pk),
+                id=int(pk) if isinstance(pk, int) or (isinstance(pk, str) and pk.isdigit()) else 0,
                 name=f"{db_name} (ID: {pk})",
                 db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
                 host=db_settings.get('HOST', ''),

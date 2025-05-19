@@ -299,8 +299,8 @@ REST_FRAMEWORK = {
 # إعدادات JWT (Simple JWT)
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),  # زيادة مدة صلاحية التوكن إلى 7 أيام
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),  # زيادة مدة صلاحية توكن التحديث إلى 30 يوم
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
@@ -310,6 +310,9 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_PATH': '/',
     'AUTH_COOKIE_SAMESITE': 'Lax',
+    'AUTH_COOKIE_SECURE': False,  # تعطيل في جميع البيئات لتجنب مشاكل المصادقة
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 # Security Settings for Production
@@ -432,9 +435,11 @@ CSRF_USE_SESSIONS = False
 CSRF_COOKIE_SECURE = False
 
 # تحديث إعدادات Session
-SESSION_COOKIE_SAMESITE = None
+SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 86400 * 7  # 7 أيام
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # استخدام قاعدة البيانات لتخزين الجلسات
 
 # إضافة إعدادات CORS_ORIGIN_WHITELIST
 CORS_ORIGIN_WHITELIST = [
@@ -451,8 +456,8 @@ CORS_ORIGIN_WHITELIST = [
 # Security Settings
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False  # Must be False to allow JavaScript access
-CSRF_COOKIE_SECURE = True if not DEBUG else False
-SESSION_COOKIE_SECURE = True if not DEBUG else False
+CSRF_COOKIE_SECURE = False  # تعطيل في جميع البيئات لتجنب مشاكل المصادقة
+SESSION_COOKIE_SECURE = False  # تعطيل في جميع البيئات لتجنب مشاكل المصادقة
 
 # إعدادات جدولة المهام
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"

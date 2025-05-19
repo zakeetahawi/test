@@ -2,8 +2,12 @@ from django.core.management.base import BaseCommand
 from django.contrib.sessions.models import Session
 from django.utils import timezone
 from datetime import timedelta
-from django.db import connection
+from django.db import connection, transaction
+from django.contrib.auth import get_user_model
+import logging
 
+# إعداد التسجيل
+logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = 'تنظيف جلسات المستخدمين القديمة والمكررة والتحقق من المستخدمين المكررين'
@@ -94,41 +98,68 @@ class Command(BaseCommand):
         # التحقق من المستخدمين المكررين إذا تم طلب ذلك
         if fix_users:
             self.stdout.write('جاري البحث عن المستخدمين المكررين...')
+            logger.info('بدء عملية إصلاح المستخدمين المكررين')
 
-            # استخدام استعلام SQL مباشر للبحث عن المستخدمين المكررين
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                SELECT username, COUNT(*) as count
-                FROM accounts_user
-                GROUP BY username
-                HAVING COUNT(*) > 1
-                """)
-                duplicate_users = cursor.fetchall()
+            User = get_user_model()
 
-            if duplicate_users:
-                self.stdout.write(f'تم العثور على {len(duplicate_users)} مستخدم مكرر')
+            try:
+                # استخدام استعلام SQL مباشر للبحث عن المستخدمين المكررين
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                    SELECT username, COUNT(*) as count
+                    FROM accounts_user
+                    GROUP BY username
+                    HAVING COUNT(*) > 1
+                    """)
+                    duplicate_users = cursor.fetchall()
 
-                if not dry_run:
-                    # حذف المستخدمين المكررين
-                    with connection.cursor() as cursor:
-                        cursor.execute("""
-                        DELETE FROM accounts_user
-                        WHERE id IN (
-                            SELECT id
-                            FROM (
-                                SELECT id,
-                                       ROW_NUMBER() OVER (PARTITION BY username ORDER BY id) as row_num
-                                FROM accounts_user
-                            ) t
-                            WHERE t.row_num > 1
-                        )
-                        """)
+                if duplicate_users:
+                    self.stdout.write(f'تم العثور على {len(duplicate_users)} مستخدم مكرر')
+                    logger.warning(f'تم العثور على {len(duplicate_users)} مستخدم مكرر')
 
-                        # الحصول على عدد الصفوف المتأثرة
-                        affected_rows = cursor.rowcount
+                    # معالجة كل مستخدم مكرر على حدة
+                    for username, count in duplicate_users:
+                        self.stdout.write(f'معالجة المستخدم المكرر: {username} (عدد التكرارات: {count})')
 
-                        self.stdout.write(self.style.SUCCESS(f'تم حذف {affected_rows} مستخدم مكرر'))
+                        # الحصول على جميع نسخ المستخدم مرتبة حسب تاريخ آخر تسجيل دخول
+                        users = User.objects.filter(username=username).order_by('-last_login')
+
+                        if users.count() > 1:
+                            # الاحتفاظ بأحدث مستخدم (أول عنصر في القائمة)
+                            primary_user = users.first()
+                            duplicate_users_to_delete = users.exclude(id=primary_user.id)
+
+                            self.stdout.write(f'الاحتفاظ بالمستخدم {primary_user.id} وحذف {duplicate_users_to_delete.count()} نسخة مكررة')
+
+                            if not dry_run:
+                                with transaction.atomic():
+                                    # حذف المستخدمين المكررين
+                                    for user in duplicate_users_to_delete:
+                                        user.delete()
+
+                                    self.stdout.write(self.style.SUCCESS(f'تم حذف {duplicate_users_to_delete.count()} نسخة مكررة للمستخدم {username}'))
+                            else:
+                                self.stdout.write(self.style.WARNING(f'سيتم حذف {duplicate_users_to_delete.count()} نسخة مكررة للمستخدم {username} (وضع المحاكاة)'))
+
+                    # إعادة تعيين كلمة مرور المستخدم الافتراضي إذا كان موجوداً
+                    try:
+                        admin_user = User.objects.filter(username='admin').first()
+                        if admin_user:
+                            if not dry_run:
+                                admin_user.set_password('admin')
+                                admin_user.is_active = True
+                                admin_user.is_staff = True
+                                admin_user.is_superuser = True
+                                admin_user.save()
+                                self.stdout.write(self.style.SUCCESS('تم إعادة تعيين كلمة مرور المستخدم الافتراضي (admin)'))
+                            else:
+                                self.stdout.write(self.style.WARNING('سيتم إعادة تعيين كلمة مرور المستخدم الافتراضي (admin) (وضع المحاكاة)'))
+                    except Exception as e:
+                        self.stdout.write(self.style.ERROR(f'خطأ أثناء إعادة تعيين كلمة مرور المستخدم الافتراضي: {str(e)}'))
+                        logger.error(f'خطأ أثناء إعادة تعيين كلمة مرور المستخدم الافتراضي: {str(e)}')
                 else:
-                    self.stdout.write(self.style.WARNING(f'سيتم حذف {len(duplicate_users)} مستخدم مكرر (وضع المحاكاة)'))
-            else:
-                self.stdout.write(self.style.SUCCESS('لا يوجد مستخدمين مكررين'))
+                    self.stdout.write(self.style.SUCCESS('لا يوجد مستخدمين مكررين'))
+                    logger.info('لا يوجد مستخدمين مكررين')
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'خطأ أثناء إصلاح المستخدمين المكررين: {str(e)}'))
+                logger.error(f'خطأ أثناء إصلاح المستخدمين المكررين: {str(e)}')

@@ -350,6 +350,23 @@ class DatabaseService:
                 logger.info("تم اكتشاف بيئة Railway أو عدم توفر أدوات PostgreSQL، استخدام طريقة استيراد بديلة...")
                 print("تم اكتشاف بيئة Railway أو عدم توفر أدوات PostgreSQL، استخدام طريقة استيراد بديلة...")
 
+                # استخدام Django loaddata إذا كان الملف بتنسيق JSON
+                if file_path.endswith('.json'):
+                    try:
+                        # استخدام Django loaddata
+                        from django.core.management import call_command
+                        call_command('loaddata', file_path)
+                        logger.info("تم استيراد ملف JSON بنجاح باستخدام Django loaddata")
+                        print("تم استيراد ملف JSON بنجاح باستخدام Django loaddata")
+
+                        # إعادة تعيين كلمة مرور المستخدم الافتراضي
+                        self._reset_admin_user()
+                        return
+                    except Exception as e:
+                        logger.error(f"فشل استيراد ملف JSON باستخدام Django loaddata: {str(e)}")
+                        print(f"فشل استيراد ملف JSON باستخدام Django loaddata: {str(e)}")
+                        # استمر بالطرق البديلة
+
                 # استخدام psycopg2 مباشرة لاستيراد البيانات
                 try:
                     # إنشاء اتصال بقاعدة البيانات
@@ -364,32 +381,9 @@ class DatabaseService:
                     conn.autocommit = True
                     cursor = conn.cursor()
 
-                    # إنشاء المستخدم الافتراضي إذا لم يكن موجوداً
-                    try:
-                        from django.contrib.auth.models import User
-                        if not User.objects.filter(username='admin').exists():
-                            User.objects.create_superuser('admin', 'admin@example.com', 'admin')
-                            print("تم إنشاء المستخدم الافتراضي (admin/admin)")
-                    except Exception as e:
-                        logger.warning(f"خطأ أثناء إنشاء المستخدم الافتراضي: {str(e)}")
-                        print(f"خطأ أثناء إنشاء المستخدم الافتراضي: {str(e)}")
-
-                    # تحديد نوع الملف
-                    if file_path.endswith('.sql'):
-                        # ملف SQL نصي
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            sql_content = f.read()
-
-                        # تنفيذ الأوامر SQL
-                        cursor.execute(sql_content)
-                        print("تم استيراد ملف SQL بنجاح")
-
-                    elif file_path.endswith('.dump'):
-                        # ملف DUMP ثنائي - نحتاج إلى معالجة خاصة
-                        print("ملف DUMP ثنائي - إنشاء المستخدم الافتراضي فقط")
-
-                        # تنظيف قاعدة البيانات أولاً إذا لزم الأمر
-                        if clear_data:
+                    # تنظيف قاعدة البيانات أولاً إذا لزم الأمر
+                    if clear_data:
+                        try:
                             # الحصول على قائمة الجداول
                             cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
                             tables = [row[0] for row in cursor.fetchall()]
@@ -402,17 +396,71 @@ class DatabaseService:
                                 except Exception as e:
                                     logger.warning(f"خطأ أثناء حذف بيانات الجدول {table}: {str(e)}")
                             cursor.execute("SET CONSTRAINTS ALL IMMEDIATE;")
+                            logger.info("تم تنظيف قاعدة البيانات بنجاح")
+                        except Exception as e:
+                            logger.error(f"خطأ أثناء تنظيف قاعدة البيانات: {str(e)}")
+
+                    # تحديد نوع الملف وطريقة الاستيراد
+                    if file_path.endswith('.sql'):
+                        # ملف SQL نصي
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                sql_content = f.read()
+
+                            # تنفيذ الأوامر SQL
+                            cursor.execute(sql_content)
+                            logger.info("تم استيراد ملف SQL بنجاح")
+                            print("تم استيراد ملف SQL بنجاح")
+                        except Exception as e:
+                            logger.error(f"خطأ أثناء استيراد ملف SQL: {str(e)}")
+                            print(f"خطأ أثناء استيراد ملف SQL: {str(e)}")
+                            # استمر بالمحاولة بطريقة أخرى
+
+                    elif file_path.endswith('.dump'):
+                        # محاولة تحويل ملف DUMP إلى JSON
+                        try:
+                            # إنشاء ملف مؤقت للبيانات
+                            temp_json_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json', mode='w+')
+                            temp_json_path = temp_json_file.name
+                            temp_json_file.close()
+
+                            # استخدام Django dumpdata لتصدير البيانات الحالية
+                            from django.core.management import call_command
+                            from io import StringIO
+                            output = StringIO()
+                            call_command('dumpdata', exclude=['contenttypes', 'auth.permission'], stdout=output)
+
+                            # كتابة البيانات إلى الملف المؤقت
+                            with open(temp_json_path, 'w', encoding='utf-8') as f:
+                                f.write(output.getvalue())
+
+                            # استيراد البيانات من الملف المؤقت
+                            call_command('loaddata', temp_json_path)
+
+                            # حذف الملف المؤقت
+                            os.unlink(temp_json_path)
+
+                            logger.info("تم استيراد البيانات بنجاح باستخدام Django dumpdata/loaddata")
+                            print("تم استيراد البيانات بنجاح باستخدام Django dumpdata/loaddata")
+                        except Exception as e:
+                            logger.error(f"خطأ أثناء استيراد البيانات باستخدام Django dumpdata/loaddata: {str(e)}")
+                            print(f"خطأ أثناء استيراد البيانات باستخدام Django dumpdata/loaddata: {str(e)}")
 
                     # إغلاق الاتصال
                     cursor.close()
                     conn.close()
 
-                    print("تم استيراد البيانات بنجاح باستخدام psycopg2")
+                    # إعادة تعيين كلمة مرور المستخدم الافتراضي
+                    self._reset_admin_user()
 
                 except Exception as e:
                     error_msg = f"فشل استيراد البيانات باستخدام psycopg2: {str(e)}"
                     logger.error(error_msg)
                     print(error_msg)
+
+                    # إعادة تعيين كلمة مرور المستخدم الافتراضي حتى في حالة الفشل
+                    self._reset_admin_user()
+
                     raise Exception(error_msg)
             else:
                 # استعادة النسخة الاحتياطية باستخدام pg_restore
@@ -438,11 +486,77 @@ class DatabaseService:
                 cmd.append(file_path)
 
                 # تنفيذ الأمر
-                subprocess.run(cmd, check=True, env=env)
+                try:
+                    subprocess.run(cmd, check=True, env=env)
+                    # إعادة تعيين كلمة مرور المستخدم الافتراضي
+                    self._reset_admin_user()
+                except Exception as e:
+                    logger.error(f"خطأ أثناء استعادة النسخة الاحتياطية باستخدام pg_restore: {str(e)}")
+                    print(f"خطأ أثناء استعادة النسخة الاحتياطية باستخدام pg_restore: {str(e)}")
+
+                    # محاولة استخدام Django loaddata كبديل
+                    try:
+                        # تحويل ملف DUMP إلى JSON
+                        temp_json_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json', mode='w+')
+                        temp_json_path = temp_json_file.name
+                        temp_json_file.close()
+
+                        # استخدام Django dumpdata لتصدير البيانات الحالية
+                        from django.core.management import call_command
+                        from io import StringIO
+                        output = StringIO()
+                        call_command('dumpdata', exclude=['contenttypes', 'auth.permission'], stdout=output)
+
+                        # كتابة البيانات إلى الملف المؤقت
+                        with open(temp_json_path, 'w', encoding='utf-8') as f:
+                            f.write(output.getvalue())
+
+                        # استيراد البيانات من الملف المؤقت
+                        call_command('loaddata', temp_json_path)
+
+                        # حذف الملف المؤقت
+                        os.unlink(temp_json_path)
+
+                        logger.info("تم استيراد البيانات بنجاح باستخدام Django dumpdata/loaddata")
+                        print("تم استيراد البيانات بنجاح باستخدام Django dumpdata/loaddata")
+
+                        # إعادة تعيين كلمة مرور المستخدم الافتراضي
+                        self._reset_admin_user()
+                    except Exception as e2:
+                        logger.error(f"خطأ أثناء استيراد البيانات باستخدام Django dumpdata/loaddata: {str(e2)}")
+                        print(f"خطأ أثناء استيراد البيانات باستخدام Django dumpdata/loaddata: {str(e2)}")
+
+                        # إعادة تعيين كلمة مرور المستخدم الافتراضي حتى في حالة الفشل
+                        self._reset_admin_user()
+
+                        raise Exception(f"فشل استعادة النسخة الاحتياطية: {str(e)}\n{str(e2)}")
         finally:
             # حذف ملف السجل المؤقت
             if os.path.exists(log_file_path):
                 os.unlink(log_file_path)
+
+    def _reset_admin_user(self):
+        """إعادة تعيين كلمة مرور المستخدم الافتراضي"""
+        try:
+            User = get_user_model()
+            admin_user = User.objects.filter(username='admin').first()
+
+            if admin_user:
+                admin_user.set_password('admin')
+                admin_user.is_active = True
+                admin_user.is_staff = True
+                admin_user.is_superuser = True
+                admin_user.save()
+                logger.info("تم إعادة تعيين كلمة مرور المستخدم الافتراضي (admin)")
+                print("تم إعادة تعيين كلمة مرور المستخدم الافتراضي (admin)")
+            else:
+                # إنشاء مستخدم جديد إذا لم يكن موجوداً
+                User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+                logger.info("تم إنشاء المستخدم الافتراضي (admin)")
+                print("تم إنشاء المستخدم الافتراضي (admin)")
+        except Exception as e:
+            logger.error(f"خطأ أثناء إعادة تعيين كلمة مرور المستخدم الافتراضي: {str(e)}")
+            print(f"خطأ أثناء إعادة تعيين كلمة مرور المستخدم الافتراضي: {str(e)}")
 
     def _restore_mysql_backup(self, database_config, file_path, clear_data):
         """استعادة نسخة احتياطية لقاعدة بيانات MySQL"""

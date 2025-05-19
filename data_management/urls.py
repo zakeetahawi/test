@@ -43,4 +43,7 @@ urlpatterns = [
 
     # جدولة النسخ الاحتياطي
     path('schedule-backup/', views.schedule_backup, name='schedule_backup'),
+
+    # إعادة تعيين المستخدم الافتراضي
+    path('reset-admin-user/', views.reset_admin_user, name='reset_admin_user'),
 ]

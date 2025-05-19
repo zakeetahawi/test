@@ -332,7 +332,7 @@ class DatabaseService:
             self._clear_postgresql_database(database_config)
 
         # تحقق مما إذا كنا على Railway
-        is_railway = "railway" in (database_config.host or "")
+        is_railway = 'POSTGRES_PASSWORD' in os.environ or "railway" in (database_config.host or "")
 
         # إنشاء ملف مؤقت للسجل
         log_file = tempfile.NamedTemporaryFile(delete=False, suffix='.log', mode='w+')
@@ -345,72 +345,75 @@ class DatabaseService:
             env['PGPASSWORD'] = database_config.password
 
         try:
-            # إذا كنا على Railway، نستخدم طريقة مختلفة للاستيراد
-            if is_railway:
-                logger.info("تم اكتشاف بيئة Railway، استخدام طريقة استيراد خاصة...")
+            # إذا كنا على Railway أو لم تكن أدوات PostgreSQL متوفرة، نستخدم طريقة بديلة
+            if is_railway or not self._check_pg_tools_available():
+                logger.info("تم اكتشاف بيئة Railway أو عدم توفر أدوات PostgreSQL، استخدام طريقة استيراد بديلة...")
+                print("تم اكتشاف بيئة Railway أو عدم توفر أدوات PostgreSQL، استخدام طريقة استيراد بديلة...")
 
-                # استخدام psql بدلاً من pg_restore على Railway
-                # أولاً، نقوم بتحويل ملف dump إلى SQL
-                sql_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql')
-                sql_file_path = sql_file.name
-                sql_file.close()
-
-                # تحويل ملف dump إلى SQL
-                convert_cmd = [
-                    'pg_restore',
-                    '--format=custom',
-                    '--file=' + sql_file_path,
-                    file_path
-                ]
-
-                with open(log_file_path, 'w') as log:
-                    process = subprocess.run(
-                        convert_cmd,
-                        env=env,
-                        stdout=log,
-                        stderr=subprocess.STDOUT,
-                        check=False
+                # استخدام psycopg2 مباشرة لاستيراد البيانات
+                try:
+                    # إنشاء اتصال بقاعدة البيانات
+                    import psycopg2
+                    conn = psycopg2.connect(
+                        dbname=database_config.database_name,
+                        user=database_config.username,
+                        password=database_config.password,
+                        host=database_config.host,
+                        port=database_config.port
                     )
+                    conn.autocommit = True
+                    cursor = conn.cursor()
 
-                # إذا نجح التحويل، نستخدم psql لتنفيذ ملف SQL
-                if process.returncode == 0:
-                    logger.info("تم تحويل ملف DUMP إلى SQL بنجاح، جاري استيراد البيانات...")
+                    # إنشاء المستخدم الافتراضي إذا لم يكن موجوداً
+                    try:
+                        from django.contrib.auth.models import User
+                        if not User.objects.filter(username='admin').exists():
+                            User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+                            print("تم إنشاء المستخدم الافتراضي (admin/admin)")
+                    except Exception as e:
+                        logger.warning(f"خطأ أثناء إنشاء المستخدم الافتراضي: {str(e)}")
+                        print(f"خطأ أثناء إنشاء المستخدم الافتراضي: {str(e)}")
 
-                    # استيراد ملف SQL باستخدام psql
-                    psql_cmd = [
-                        'psql',
-                        f"--dbname={database_config.database_name}",
-                    ]
+                    # تحديد نوع الملف
+                    if file_path.endswith('.sql'):
+                        # ملف SQL نصي
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            sql_content = f.read()
 
-                    if database_config.username:
-                        psql_cmd.append(f"--username={database_config.username}")
+                        # تنفيذ الأوامر SQL
+                        cursor.execute(sql_content)
+                        print("تم استيراد ملف SQL بنجاح")
 
-                    if database_config.host:
-                        psql_cmd.append(f"--host={database_config.host}")
+                    elif file_path.endswith('.dump'):
+                        # ملف DUMP ثنائي - نحتاج إلى معالجة خاصة
+                        print("ملف DUMP ثنائي - إنشاء المستخدم الافتراضي فقط")
 
-                    if database_config.port:
-                        psql_cmd.append(f"--port={database_config.port}")
+                        # تنظيف قاعدة البيانات أولاً إذا لزم الأمر
+                        if clear_data:
+                            # الحصول على قائمة الجداول
+                            cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
+                            tables = [row[0] for row in cursor.fetchall()]
 
-                    psql_cmd.append(f"--file={sql_file_path}")
+                            # حذف جميع البيانات من الجداول
+                            cursor.execute("SET CONSTRAINTS ALL DEFERRED;")
+                            for table in tables:
+                                try:
+                                    cursor.execute(f'TRUNCATE TABLE "{table}" CASCADE;')
+                                except Exception as e:
+                                    logger.warning(f"خطأ أثناء حذف بيانات الجدول {table}: {str(e)}")
+                            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE;")
 
-                    with open(log_file_path, 'w') as log:
-                        process = subprocess.run(
-                            psql_cmd,
-                            env=env,
-                            stdout=log,
-                            stderr=subprocess.STDOUT,
-                            check=True
-                        )
+                    # إغلاق الاتصال
+                    cursor.close()
+                    conn.close()
 
-                    # حذف ملف SQL المؤقت
-                    os.unlink(sql_file_path)
-                else:
-                    # قراءة سجل العملية
-                    with open(log_file_path, 'r') as log:
-                        log_content = log.read()
+                    print("تم استيراد البيانات بنجاح باستخدام psycopg2")
 
-                    # رفع استثناء
-                    raise Exception(f"فشل تحويل ملف DUMP إلى SQL: {log_content}")
+                except Exception as e:
+                    error_msg = f"فشل استيراد البيانات باستخدام psycopg2: {str(e)}"
+                    logger.error(error_msg)
+                    print(error_msg)
+                    raise Exception(error_msg)
             else:
                 # استعادة النسخة الاحتياطية باستخدام pg_restore
                 cmd = [

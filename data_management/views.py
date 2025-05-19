@@ -397,3 +397,42 @@ def db_import(request):
     }
 
     return render(request, 'data_management/db_manager/import_form.html', context)
+
+def reset_admin_user(request):
+    """إعادة تعيين المستخدم الافتراضي"""
+    # التحقق من وجود توكن أمان في الطلب
+    token = request.GET.get('token')
+    if token != settings.SECRET_KEY[:32]:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'توكن غير صالح'
+        }, status=403)
+
+    try:
+        # استيراد نموذج المستخدم
+        from django.contrib.auth.models import User
+
+        # إنشاء المستخدم الافتراضي إذا لم يكن موجوداً
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+            return JsonResponse({
+                'status': 'success',
+                'message': 'تم إنشاء المستخدم الافتراضي بنجاح'
+            })
+        else:
+            # إعادة تعيين كلمة المرور للمستخدم الموجود
+            admin_user = User.objects.get(username='admin')
+            admin_user.set_password('admin')
+            admin_user.is_active = True
+            admin_user.is_staff = True
+            admin_user.is_superuser = True
+            admin_user.save()
+            return JsonResponse({
+                'status': 'success',
+                'message': 'تم إعادة تعيين كلمة المرور للمستخدم الافتراضي بنجاح'
+            })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'حدث خطأ أثناء إعادة تعيين المستخدم الافتراضي: {str(e)}'
+        }, status=500)

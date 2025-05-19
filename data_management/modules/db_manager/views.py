@@ -90,10 +90,16 @@ def dashboard(request):
     # الحصول على قاعدة البيانات الافتراضية
     default_database = None
     for db_id, db_settings in settings_data.get('databases', {}).items():
-        db_config = DatabaseConfig.objects.filter(id=db_id).first()
-        if db_config and db_config.is_default:
-            default_database = db_config
-            break
+        # تحويل معرف قاعدة البيانات إلى رقم إذا كان ممكنًا
+        try:
+            numeric_db_id = int(db_id)
+            db_config = DatabaseConfig.objects.filter(id=numeric_db_id).first()
+            if db_config and db_config.is_default:
+                default_database = db_config
+                break
+        except (ValueError, TypeError):
+            # إذا كان معرف قاعدة البيانات نصيًا، نتخطى البحث في قاعدة البيانات
+            continue
 
     # إحصائيات النسخ الاحتياطي
     backup_count = DatabaseBackup.objects.count()
@@ -444,10 +450,16 @@ def database_detail(request, pk):
         connection_test = f'ERROR: {str(e)}'
 
     # الحصول على النسخ الاحتياطية لقاعدة البيانات
-    backups = DatabaseBackup.objects.filter(database_config_id=pk).order_by('-created_at')
+    try:
+        numeric_pk = int(pk)
+        backups = DatabaseBackup.objects.filter(database_config_id=numeric_pk).order_by('-created_at')
 
-    # الحصول على عمليات الاستيراد لقاعدة البيانات
-    imports = DatabaseImport.objects.filter(database_config_id=pk).order_by('-created_at')
+        # الحصول على عمليات الاستيراد لقاعدة البيانات
+        imports = DatabaseImport.objects.filter(database_config_id=numeric_pk).order_by('-created_at')
+    except (ValueError, TypeError):
+        # إذا كان معرف قاعدة البيانات نصيًا، نستخدم قوائم فارغة
+        backups = []
+        imports = []
 
     context = {
         'database': database,
@@ -466,7 +478,14 @@ def database_update(request, pk):
     # تعطيل المعاملات الذرية لهذه الوظيفة
     database_update.atomic = False
 
-    database = get_object_or_404(DatabaseConfig, pk=pk)
+    # تحويل معرف قاعدة البيانات إلى رقم إذا كان ممكنا
+    try:
+        numeric_pk = int(pk)
+        database = get_object_or_404(DatabaseConfig, pk=numeric_pk)
+    except (ValueError, TypeError):
+        # إذا كان معرف قاعدة البيانات نصيا نرفع استثناء 404
+        from django.http import Http404
+        raise Http404(_('قاعدة البيانات غير موجودة.'))
 
     if request.method == 'POST':
         form = DatabaseConfigForm(request.POST, instance=database)

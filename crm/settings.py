@@ -514,16 +514,22 @@ if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST'
     DATABASES['default']['AUTOCOMMIT'] = True  # تمكين AUTOCOMMIT لتجنب مشاكل الاتصال
 
     # إعدادات قاعدة بيانات Railway
-    # إذا كانت متغيرات البيئة متوفرة، استخدمها مباشرة
-    if os.environ.get('PGHOST'):
+    # استخدام متغيرات البيئة الصريحة
+    if os.environ.get('POSTGRES_PASSWORD'):
+        # طباعة متغيرات البيئة المتاحة للتشخيص
+        print("متغيرات البيئة المتاحة:")
+        print(f"POSTGRES_DB: {os.environ.get('POSTGRES_DB')}")
+        print(f"POSTGRES_USER: {os.environ.get('POSTGRES_USER')}")
+        print(f"RAILWAY_PRIVATE_DOMAIN: {os.environ.get('RAILWAY_PRIVATE_DOMAIN')}")
+
         # إعادة تعيين DATABASES لاستخدام إعدادات Railway مباشرة
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
-                'NAME': os.environ.get('PGDATABASE', 'railway'),
-                'USER': os.environ.get('PGUSER', 'postgres'),
-                'PASSWORD': os.environ.get('PGPASSWORD') or os.environ.get('POSTGRES_PASSWORD', ''),
-                'HOST': os.environ.get('PGHOST', 'postgres.railway.internal'),
+                'NAME': os.environ.get('POSTGRES_DB', 'railway'),
+                'USER': os.environ.get('POSTGRES_USER', 'postgres'),
+                'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+                'HOST': os.environ.get('RAILWAY_PRIVATE_DOMAIN', 'localhost'),
                 'PORT': os.environ.get('PGPORT', '5432'),
                 'ATOMIC_REQUESTS': False,
                 'AUTOCOMMIT': True,
@@ -531,7 +537,7 @@ if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST'
                 'CONN_HEALTH_CHECKS': True,
             }
         }
-        print(f"تم تكوين قاعدة بيانات Railway: {os.environ.get('PGDATABASE')} على {os.environ.get('PGHOST')}")
+        print(f"تم تكوين قاعدة بيانات Railway: {DATABASES['default']['NAME']} على {DATABASES['default']['HOST']}")
 
         # تنظيف ذاكرة التخزين المؤقت
         from django.core.cache import cache

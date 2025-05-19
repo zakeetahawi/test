@@ -17,7 +17,7 @@ def setup_railway_database():
     إعداد قاعدة بيانات Railway تلقائياً إذا كنا في بيئة Railway
     """
     # التحقق مما إذا كنا في بيئة Railway
-    is_railway = 'PGHOST' in os.environ
+    is_railway = 'POSTGRES_PASSWORD' in os.environ
 
     if not is_railway:
         logger.info("لسنا في بيئة Railway، تخطي إعداد قاعدة البيانات التلقائي")
@@ -28,11 +28,17 @@ def setup_railway_database():
     logger.info("تم اكتشاف بيئة Railway، جاري إعداد قاعدة البيانات تلقائياً...")
 
     # الحصول على بيانات الاتصال من متغيرات البيئة
-    db_host = os.environ.get('PGHOST', 'postgres.railway.internal')
+    db_host = os.environ.get('RAILWAY_PRIVATE_DOMAIN', 'localhost')
     db_port = os.environ.get('PGPORT', '5432')
-    db_name = os.environ.get('PGDATABASE', 'railway')
-    db_user = os.environ.get('PGUSER', 'postgres')
-    db_password = os.environ.get('PGPASSWORD') or os.environ.get('POSTGRES_PASSWORD', '')
+    db_name = os.environ.get('POSTGRES_DB', 'railway')
+    db_user = os.environ.get('POSTGRES_USER', 'postgres')
+    db_password = os.environ.get('POSTGRES_PASSWORD', '')
+
+    # طباعة معلومات الاتصال للتشخيص
+    print(f"معلومات الاتصال بقاعدة البيانات:")
+    print(f"Host: {db_host}")
+    print(f"Database: {db_name}")
+    print(f"User: {db_user}")
 
     # التحقق من وجود قاعدة بيانات Railway في النظام
     railway_db = DatabaseConfig.objects.filter(

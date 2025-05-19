@@ -24,7 +24,7 @@ def get_active_database_settings():
     """
     try:
         # التحقق من وجود متغيرات البيئة الخاصة بـ Railway
-        if 'PGHOST' in os.environ:
+        if 'POSTGRES_PASSWORD' in os.environ:
             # استخدام إعدادات Railway مباشرة
             logger.info("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
             print("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
@@ -32,16 +32,21 @@ def get_active_database_settings():
             # إنشاء معرف فريد لقاعدة بيانات Railway
             railway_db_id = 'railway_db'
 
+            # طباعة معلومات متغيرات البيئة للتشخيص
+            print(f"POSTGRES_DB: {os.environ.get('POSTGRES_DB')}")
+            print(f"POSTGRES_USER: {os.environ.get('POSTGRES_USER')}")
+            print(f"RAILWAY_PRIVATE_DOMAIN: {os.environ.get('RAILWAY_PRIVATE_DOMAIN')}")
+
             # إنشاء إعدادات قاعدة بيانات Railway
             railway_settings = {
                 'active_db': railway_db_id,
                 'databases': {
                     railway_db_id: {
                         'ENGINE': 'django.db.backends.postgresql',
-                        'NAME': os.environ.get('PGDATABASE', 'railway'),
-                        'USER': os.environ.get('PGUSER', 'postgres'),
-                        'PASSWORD': os.environ.get('PGPASSWORD', ''),
-                        'HOST': os.environ.get('PGHOST', 'postgres.railway.internal'),
+                        'NAME': os.environ.get('POSTGRES_DB', 'railway'),
+                        'USER': os.environ.get('POSTGRES_USER', 'postgres'),
+                        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+                        'HOST': os.environ.get('RAILWAY_PRIVATE_DOMAIN', 'localhost'),
                         'PORT': os.environ.get('PGPORT', '5432'),
                     }
                 }

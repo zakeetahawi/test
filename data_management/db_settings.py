@@ -24,7 +24,7 @@ def get_active_database_settings():
     """
     try:
         # التحقق من وجود متغيرات البيئة الخاصة بـ Railway
-        if 'POSTGRES_PASSWORD' in os.environ:
+        if 'DATABASE_URL' in os.environ:
             # استخدام إعدادات Railway مباشرة
             logger.info("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
             print("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
@@ -33,24 +33,34 @@ def get_active_database_settings():
             railway_db_id = 'railway_db'
 
             # طباعة معلومات متغيرات البيئة للتشخيص
-            print(f"POSTGRES_DB: {os.environ.get('POSTGRES_DB')}")
-            print(f"POSTGRES_USER: {os.environ.get('POSTGRES_USER')}")
-            print(f"RAILWAY_PRIVATE_DOMAIN: {os.environ.get('RAILWAY_PRIVATE_DOMAIN')}")
+            print(f"DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+
+            # تحليل DATABASE_URL
+            import dj_database_url
+            db_config = dj_database_url.parse(os.environ.get('DATABASE_URL'))
 
             # إنشاء إعدادات قاعدة بيانات Railway
             railway_settings = {
                 'active_db': railway_db_id,
                 'databases': {
                     railway_db_id: {
-                        'ENGINE': 'django.db.backends.postgresql',
-                        'NAME': os.environ.get('POSTGRES_DB', 'railway'),
-                        'USER': os.environ.get('POSTGRES_USER', 'postgres'),
-                        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
-                        'HOST': os.environ.get('RAILWAY_PRIVATE_DOMAIN', 'localhost'),
-                        'PORT': os.environ.get('PGPORT', '5432'),
+                        'ENGINE': db_config.get('ENGINE', 'django.db.backends.postgresql'),
+                        'NAME': db_config.get('NAME', 'railway'),
+                        'USER': db_config.get('USER', 'postgres'),
+                        'PASSWORD': db_config.get('PASSWORD', ''),
+                        'HOST': db_config.get('HOST', 'localhost'),
+                        'PORT': db_config.get('PORT', '5432'),
                     }
                 }
             }
+
+            # طباعة معلومات قاعدة البيانات للتشخيص
+            print(f"معلومات قاعدة البيانات:")
+            print(f"ENGINE: {db_config.get('ENGINE')}")
+            print(f"NAME: {db_config.get('NAME')}")
+            print(f"USER: {db_config.get('USER')}")
+            print(f"HOST: {db_config.get('HOST')}")
+            print(f"PORT: {db_config.get('PORT')}")
 
             # حفظ إعدادات Railway
             save_database_settings(railway_settings)

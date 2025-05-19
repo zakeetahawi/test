@@ -139,6 +139,15 @@ if os.environ.get('DATABASE_URL'):
         )
     }
     print("تم تكوين قاعدة البيانات من DATABASE_URL")
+
+    # طباعة معلومات قاعدة البيانات للتشخيص
+    db_config = DATABASES['default']
+    print(f"معلومات قاعدة البيانات:")
+    print(f"ENGINE: {db_config.get('ENGINE')}")
+    print(f"NAME: {db_config.get('NAME')}")
+    print(f"USER: {db_config.get('USER')}")
+    print(f"HOST: {db_config.get('HOST')}")
+    print(f"PORT: {db_config.get('PORT')}")
 else:
     # محاولة تحميل إعدادات قاعدة البيانات من الملف الخارجي
     try:

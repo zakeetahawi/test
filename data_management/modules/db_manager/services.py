@@ -332,7 +332,7 @@ class DatabaseService:
             self._clear_postgresql_database(database_config)
 
         # تحقق مما إذا كنا على Railway
-        is_railway = 'POSTGRES_PASSWORD' in os.environ or "railway" in (database_config.host or "")
+        is_railway = 'DATABASE_URL' in os.environ or "railway" in (database_config.host or "")
 
         # إنشاء ملف مؤقت للسجل
         log_file = tempfile.NamedTemporaryFile(delete=False, suffix='.log', mode='w+')

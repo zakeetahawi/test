@@ -94,6 +94,31 @@ def main():
     except Exception as e:
         print(f"خطأ في تنظيف الجلسات: {e}")
 
+    # إنشاء المستخدم الافتراضي أو إعادة تعيين كلمة المرور
+    print("جاري إنشاء المستخدم الافتراضي أو إعادة تعيين كلمة المرور...")
+    try:
+        call_command('create_admin_user', '--force')
+        print("تم إنشاء المستخدم الافتراضي أو إعادة تعيين كلمة المرور بنجاح.")
+    except Exception as e:
+        print(f"خطأ في إنشاء المستخدم الافتراضي: {e}")
+
+        # محاولة إنشاء المستخدم الافتراضي يدويًا
+        try:
+            from django.contrib.auth.models import User
+            if not User.objects.filter(username='admin').exists():
+                User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+                print("تم إنشاء المستخدم الافتراضي يدويًا بنجاح.")
+            else:
+                admin_user = User.objects.get(username='admin')
+                admin_user.set_password('admin')
+                admin_user.is_active = True
+                admin_user.is_staff = True
+                admin_user.is_superuser = True
+                admin_user.save()
+                print("تم إعادة تعيين كلمة المرور للمستخدم الافتراضي يدويًا بنجاح.")
+        except Exception as inner_e:
+            print(f"خطأ في إنشاء المستخدم الافتراضي يدويًا: {inner_e}")
+
     print("اكتمل تنفيذ سكريبت ما بعد النشر بنجاح.")
 
 if __name__ == "__main__":

@@ -17,19 +17,26 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         force = options.get('force', False)
-        
+
         try:
             with transaction.atomic():
                 # التحقق مما إذا كان هناك مستخدمين في النظام
                 if force or User.objects.count() == 0:
-                    # إنشاء مستخدم مسؤول افتراضي
+                    # إنشاء مستخدم مسؤول افتراضي أو إعادة تعيين كلمة المرور
                     if not User.objects.filter(username='admin').exists():
                         User.objects.create_superuser('admin', 'admin@example.com', 'admin')
                         self.stdout.write(self.style.SUCCESS('تم إنشاء مستخدم مسؤول افتراضي بنجاح (اسم المستخدم: admin، كلمة المرور: admin)'))
                         logger.info('تم إنشاء مستخدم مسؤول افتراضي بنجاح')
                     else:
-                        self.stdout.write(self.style.WARNING('المستخدم admin موجود بالفعل'))
-                        logger.info('المستخدم admin موجود بالفعل')
+                        # إعادة تعيين كلمة المرور للمستخدم الموجود
+                        admin_user = User.objects.get(username='admin')
+                        admin_user.set_password('admin')
+                        admin_user.is_active = True
+                        admin_user.is_staff = True
+                        admin_user.is_superuser = True
+                        admin_user.save()
+                        self.stdout.write(self.style.SUCCESS('تم إعادة تعيين كلمة المرور للمستخدم admin بنجاح (كلمة المرور: admin)'))
+                        logger.info('تم إعادة تعيين كلمة المرور للمستخدم admin بنجاح')
                 else:
                     self.stdout.write(self.style.WARNING('يوجد مستخدمين في النظام بالفعل، لم يتم إنشاء مستخدم مسؤول افتراضي'))
                     logger.info('يوجد مستخدمين في النظام بالفعل، لم يتم إنشاء مستخدم مسؤول افتراضي')

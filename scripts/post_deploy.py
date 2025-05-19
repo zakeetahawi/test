@@ -18,6 +18,7 @@ django.setup()
 
 from django.core.management import call_command
 from django.db import connection
+from data_management.railway_db_setup import setup_railway_database
 
 def check_database_connection():
     """
@@ -37,6 +38,22 @@ def main():
     الوظيفة الرئيسية للسكريبت
     """
     print("بدء تنفيذ سكريبت ما بعد النشر...")
+
+    # إعداد قاعدة بيانات Railway تلقائياً
+    print("جاري إعداد قاعدة بيانات Railway...")
+    try:
+        setup_railway_database()
+        print("تم إعداد قاعدة بيانات Railway بنجاح.")
+    except Exception as e:
+        print(f"خطأ في إعداد قاعدة بيانات Railway: {e}")
+
+    # تنفيذ الترحيلات مرة أخرى للتأكد من تطبيقها بشكل صحيح
+    print("جاري التأكد من تطبيق جميع الترحيلات...")
+    try:
+        call_command('migrate', '--noinput')
+        print("تم التأكد من تطبيق جميع الترحيلات بنجاح.")
+    except Exception as e:
+        print(f"خطأ في تطبيق الترحيلات: {e}")
 
     # التحقق من اتصال قاعدة البيانات
     max_retries = 3

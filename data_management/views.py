@@ -23,23 +23,35 @@ def is_staff_or_superuser(user):
 def dashboard(request):
     """عرض لوحة التحكم الرئيسية"""
     # إحصائيات قاعدة البيانات
-    database_config = settings.DATABASES['default']
-    database_name = "crm_system"  # اسم قاعدة البيانات الافتراضي
-    database_engine = "postgresql"  # نوع قاعدة البيانات الافتراضي
-    database_user = "crm_user"  # اسم المستخدم الافتراضي
-    database_password = "5525"  # كلمة المرور الافتراضية
-    database_host = "localhost"  # المضيف الافتراضي
-    database_port = "5432"  # المنفذ الافتراضي
+    # الحصول على قاعدة البيانات النشطة من ملف الإعدادات
+    from data_management.db_settings import get_active_database_settings
+    settings_data = get_active_database_settings()
+    active_db_id = str(settings_data.get('active_db'))
+
+    # طباعة معلومات التصحيح
+    print(f"Dashboard - Active DB ID: {active_db_id}")
+    print(f"Dashboard - Databases in settings: {list(settings_data.get('databases', {}).keys())}")
+
+    # الحصول على إعدادات قاعدة البيانات النشطة
+    active_db_settings = settings_data.get('databases', {}).get(active_db_id, {})
+
+    # استخدام إعدادات قاعدة البيانات النشطة أو القيم الافتراضية
+    database_name = active_db_settings.get('NAME', "crm_system")
+    database_engine = active_db_settings.get('ENGINE', "django.db.backends.postgresql").replace('django.db.backends.', '')
+    database_user = active_db_settings.get('USER', "crm_user")
+    database_password = active_db_settings.get('PASSWORD', "5525")
+    database_host = active_db_settings.get('HOST', "localhost")
+    database_port = active_db_settings.get('PORT', "5432")
 
     # جعل قاعدة البيانات الحالية قاعدة افتراضية
     try:
         # البحث عن قاعدة البيانات الحالية في النموذج
-        db_config = DatabaseConfig.objects.filter(name=database_name).first()
+        db_config = DatabaseConfig.objects.filter(database_name=database_name).first()
         if not db_config:
             # إنشاء قاعدة بيانات جديدة إذا لم تكن موجودة
             db_config = DatabaseConfig.objects.create(
-                name=database_name,
-                db_type='postgresql',
+                name=f"{database_name} (ID: {active_db_id})",
+                db_type=database_engine,
                 host=database_host,
                 port=database_port,
                 username=database_user,
@@ -50,9 +62,18 @@ def dashboard(request):
             )
         else:
             # تحديث قاعدة البيانات الحالية لتكون افتراضية
+            db_config.name = f"{database_name} (ID: {active_db_id})"
+            db_config.db_type = database_engine
+            db_config.host = database_host
+            db_config.port = database_port
+            db_config.username = database_user
+            db_config.password = database_password
             db_config.is_default = True
             db_config.is_active = True
             db_config.save()
+
+        # طباعة معلومات قاعدة البيانات
+        print(f"Database Config: {db_config.name} ({db_config.database_name})")
     except Exception as e:
         print(f"خطأ في إعداد قاعدة البيانات الافتراضية: {str(e)}")
 

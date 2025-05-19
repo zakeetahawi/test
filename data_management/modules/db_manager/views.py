@@ -28,10 +28,66 @@ def is_superuser(user):
 @user_passes_test(is_superuser)
 def dashboard(request):
     """عرض لوحة التحكم الرئيسية"""
+    # الحصول على قواعد البيانات من ملف الإعدادات
+    from data_management.db_settings import get_active_database_settings
+    settings_data = get_active_database_settings()
+    active_db_id = settings_data.get('active_db')
+
+    # تحويل معرف قاعدة البيانات النشطة إلى نص
+    active_db_id = str(active_db_id)
+
+    # طباعة معلومات التصحيح
+    print(f"Dashboard - Active DB ID: {active_db_id}")
+    print(f"Dashboard - Databases in settings: {list(settings_data.get('databases', {}).keys())}")
+
     # إحصائيات قواعد البيانات
-    database_count = DatabaseConfig.objects.count()
-    active_database = DatabaseConfig.objects.filter(is_active=True).first()
-    default_database = DatabaseConfig.objects.filter(is_default=True).first()
+    database_count = len(settings_data.get('databases', {}))
+
+    # إضافة قواعد البيانات المعروفة
+    known_databases = {
+        'postgres': {'name': 'PostgreSQL (System)', 'db_type': 'postgresql'},
+        'testdb': {'name': 'Test Database', 'db_type': 'postgresql'},
+        'crm_system': {'name': 'CRM System', 'db_type': 'postgresql'}
+    }
+
+    # الحصول على قاعدة البيانات النشطة
+    active_database = None
+    if active_db_id:
+        # البحث عن قاعدة البيانات النشطة في ملف الإعدادات
+        active_db_settings = settings_data.get('databases', {}).get(str(active_db_id))
+
+        if active_db_settings:
+            db_name = active_db_settings.get('NAME', 'غير معروف')
+
+            # استخدام الاسم المعروف إذا كان متاحًا
+            display_name = known_databases.get(db_name, {}).get('name', db_name)
+
+            # إنشاء كائن مؤقت لقاعدة البيانات النشطة
+            active_database = DatabaseConfig(
+                id=int(active_db_id),
+                name=display_name,
+                db_type=active_db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
+                host=active_db_settings.get('HOST', ''),
+                port=active_db_settings.get('PORT', ''),
+                username=active_db_settings.get('USER', ''),
+                password=active_db_settings.get('PASSWORD', ''),
+                database_name=db_name,
+                is_active=True,
+                is_default=False
+            )
+
+            # طباعة معلومات قاعدة البيانات النشطة
+            print(f"Dashboard - Active Database: {display_name} ({db_name})")
+        else:
+            print(f"Dashboard - Active DB ID {active_db_id} not found in settings")
+
+    # الحصول على قاعدة البيانات الافتراضية
+    default_database = None
+    for db_id, db_settings in settings_data.get('databases', {}).items():
+        db_config = DatabaseConfig.objects.filter(id=db_id).first()
+        if db_config and db_config.is_default:
+            default_database = db_config
+            break
 
     # إحصائيات النسخ الاحتياطي
     backup_count = DatabaseBackup.objects.count()
@@ -64,7 +120,122 @@ def dashboard(request):
 @user_passes_test(is_superuser)
 def database_list(request):
     """عرض قائمة قواعد البيانات"""
-    databases = DatabaseConfig.objects.all().order_by('-is_default', '-is_active', 'name')
+    # الحصول على قواعد البيانات من قاعدة البيانات
+    db_configs = list(DatabaseConfig.objects.all())
+
+    # الحصول على قواعد البيانات من ملف الإعدادات
+    from data_management.db_settings import get_active_database_settings
+    settings_data = get_active_database_settings()
+    active_db_id = settings_data.get('active_db')
+
+    # قائمة لتخزين قواعد البيانات المدمجة
+    databases = []
+    db_ids_added = set()
+
+    # تحويل معرف قاعدة البيانات النشطة إلى نص
+    active_db_id = str(active_db_id)
+
+    # طباعة معلومات التصحيح
+    print(f"Active DB ID: {active_db_id}")
+    print(f"Databases in settings: {list(settings_data.get('databases', {}).keys())}")
+    print(f"DB Configs in database: {[config.id for config in db_configs]}")
+
+    # إضافة قواعد البيانات المعروفة
+    known_databases = {
+        'postgres': {'name': 'PostgreSQL (System)', 'db_type': 'postgresql'},
+        'testdb': {'name': 'Test Database', 'db_type': 'postgresql'},
+        'crm_system': {'name': 'CRM System', 'db_type': 'postgresql'}
+    }
+
+    # إضافة قواعد البيانات من ملف الإعدادات
+    for db_id, db_settings in settings_data.get('databases', {}).items():
+        # البحث عن قاعدة البيانات في قاعدة البيانات
+        db_config = None
+        for config in db_configs:
+            if str(config.id) == str(db_id):
+                db_config = config
+                break
+
+        # إذا لم يتم العثور على قاعدة البيانات في قاعدة البيانات، قم بإنشاء كائن مؤقت
+        if db_config is None:
+            db_name = db_settings.get('NAME', 'غير معروف')
+
+            # استخدام الاسم المعروف إذا كان متاحًا
+            display_name = known_databases.get(db_name, {}).get('name', db_name)
+
+            db_config = DatabaseConfig(
+                id=int(db_id),
+                name=display_name,
+                db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
+                host=db_settings.get('HOST', ''),
+                port=db_settings.get('PORT', ''),
+                username=db_settings.get('USER', ''),
+                password=db_settings.get('PASSWORD', ''),
+                database_name=db_name,
+                is_active=(str(db_id) == str(active_db_id)),
+                is_default=False
+            )
+        else:
+            # تحديث حالة النشاط
+            db_config.is_active = (str(db_id) == str(active_db_id))
+
+        # إضافة قاعدة البيانات إلى القائمة
+        databases.append(db_config)
+        db_ids_added.add(str(db_id))
+
+    # قائمة لتخزين أسماء قواعد البيانات الموجودة في ملف الإعدادات
+    existing_db_names = []
+    for db_id, db_settings in settings_data.get('databases', {}).items():
+        existing_db_names.append(db_settings.get('NAME', ''))
+
+    # التحقق من وجود قواعد البيانات المعروفة (فقط إذا كانت موجودة في ملف الإعدادات)
+    for db_name, db_info in known_databases.items():
+        # التحقق مما إذا كانت قاعدة البيانات موجودة بالفعل في القائمة
+        found = False
+        for db in databases:
+            if db.database_name == db_name:
+                found = True
+                break
+
+        # التحقق مما إذا كانت قاعدة البيانات موجودة في ملف الإعدادات
+        if db_name not in existing_db_names:
+            continue
+
+        # إذا لم تكن موجودة في القائمة ولكنها موجودة في ملف الإعدادات، قم بإضافتها
+        if not found:
+            # إنشاء معرف فريد لقاعدة البيانات
+            new_id = max([int(db_id) for db_id in settings_data.get('databases', {}).keys()] + [0]) + 1
+
+            # إنشاء كائن قاعدة بيانات جديد
+            db_config = DatabaseConfig(
+                id=new_id,
+                name=db_info['name'],
+                db_type=db_info['db_type'],
+                host='localhost',
+                port='5432',
+                username='postgres',
+                password='5525',
+                database_name=db_name,
+                is_active=False,
+                is_default=False
+            )
+
+            # إضافة قاعدة البيانات إلى القائمة
+            databases.append(db_config)
+
+    # إضافة قواعد البيانات من قاعدة البيانات التي لم تتم إضافتها بعد
+    for config in db_configs:
+        if str(config.id) not in db_ids_added:
+            # تحديث حالة النشاط
+            config.is_active = (str(config.id) == str(active_db_id))
+            databases.append(config)
+
+    # تحديث حالة النشاط لجميع قواعد البيانات
+    for db in databases:
+        db.is_active = (str(db.id) == str(active_db_id))
+
+    # ترتيب قواعد البيانات
+    databases.sort(key=lambda x: (-1 if x.is_active else 0, -1 if x.is_default else 0, x.name))
 
     context = {
         'databases': databases,
@@ -98,11 +269,104 @@ def database_create(request):
                 'PORT': database.port,
             }
 
+            # إنشاء قاعدة البيانات تلقائيًا
+            try:
+                # استخدام psycopg2 لإنشاء قاعدة البيانات
+                import psycopg2
+                conn = psycopg2.connect(
+                    host=database.host,
+                    user=database.username,
+                    password=database.password,
+                    port=database.port or '5432',
+                    database='postgres'  # الاتصال بقاعدة البيانات الافتراضية
+                )
+                conn.autocommit = True  # تمكين الالتزام التلقائي
+                cursor = conn.cursor()
+
+                # التحقق مما إذا كانت قاعدة البيانات موجودة بالفعل
+                cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{database.database_name}'")
+                exists = cursor.fetchone()
+
+                if not exists:
+                    # إنشاء قاعدة البيانات
+                    cursor.execute(f'CREATE DATABASE "{database.database_name}"')
+                    messages.success(request, _(f'تم إنشاء قاعدة البيانات "{database.database_name}" بنجاح.'))
+
+                    # تنفيذ الترحيلات على قاعدة البيانات الجديدة
+                    # نحتاج أولاً إلى تعيين قاعدة البيانات كنشطة مؤقتًا
+                    from data_management.db_settings import add_database_settings, set_active_database
+
+                    # إضافة إعدادات قاعدة البيانات
+                    add_database_settings(database.id, db_settings)
+
+                    # تعيين قاعدة البيانات كنشطة مؤقتًا
+                    original_active_db = None
+                    from data_management.db_settings import get_active_database_id
+                    original_active_db = get_active_database_id()
+                    set_active_database(database.id)
+
+                    # تنفيذ الترحيلات
+                    try:
+                        from django.core.management import call_command
+                        from django.contrib.auth import get_user_model
+
+                        messages.info(request, _('جاري تنفيذ الترحيلات على قاعدة البيانات الجديدة...'))
+                        call_command('migrate', '--noinput')
+                        messages.success(request, _('تم تنفيذ الترحيلات بنجاح.'))
+
+                        # إنشاء مستخدم مدير افتراضي
+                        User = get_user_model()
+                        if User.objects.count() == 0:
+                            messages.info(request, _('جاري إنشاء مستخدم مدير افتراضي...'))
+                            User.objects.create_superuser(
+                                username='admin',
+                                email='admin@example.com',
+                                password='admin'
+                            )
+                            messages.success(request, _('تم إنشاء مستخدم مدير افتراضي (اسم المستخدم: admin، كلمة المرور: admin) بنجاح.'))
+
+                        # إعادة تعيين قاعدة البيانات النشطة إلى القيمة الأصلية
+                        if original_active_db and original_active_db != database.id:
+                            set_active_database(original_active_db)
+                    except Exception as migrate_error:
+                        messages.error(request, _(f'حدث خطأ أثناء تنفيذ الترحيلات: {str(migrate_error)}'))
+                        # إعادة تعيين قاعدة البيانات النشطة إلى القيمة الأصلية
+                        if original_active_db and original_active_db != database.id:
+                            set_active_database(original_active_db)
+                else:
+                    messages.info(request, _(f'قاعدة البيانات "{database.database_name}" موجودة بالفعل.'))
+
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                messages.error(request, _(f'حدث خطأ أثناء إنشاء قاعدة البيانات: {str(e)}'))
+                # لا نتوقف هنا، نستمر في إضافة الإعدادات
+
             # إضافة إعدادات قاعدة البيانات
             add_database_settings(database.id, db_settings)
 
-            messages.success(request, _('تم إنشاء قاعدة البيانات بنجاح.'))
-            return redirect('data_management:database_detail', pk=database.pk)
+            messages.success(request, _('تم إنشاء إعدادات قاعدة البيانات بنجاح.'))
+
+            # إضافة خيار لتنشيط قاعدة البيانات الجديدة تلقائيًا
+            activate_db = request.POST.get('activate_db', 'off') == 'on'
+            if activate_db:
+                # إلغاء تنشيط جميع قواعد البيانات الأخرى
+                DatabaseConfig.objects.all().update(is_active=False)
+
+                # تنشيط قاعدة البيانات الجديدة
+                database.is_active = True
+                database.save()
+
+                # تعيين قاعدة البيانات النشطة
+                from data_management.db_settings import set_active_database
+                set_active_database(database.id)
+
+                messages.success(request, _('تم تنشيط قاعدة البيانات الجديدة بنجاح.'))
+
+                # إعادة توجيه إلى صفحة تنشيط قاعدة البيانات
+                return redirect('data_management:db_manager:database_set_active', pk=database.pk)
+
+            return redirect('data_management:db_manager:database_detail', pk=database.pk)
     else:
         form = DatabaseConfigForm()
 
@@ -117,18 +381,67 @@ def database_create(request):
 @user_passes_test(is_superuser)
 def database_detail(request, pk):
     """عرض تفاصيل قاعدة البيانات"""
-    database = get_object_or_404(DatabaseConfig, pk=pk)
+    # محاولة الحصول على قاعدة البيانات من قاعدة البيانات
+    database = None
+    try:
+        database = DatabaseConfig.objects.get(pk=pk)
+    except DatabaseConfig.DoesNotExist:
+        # إذا لم يتم العثور على قاعدة البيانات في قاعدة البيانات، قم بالبحث عنها في ملف الإعدادات
+        from data_management.db_settings import get_active_database_settings
+        settings_data = get_active_database_settings()
+        active_db_id = settings_data.get('active_db')
+
+        if str(pk) in settings_data.get('databases', {}):
+            db_settings = settings_data['databases'][str(pk)]
+            db_name = db_settings.get('NAME', 'غير معروف')
+            database = DatabaseConfig(
+                id=int(pk),
+                name=f"{db_name} (ID: {pk})",
+                db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
+                host=db_settings.get('HOST', ''),
+                port=db_settings.get('PORT', ''),
+                username=db_settings.get('USER', ''),
+                password=db_settings.get('PASSWORD', ''),
+                database_name=db_name,
+                is_active=(str(pk) == str(active_db_id)),
+                is_default=False
+            )
+        else:
+            # إذا لم يتم العثور على قاعدة البيانات في ملف الإعدادات أيضًا، ارفع استثناء 404
+            from django.http import Http404
+            raise Http404(_('قاعدة البيانات غير موجودة.'))
+
+    # إضافة معلومات اختبار الاتصال
+    connection_test = None
+    try:
+        # محاولة الاتصال بقاعدة البيانات
+        import psycopg2
+        conn = psycopg2.connect(
+            host=database.host,
+            user=database.username,
+            password=database.password,
+            port=database.port or '5432',
+            database=database.database_name
+        )
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1')
+        cursor.close()
+        conn.close()
+        connection_test = 'OK'
+    except Exception as e:
+        connection_test = f'ERROR: {str(e)}'
 
     # الحصول على النسخ الاحتياطية لقاعدة البيانات
-    backups = DatabaseBackup.objects.filter(database_config=database).order_by('-created_at')
+    backups = DatabaseBackup.objects.filter(database_config_id=pk).order_by('-created_at')
 
     # الحصول على عمليات الاستيراد لقاعدة البيانات
-    imports = DatabaseImport.objects.filter(database_config=database).order_by('-created_at')
+    imports = DatabaseImport.objects.filter(database_config_id=pk).order_by('-created_at')
 
     context = {
         'database': database,
         'backups': backups,
         'imports': imports,
+        'connection_test': connection_test,
         'title': _('تفاصيل قاعدة البيانات'),
     }
 
@@ -165,7 +478,7 @@ def database_update(request, pk):
             add_database_settings(database.id, db_settings)
 
             messages.success(request, _('تم تحديث قاعدة البيانات بنجاح.'))
-            return redirect('data_management:database_detail', pk=database.pk)
+            return redirect('data_management:db_manager:database_detail', pk=database.pk)
     else:
         form = DatabaseConfigForm(instance=database)
 
@@ -184,12 +497,121 @@ def database_delete(request, pk):
     # تعطيل المعاملات الذرية لهذه الوظيفة
     database_delete.atomic = False
 
-    database = get_object_or_404(DatabaseConfig, pk=pk)
+    # محاولة الحصول على قاعدة البيانات من قاعدة البيانات
+    database = None
+    try:
+        database = DatabaseConfig.objects.get(pk=pk)
+    except DatabaseConfig.DoesNotExist:
+        # إذا لم يتم العثور على قاعدة البيانات في قاعدة البيانات، قم بالبحث عنها في ملف الإعدادات
+        from data_management.db_settings import get_active_database_settings, remove_database_settings
+        settings_data = get_active_database_settings()
+        active_db_id = settings_data.get('active_db')
+
+        # التحقق من وجود قاعدة البيانات في ملف الإعدادات
+        db_id_str = str(pk)
+
+        # إضافة قواعد البيانات المعروفة
+        known_databases = {
+            'postgres': {'name': 'PostgreSQL (System)', 'db_type': 'postgresql'},
+            'testdb': {'name': 'Test Database', 'db_type': 'postgresql'},
+            'crm_system': {'name': 'CRM System', 'db_type': 'postgresql'}
+        }
+
+        # محاولة العثور على قاعدة البيانات في ملف الإعدادات
+        if db_id_str in settings_data.get('databases', {}):
+            db_settings = settings_data['databases'][db_id_str]
+            db_name = db_settings.get('NAME', 'غير معروف')
+
+            # استخدام الاسم المعروف إذا كان متاحًا
+            display_name = known_databases.get(db_name, {}).get('name', db_name)
+
+            # إنشاء كائن مؤقت لقاعدة البيانات
+            database = DatabaseConfig(
+                id=int(pk),
+                name=display_name,
+                db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
+                host=db_settings.get('HOST', ''),
+                port=db_settings.get('PORT', ''),
+                username=db_settings.get('USER', ''),
+                password=db_settings.get('PASSWORD', ''),
+                database_name=db_name,
+                is_active=(db_id_str == str(active_db_id)),
+                is_default=False
+            )
+        else:
+            # إذا لم يتم العثور على قاعدة البيانات في ملف الإعدادات، محاولة البحث عن قاعدة بيانات معروفة
+            found = False
+            for db_name, db_info in known_databases.items():
+                # محاولة البحث عن قاعدة البيانات في قواعد البيانات المعروفة
+                for db_id, db_settings in settings_data.get('databases', {}).items():
+                    if db_settings.get('NAME') == db_name:
+                        # إذا وجدنا قاعدة بيانات معروفة، قم بإنشاء كائن مؤقت لها
+                        database = DatabaseConfig(
+                            id=int(db_id),
+                            name=db_info['name'],
+                            db_type=db_info['db_type'],
+                            host=db_settings.get('HOST', 'localhost'),
+                            port=db_settings.get('PORT', '5432'),
+                            username=db_settings.get('USER', 'postgres'),
+                            password=db_settings.get('PASSWORD', ''),
+                            database_name=db_name,
+                            is_active=(db_id == str(active_db_id)),
+                            is_default=False
+                        )
+                        found = True
+                        break
+                if found:
+                    break
+
+            # إذا لم يتم العثور على قاعدة البيانات، قم بإنشاء كائن مؤقت
+            if not found:
+                # إنشاء كائن مؤقت لقاعدة البيانات
+                database = DatabaseConfig(
+                    id=int(pk),
+                    name=f"قاعدة بيانات {pk}",
+                    db_type='postgresql',
+                    host='localhost',
+                    port='5432',
+                    username='postgres',
+                    password='',
+                    database_name=f"db_{pk}",
+                    is_active=False,
+                    is_default=False
+                )
+
+        # إذا كان طلب POST، قم بحذف قاعدة البيانات من ملف الإعدادات
+        if request.method == 'POST':
+            # منع حذف قاعدة البيانات النشطة
+            if str(pk) == str(active_db_id):
+                messages.error(request, _('لا يمكن حذف قاعدة البيانات النشطة. قم بتنشيط قاعدة بيانات أخرى أولاً.'))
+                return redirect('data_management:db_manager:database_list')
+
+            # حذف قاعدة البيانات من ملف الإعدادات
+            success = remove_database_settings(pk)
+
+            if success:
+                # تنظيف ذاكرة التخزين المؤقت
+                from django.core.cache import cache
+                cache.clear()
+
+                messages.success(request, _('تم حذف قاعدة البيانات بنجاح.'))
+            else:
+                messages.error(request, _('حدث خطأ أثناء حذف قاعدة البيانات.'))
+
+            return redirect('data_management:db_manager:database_list')
+
+        # إذا كان طلب GET، عرض صفحة تأكيد الحذف
+        context = {
+            'database': database,
+            'title': _('حذف قاعدة البيانات'),
+        }
+
+        return render(request, 'data_management/db_manager/database_delete.html', context)
 
     # منع حذف قاعدة البيانات النشطة
     if database.is_active:
         messages.error(request, _('لا يمكن حذف قاعدة البيانات النشطة. قم بتنشيط قاعدة بيانات أخرى أولاً.'))
-        return redirect('data_management:database_list')
+        return redirect('data_management:db_manager:database_list')
 
     if request.method == 'POST':
         # تخزين معلومات قاعدة البيانات قبل الحذف
@@ -214,7 +636,7 @@ def database_delete(request, pk):
         cache.clear()
 
         messages.success(request, _('تم حذف قاعدة البيانات بنجاح.'))
-        return redirect('data_management:database_list')
+        return redirect('data_management:db_manager:database_list')
 
     context = {
         'database': database,
@@ -230,7 +652,63 @@ def database_set_default(request, pk):
     # تعطيل المعاملات الذرية لهذه الوظيفة
     database_set_default.atomic = False
 
-    database = get_object_or_404(DatabaseConfig, pk=pk)
+    # محاولة الحصول على قاعدة البيانات من قاعدة البيانات
+    database = None
+    try:
+        database = DatabaseConfig.objects.get(pk=pk)
+    except DatabaseConfig.DoesNotExist:
+        # إذا لم يتم العثور على قاعدة البيانات في قاعدة البيانات، قم بالبحث عنها في ملف الإعدادات
+        from data_management.db_settings import get_active_database_settings
+        settings_data = get_active_database_settings()
+        active_db_id = settings_data.get('active_db')
+
+        if str(pk) in settings_data.get('databases', {}):
+            db_settings = settings_data['databases'][str(pk)]
+            db_name = db_settings.get('NAME', 'غير معروف')
+
+            # إضافة قواعد البيانات المعروفة
+            known_databases = {
+                'postgres': {'name': 'PostgreSQL (System)', 'db_type': 'postgresql'},
+                'testdb': {'name': 'Test Database', 'db_type': 'postgresql'},
+                'crm_system': {'name': 'CRM System', 'db_type': 'postgresql'}
+            }
+
+            # استخدام الاسم المعروف إذا كان متاحًا
+            display_name = known_databases.get(db_name, {}).get('name', db_name)
+
+            # إنشاء كائن مؤقت لقاعدة البيانات
+            database = DatabaseConfig(
+                id=int(pk),
+                name=display_name,
+                db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
+                host=db_settings.get('HOST', ''),
+                port=db_settings.get('PORT', ''),
+                username=db_settings.get('USER', ''),
+                password=db_settings.get('PASSWORD', ''),
+                database_name=db_name,
+                is_active=(str(pk) == str(active_db_id)),
+                is_default=False
+            )
+
+            # إذا كان طلب POST، قم بحفظ قاعدة البيانات في قاعدة البيانات
+            if request.method == 'POST':
+                # حفظ قاعدة البيانات في قاعدة البيانات
+                database.save()
+
+                # تعيين قاعدة البيانات كافتراضية
+                database.is_default = True
+                database.save()
+
+                # تنظيف ذاكرة التخزين المؤقت
+                from django.core.cache import cache
+                cache.clear()
+
+                messages.success(request, _('تم تعيين قاعدة البيانات كافتراضية بنجاح.'))
+                return redirect('data_management:db_manager:database_list')
+        else:
+            # إذا لم يتم العثور على قاعدة البيانات في ملف الإعدادات أيضًا، ارفع استثناء 404
+            from django.http import Http404
+            raise Http404(_('قاعدة البيانات غير موجودة.'))
 
     if request.method == 'POST':
         # تعيين قاعدة البيانات كافتراضية
@@ -246,7 +724,7 @@ def database_set_default(request, pk):
 
         # إعادة توجيه إلى قائمة قواعد البيانات بدلاً من تفاصيل قاعدة البيانات
         # لضمان رؤية التغييرات
-        return redirect('data_management:database_list')
+        return redirect('data_management:db_manager:database_list')
 
     context = {
         'database': database,
@@ -262,7 +740,35 @@ def database_set_active(request, pk):
     # تعطيل المعاملات الذرية لهذه الوظيفة
     database_set_active.atomic = False
 
-    database = get_object_or_404(DatabaseConfig, pk=pk)
+    # محاولة الحصول على قاعدة البيانات من قاعدة البيانات
+    database = None
+    try:
+        database = DatabaseConfig.objects.get(pk=pk)
+    except DatabaseConfig.DoesNotExist:
+        # إذا لم يتم العثور على قاعدة البيانات في قاعدة البيانات، قم بالبحث عنها في ملف الإعدادات
+        from data_management.db_settings import get_active_database_settings
+        settings_data = get_active_database_settings()
+        active_db_id = settings_data.get('active_db')
+
+        if str(pk) in settings_data.get('databases', {}):
+            db_settings = settings_data['databases'][str(pk)]
+            db_name = db_settings.get('NAME', 'غير معروف')
+            database = DatabaseConfig(
+                id=int(pk),
+                name=f"{db_name} (ID: {pk})",
+                db_type=db_settings.get('ENGINE', '').replace('django.db.backends.', ''),
+                host=db_settings.get('HOST', ''),
+                port=db_settings.get('PORT', ''),
+                username=db_settings.get('USER', ''),
+                password=db_settings.get('PASSWORD', ''),
+                database_name=db_name,
+                is_active=(str(pk) == str(active_db_id)),
+                is_default=False
+            )
+        else:
+            # إذا لم يتم العثور على قاعدة البيانات في ملف الإعدادات أيضًا، ارفع استثناء 404
+            from django.http import Http404
+            raise Http404(_('قاعدة البيانات غير موجودة.'))
 
     if request.method == 'POST':
         try:
@@ -296,13 +802,42 @@ def database_set_active(request, pk):
             # تعيين قاعدة البيانات النشطة
             set_active_database(database.id)
 
-            messages.success(request, _('تم تنشيط قاعدة البيانات بنجاح. يرجى إعادة تشغيل الخادم لتطبيق التغييرات.'))
+            # تنفيذ الترحيلات على قاعدة البيانات الجديدة
+            try:
+                from django.core.management import call_command
+                from django.contrib.auth import get_user_model
+
+                messages.info(request, _('جاري تنفيذ الترحيلات على قاعدة البيانات الجديدة...'))
+                call_command('migrate', '--noinput')
+                messages.success(request, _('تم تنفيذ الترحيلات بنجاح.'))
+
+                # إنشاء مستخدم مدير افتراضي إذا كانت قاعدة البيانات فارغة
+                User = get_user_model()
+                if User.objects.count() == 0:
+                    messages.info(request, _('جاري إنشاء مستخدم مدير افتراضي...'))
+                    admin_user = User.objects.create_superuser(
+                        username='admin',
+                        email='admin@example.com',
+                        password='admin'
+                    )
+                    messages.success(request, _('تم إنشاء مستخدم مدير افتراضي (اسم المستخدم: admin، كلمة المرور: admin) بنجاح.'))
+
+                # إعادة تشغيل السيرفر (في بيئة التطوير فقط)
+                if settings.DEBUG:
+                    messages.info(request, _('جاري إعادة تشغيل السيرفر...'))
+                    # استخدام أمر إعادة تشغيل السيرفر
+                    call_command('restart_server', delay=5)
+                    messages.success(request, _('تم طلب إعادة تشغيل السيرفر.'))
+                else:
+                    messages.success(request, _('تم تنشيط قاعدة البيانات بنجاح. يرجى إعادة تشغيل الخادم لتطبيق التغييرات.'))
+            except Exception as migrate_error:
+                messages.error(request, _(f'حدث خطأ أثناء تنفيذ الترحيلات: {str(migrate_error)}'))
 
             # إعادة توجيه إلى صفحة إعادة تحميل التطبيق
-            return redirect('data_management:database_reload')
+            return redirect('data_management:db_manager:database_reload')
         except Exception as e:
             messages.error(request, _(f'حدث خطأ أثناء تنشيط قاعدة البيانات: {str(e)}'))
-            return redirect('data_management:database_list')
+            return redirect('data_management:db_manager:database_list')
 
     context = {
         'database': database,
@@ -343,10 +878,10 @@ def reset_database_settings(request):
             os.environ['RESET_DB'] = '1'
 
             # إعادة توجيه إلى صفحة إعادة تحميل التطبيق
-            return redirect('data_management:database_reload')
+            return redirect('data_management:db_manager:database_reload')
         except Exception as e:
             messages.error(request, _(f'حدث خطأ أثناء إعادة تعيين إعدادات قاعدة البيانات: {str(e)}'))
-            return redirect('data_management:database_list')
+            return redirect('data_management:db_manager:database_list')
 
     context = {
         'title': _('إعادة تعيين إعدادات قاعدة البيانات'),
@@ -969,7 +1504,7 @@ def setup(request):
                     messages.error(request, _(f'حدث خطأ أثناء استيراد البيانات: {str(e)}'))
 
             messages.success(request, _('تم إعداد النظام بنجاح.'))
-            return redirect('data_management:db_dashboard')
+            return redirect('data_management:db_manager:db_dashboard')
     else:
         form = DatabaseSetupForm()
 
@@ -1063,7 +1598,7 @@ def setup_with_token(request, token):
             setup_token.save()
 
             messages.success(request, _('تم إعداد النظام بنجاح.'))
-            return redirect('data_management:db_dashboard')
+            return redirect('data_management:db_manager:db_dashboard')
     else:
         form = DatabaseSetupForm()
 

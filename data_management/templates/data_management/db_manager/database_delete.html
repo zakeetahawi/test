@@ -11,7 +11,7 @@
             <div class="card mb-4">
                 <div class="card-header pb-0 d-flex justify-content-between align-items-center">
                     <h6>{% trans "حذف قاعدة البيانات" %}</h6>
-                    <a href="{% url 'data_management:database_detail' pk=database.pk %}" class="btn btn-secondary btn-sm">
+                    <a href="{% url 'data_management:db_manager:database_detail' pk=database.pk %}" class="btn btn-secondary btn-sm">
                         <i class="fas fa-arrow-left"></i> {% trans "العودة" %}
                     </a>
                 </div>
@@ -35,7 +35,7 @@
                         <button type="submit" class="btn btn-danger">
                             <i class="fas fa-trash"></i> {% trans "نعم، حذف قاعدة البيانات" %}
                         </button>
-                        <a href="{% url 'data_management:database_detail' pk=database.pk %}" class="btn btn-secondary">
+                        <a href="{% url 'data_management:db_manager:database_detail' pk=database.pk %}" class="btn btn-secondary">
                             <i class="fas fa-times"></i> {% trans "إلغاء" %}
                         </a>
                     </form>

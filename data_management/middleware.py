@@ -2,14 +2,18 @@
 وسيط إدارة قواعد البيانات وتتبع الأخطاء
 """
 
+import os
 import sys
+import json
 import traceback
 import logging
+import threading
+import subprocess
 from django.db import connections
 from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse
-from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
@@ -73,8 +77,55 @@ class DatabaseSwitchMiddleware:
             cache.clear()
 
             logger.info(f"تم تبديل قاعدة البيانات النشطة إلى {database.name}")
+
+            # تنفيذ الترحيلات على قاعدة البيانات الجديدة
+            try:
+                from django.core.management import call_command
+                logger.info("جاري تنفيذ الترحيلات على قاعدة البيانات الجديدة...")
+                call_command('migrate', '--noinput')
+                logger.info("تم تنفيذ الترحيلات بنجاح")
+
+                # إعادة تشغيل السيرفر (في بيئة التطوير فقط)
+                if settings.DEBUG:
+                    logger.info("جاري إعادة تشغيل السيرفر...")
+                    self._restart_server()
+            except Exception as migrate_error:
+                logger.error(f"حدث خطأ أثناء تنفيذ الترحيلات: {str(migrate_error)}")
         except Exception as e:
             logger.error(f"حدث خطأ أثناء تبديل قاعدة البيانات: {str(e)}")
+
+    def _restart_server(self):
+        """
+        إعادة تشغيل السيرفر (في بيئة التطوير فقط)
+        """
+        try:
+            # إنشاء ملف إعادة التشغيل
+            restart_file = os.path.join(settings.BASE_DIR, 'restart.txt')
+            with open(restart_file, 'w') as f:
+                f.write(f"Restart requested at {timezone.now()}")
+
+            # إذا كنا في بيئة التطوير، نحاول إعادة تشغيل السيرفر
+            if settings.DEBUG:
+                from django.core.management import call_command
+
+                # استخدام أمر إعادة تشغيل السيرفر
+                logger.info("جاري تنفيذ أمر إعادة تشغيل السيرفر...")
+
+                # تنفيذ الأمر في خلفية منفصلة
+                import threading
+                def run_restart_command():
+                    try:
+                        # استخدام أمر إعادة تشغيل السيرفر
+                        call_command('restart_server', delay=3)
+                    except Exception as cmd_error:
+                        logger.error(f"حدث خطأ أثناء تنفيذ أمر إعادة تشغيل السيرفر: {str(cmd_error)}")
+
+                # تشغيل الأمر في خلفية منفصلة
+                threading.Thread(target=run_restart_command).start()
+
+                logger.info("تم طلب إعادة تشغيل السيرفر")
+        except Exception as e:
+            logger.error(f"حدث خطأ أثناء محاولة إعادة تشغيل السيرفر: {str(e)}")
 
     def reload_database_settings(self):
         """إعادة تحميل إعدادات قاعدة البيانات النشطة"""
@@ -143,7 +194,10 @@ class RailwayDebugMiddleware(MiddlewareMixin):
         """
         معالجة الاستثناءات وعرض معلومات تفصيلية عنها في بيئة Railway
         """
-        if hasattr(settings, 'RAILWAY_DEBUG') and settings.RAILWAY_DEBUG:
+        # تفعيل وضع تتبع الأخطاء دائمًا في بيئة Railway
+        is_railway = 'RAILWAY_ENVIRONMENT' in os.environ or 'railway' in os.environ.get('PGHOST', '')
+
+        if is_railway or settings.DEBUG:
             # تسجيل الخطأ
             logger.error(f"[Railway Exception] {exception}")
             logger.error(traceback.format_exc())
@@ -157,29 +211,34 @@ class RailwayDebugMiddleware(MiddlewareMixin):
                 'exception_value': str(exc_info[1]),
                 'exception_traceback': traceback.format_exception(*exc_info),
                 'request': request,
-                'request_meta': dict(request.META),
                 'request_path': request.path,
                 'request_method': request.method,
-                'request_GET': dict(request.GET),
-                'request_POST': dict(request.POST),
-                'request_user': request.user,
-                'settings': {
-                    'DEBUG': settings.DEBUG,
-                    'RAILWAY_DEBUG': getattr(settings, 'RAILWAY_DEBUG', False),
-                    'ALLOWED_HOSTS': settings.ALLOWED_HOSTS,
-                    'INSTALLED_APPS': settings.INSTALLED_APPS,
-                    'MIDDLEWARE': settings.MIDDLEWARE,
-                    'DATABASES': {
-                        'default': {
-                            'ENGINE': settings.DATABASES['default'].get('ENGINE', ''),
-                            'NAME': settings.DATABASES['default'].get('NAME', ''),
-                            'USER': settings.DATABASES['default'].get('USER', ''),
-                            'HOST': settings.DATABASES['default'].get('HOST', ''),
-                            'PORT': settings.DATABASES['default'].get('PORT', ''),
-                        }
-                    }
-                }
             }
+
+            # جمع معلومات قاعدة البيانات
+            db_info = {}
+            try:
+                db_info = {
+                    'ENGINE': settings.DATABASES['default'].get('ENGINE', ''),
+                    'NAME': settings.DATABASES['default'].get('NAME', ''),
+                    'USER': settings.DATABASES['default'].get('USER', ''),
+                    'HOST': settings.DATABASES['default'].get('HOST', ''),
+                    'PORT': settings.DATABASES['default'].get('PORT', ''),
+                }
+
+                # التحقق من اتصال قاعدة البيانات
+                from django.db import connections
+                with connections['default'].cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    db_info['connection_test'] = "OK"
+            except Exception as db_error:
+                db_info['connection_error'] = str(db_error)
+
+            # جمع معلومات متغيرات البيئة المتعلقة بقاعدة البيانات
+            env_info = {}
+            for key in ['PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'RAILWAY_ENVIRONMENT']:
+                if key in os.environ:
+                    env_info[key] = os.environ[key]
 
             # عرض معلومات الخطأ كنص عادي
             error_text = f"""
@@ -193,6 +252,12 @@ class RailwayDebugMiddleware(MiddlewareMixin):
 
             Request Path: {context['request_path']}
             Request Method: {context['request_method']}
+
+            Database Info:
+            {json.dumps(db_info, indent=4)}
+
+            Environment Variables:
+            {json.dumps(env_info, indent=4)}
             """
             return HttpResponse(error_text, content_type='text/plain', status=500)
 

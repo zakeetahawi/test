@@ -83,6 +83,19 @@
                                                         {% endif %}
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <td>{% trans "اختبار الاتصال" %}</td>
+                                                    <td>
+                                                        {% if connection_test == 'OK' %}
+                                                            <span class="badge badge-sm bg-gradient-success">{% trans "ناجح" %}</span>
+                                                        {% elif connection_test %}
+                                                            <span class="badge badge-sm bg-gradient-danger">{% trans "فشل" %}</span>
+                                                            <div class="small text-danger mt-1">{{ connection_test }}</div>
+                                                        {% else %}
+                                                            <span class="badge badge-sm bg-gradient-warning">{% trans "غير متوفر" %}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>

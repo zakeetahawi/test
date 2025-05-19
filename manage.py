@@ -15,6 +15,27 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
+
+    # تنفيذ الترحيلات تلقائيًا عند تشغيل السيرفر
+    if len(sys.argv) > 1 and sys.argv[1] == 'runserver':
+        # تعيين متغير بيئي لتجنب تنفيذ الترحيلات مرتين
+        if not os.environ.get('AUTO_MIGRATE_EXECUTED'):
+            try:
+                # تأكد من أن Django تم تهيئته بالكامل
+                import django
+                django.setup()
+
+                # تنفيذ أمر auto_migrate
+                from django.core.management import call_command
+                print("جاري تنفيذ الترحيلات تلقائيًا...")
+                call_command('auto_migrate')
+                print("تم تنفيذ الترحيلات بنجاح.")
+
+                # تعيين متغير بيئي لتجنب تنفيذ الترحيلات مرتين
+                os.environ['AUTO_MIGRATE_EXECUTED'] = '1'
+            except Exception as e:
+                print(f"حدث خطأ أثناء تنفيذ الترحيلات التلقائية: {str(e)}")
+
     execute_from_command_line(sys.argv)
 
 

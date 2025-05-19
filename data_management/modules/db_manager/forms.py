@@ -2,12 +2,13 @@
 نماذج وحدة إدارة قواعد البيانات
 """
 
+import os
+import datetime
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.conf import settings
-import datetime
 
 from .models import DatabaseConfig, DatabaseBackup, DatabaseImport, SetupToken
 
@@ -180,49 +181,56 @@ class DatabaseSetupForm(forms.Form):
     db_type = forms.ChoiceField(
         choices=DatabaseConfig.DB_TYPES,
         initial='postgresql',
-        label=_('نوع قاعدة البيانات')
+        label=_('نوع قاعدة البيانات'),
+        widget=forms.HiddenInput()  # إخفاء هذا الحقل واستخدام القيمة الافتراضية
     )
 
     name = forms.CharField(
         max_length=100,
+        initial='قاعدة البيانات الرئيسية',
         label=_('اسم قاعدة البيانات'),
         help_text=_('اسم وصفي لقاعدة البيانات.')
     )
 
+    # إعدادات افتراضية للبيئة المحلية
     host = forms.CharField(
         max_length=255,
+        initial='localhost',
         required=False,
         label=_('المضيف'),
-        help_text=_('عنوان المضيف لقاعدة البيانات.')
+        help_text=_('عنوان المضيف لقاعدة البيانات. (افتراضي: localhost)')
     )
 
     port = forms.CharField(
         max_length=10,
+        initial='5432',
         required=False,
         label=_('المنفذ'),
-        help_text=_('منفذ قاعدة البيانات.')
+        help_text=_('منفذ قاعدة البيانات. (افتراضي: 5432)')
     )
 
     username = forms.CharField(
         max_length=100,
+        initial='postgres',
         required=False,
         label=_('اسم المستخدم'),
-        help_text=_('اسم المستخدم للاتصال بقاعدة البيانات.')
+        help_text=_('اسم المستخدم للاتصال بقاعدة البيانات. (افتراضي: postgres)')
     )
 
     password = forms.CharField(
         max_length=100,
+        initial='5525',
         required=False,
         widget=forms.PasswordInput(),
         label=_('كلمة المرور'),
-        help_text=_('كلمة المرور للاتصال بقاعدة البيانات.')
+        help_text=_('كلمة المرور للاتصال بقاعدة البيانات. (افتراضي: 5525)')
     )
 
     database_name = forms.CharField(
         max_length=100,
-        required=False,
+        required=True,
         label=_('اسم قاعدة البيانات'),
-        help_text=_('اسم قاعدة البيانات في الخادم.')
+        help_text=_('اسم قاعدة البيانات في الخادم. (مثال: crm_system)')
     )
 
     admin_username = forms.CharField(
@@ -254,17 +262,43 @@ class DatabaseSetupForm(forms.Form):
         help_text=_('ملف لاستيراد البيانات (اختياري).')
     )
 
+    def __init__(self, *args, **kwargs):
+        """تهيئة النموذج"""
+        super().__init__(*args, **kwargs)
+
+        # التحقق مما إذا كنا في بيئة Railway
+        is_railway = os.environ.get('RAILWAY_ENVIRONMENT') == 'production' or 'railway' in os.environ.get('PGHOST', '')
+
+        if is_railway:
+            # تعيين القيم الافتراضية لبيئة Railway
+            self.fields['host'].initial = os.environ.get('PGHOST', 'postgres.railway.internal')
+            self.fields['port'].initial = os.environ.get('PGPORT', '5432')
+            self.fields['username'].initial = os.environ.get('PGUSER', 'postgres')
+            self.fields['password'].initial = os.environ.get('PGPASSWORD') or os.environ.get('POSTGRES_PASSWORD', '')
+            self.fields['database_name'].initial = os.environ.get('PGDATABASE', 'railway')
+
+            # إخفاء بعض الحقول في بيئة Railway
+            self.fields['host'].widget = forms.HiddenInput()
+            self.fields['port'].widget = forms.HiddenInput()
+            self.fields['username'].widget = forms.HiddenInput()
+            self.fields['password'].widget = forms.HiddenInput()
+            self.fields['database_name'].widget = forms.HiddenInput()
+
     def clean(self):
         """التحقق من صحة البيانات"""
         cleaned_data = super().clean()
 
-        # التحقق من وجود البيانات المطلوبة حسب نوع قاعدة البيانات
-        db_type = cleaned_data.get('db_type')
+        # التحقق مما إذا كنا في بيئة Railway
+        is_railway = os.environ.get('RAILWAY_ENVIRONMENT') == 'production' or 'railway' in os.environ.get('PGHOST', '')
 
-        if db_type == 'postgresql' or db_type == 'mysql':
-            required_fields = ['host', 'username', 'database_name']
-            for field in required_fields:
-                if not cleaned_data.get(field):
-                    self.add_error(field, _('هذا الحقل مطلوب لنوع قاعدة البيانات المحدد.'))
+        if not is_railway:
+            # التحقق من وجود البيانات المطلوبة في البيئة المحلية
+            db_type = cleaned_data.get('db_type')
+
+            if db_type == 'postgresql' or db_type == 'mysql':
+                required_fields = ['database_name']
+                for field in required_fields:
+                    if not cleaned_data.get(field):
+                        self.add_error(field, _('هذا الحقل مطلوب لنوع قاعدة البيانات المحدد.'))
 
         return cleaned_data

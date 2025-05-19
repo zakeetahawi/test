@@ -470,7 +470,7 @@ SESSION_CLEANUP_SCHEDULE = {
 }
 
 # إعدادات تحسين الأداء لـ Railway
-if os.environ.get('RAILWAY_ENVIRONMENT'):
+if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST', ''):
     # تقليل عدد الاستعلامات المسموح بها في صفحة واحدة
     DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
 
@@ -481,24 +481,29 @@ if os.environ.get('RAILWAY_ENVIRONMENT'):
         'handlers': {
             'console': {
                 'class': 'logging.StreamHandler',
-                'level': 'WARNING',
+                'level': 'INFO',  # تغيير مستوى التسجيل إلى INFO للحصول على مزيد من المعلومات
             },
         },
         'loggers': {
             'django': {
                 'handlers': ['console'],
-                'level': 'WARNING',
+                'level': 'INFO',
                 'propagate': True,
             },
             'django.db.backends': {
                 'handlers': ['console'],
-                'level': 'ERROR',
+                'level': 'WARNING',
                 'propagate': False,
+            },
+            'data_management': {  # إضافة تسجيل خاص لتطبيق data_management
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': True,
             },
         },
         'root': {
             'handlers': ['console'],
-            'level': 'WARNING',
+            'level': 'INFO',
         },
     }
 
@@ -506,4 +511,25 @@ if os.environ.get('RAILWAY_ENVIRONMENT'):
     DATABASES['default']['CONN_MAX_AGE'] = 300  # 5 دقائق
 
     # تعطيل التصحيح التلقائي للمخطط
-    DATABASES['default']['AUTOCOMMIT'] = False
+    DATABASES['default']['AUTOCOMMIT'] = True  # تمكين AUTOCOMMIT لتجنب مشاكل الاتصال
+
+    # إعدادات قاعدة بيانات Railway
+    # إذا كانت متغيرات البيئة متوفرة، استخدمها مباشرة
+    if os.environ.get('PGHOST') and os.environ.get('PGDATABASE') and os.environ.get('PGUSER'):
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.environ.get('PGDATABASE', 'railway'),
+                'USER': os.environ.get('PGUSER', 'postgres'),
+                'PASSWORD': os.environ.get('PGPASSWORD') or os.environ.get('POSTGRES_PASSWORD', ''),
+                'HOST': os.environ.get('PGHOST', 'postgres.railway.internal'),
+                'PORT': os.environ.get('PGPORT', '5432'),
+                'ATOMIC_REQUESTS': False,
+                'AUTOCOMMIT': True,
+                'CONN_MAX_AGE': 300,
+                'CONN_HEALTH_CHECKS': True,
+            }
+        }
+        print(f"تم تكوين قاعدة بيانات Railway: {os.environ.get('PGDATABASE')} على {os.environ.get('PGHOST')}")
+    else:
+        print("متغيرات بيئة Railway غير متوفرة، استخدام الإعدادات الافتراضية")

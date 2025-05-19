@@ -101,6 +101,23 @@ def save_database_settings(settings):
     except Exception as e:
         logger.error(f"حدث خطأ أثناء حفظ إعدادات قاعدة البيانات: {str(e)}")
 
+def get_active_database_id():
+    """
+    الحصول على معرف قاعدة البيانات النشطة
+
+    Returns:
+        معرف قاعدة البيانات النشطة أو None إذا لم تكن هناك قاعدة بيانات نشطة
+    """
+    try:
+        # الحصول على إعدادات قاعدة البيانات
+        settings = get_active_database_settings()
+
+        # إرجاع معرف قاعدة البيانات النشطة
+        return settings.get('active_db')
+    except Exception as e:
+        logger.error(f"حدث خطأ أثناء الحصول على معرف قاعدة البيانات النشطة: {str(e)}")
+        return None
+
 def set_active_database(db_id):
     """
     تعيين قاعدة البيانات النشطة

@@ -515,7 +515,8 @@ if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST'
 
     # إعدادات قاعدة بيانات Railway
     # إذا كانت متغيرات البيئة متوفرة، استخدمها مباشرة
-    if os.environ.get('PGHOST') and os.environ.get('PGDATABASE') and os.environ.get('PGUSER'):
+    if os.environ.get('PGHOST'):
+        # إعادة تعيين DATABASES لاستخدام إعدادات Railway مباشرة
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
@@ -531,5 +532,13 @@ if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST'
             }
         }
         print(f"تم تكوين قاعدة بيانات Railway: {os.environ.get('PGDATABASE')} على {os.environ.get('PGHOST')}")
+
+        # تنظيف ذاكرة التخزين المؤقت
+        from django.core.cache import cache
+        cache.clear()
+
+        # إغلاق الاتصالات الحالية
+        from django.db import connections
+        connections.close_all()
     else:
         print("متغيرات بيئة Railway غير متوفرة، استخدام الإعدادات الافتراضية")

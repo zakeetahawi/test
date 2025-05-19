@@ -18,6 +18,8 @@ def health_check(request):
     """
     # إذا كان المسار هو '/health/' بالضبط (كما يتوقع Railway)، نعيد استجابة بسيطة وسريعة
     if request.path == '/health/' or request.path == '/health':
+        # طباعة رسالة تأكيد
+        print("تم استدعاء فحص الصحة من Railway")
         return HttpResponse("OK", content_type="text/plain")
 
     # تسجيل طلب فحص الصحة المفصل فقط

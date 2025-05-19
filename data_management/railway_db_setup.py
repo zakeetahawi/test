@@ -17,11 +17,13 @@ def setup_railway_database():
     إعداد قاعدة بيانات Railway تلقائياً إذا كنا في بيئة Railway
     """
     # التحقق مما إذا كنا في بيئة Railway
-    is_railway = os.environ.get('RAILWAY_ENVIRONMENT') == 'production' or 'railway' in os.environ.get('PGHOST', '')
+    is_railway = 'PGHOST' in os.environ
 
     if not is_railway:
         logger.info("لسنا في بيئة Railway، تخطي إعداد قاعدة البيانات التلقائي")
         return
+
+    print("تم اكتشاف بيئة Railway في railway_db_setup.py، جاري إعداد قاعدة البيانات...")
 
     logger.info("تم اكتشاف بيئة Railway، جاري إعداد قاعدة البيانات تلقائياً...")
 

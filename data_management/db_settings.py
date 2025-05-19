@@ -24,9 +24,10 @@ def get_active_database_settings():
     """
     try:
         # التحقق من وجود متغيرات البيئة الخاصة بـ Railway
-        if 'PGHOST' in os.environ and os.environ.get('RAILWAY_ENVIRONMENT', '') == 'production':
+        if 'PGHOST' in os.environ:
             # استخدام إعدادات Railway مباشرة
             logger.info("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
+            print("تم اكتشاف بيئة Railway، استخدام إعدادات قاعدة البيانات من متغيرات البيئة")
 
             # إنشاء معرف فريد لقاعدة بيانات Railway
             railway_db_id = 'railway_db'

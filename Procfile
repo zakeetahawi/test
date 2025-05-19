@@ -1,1 +1,1 @@
-web: python manage.py migrate && python scripts/post_deploy.py && gunicorn crm.wsgi:application --workers=2 --threads=4 --timeout=120 --max-requests=1000 --max-requests-jitter=50 --log-level=info
+web: python manage.py migrate --noinput && python scripts/post_deploy.py && gunicorn crm.wsgi:application --workers=2 --threads=4 --timeout=120 --max-requests=1000 --max-requests-jitter=50 --log-level=info

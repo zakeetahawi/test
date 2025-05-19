@@ -128,33 +128,30 @@ CHANNEL_LAYERS = {
 }
 
 # Database
-# تحميل إعدادات قاعدة البيانات من الملف الخارجي
-try:
-    from data_management.db_settings import get_active_database_settings, reset_to_default_settings
+# استخدام DATABASE_URL مباشرة إذا كان متاحًا
+if os.environ.get('DATABASE_URL'):
+    print(f"استخدام DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+    print("تم تكوين قاعدة البيانات من DATABASE_URL")
+else:
+    # محاولة تحميل إعدادات قاعدة البيانات من الملف الخارجي
+    try:
+        from data_management.db_settings import get_active_database_settings, reset_to_default_settings
 
-    # الحصول على إعدادات قاعدة البيانات النشطة
-    db_settings = get_active_database_settings()
-    active_db_id = db_settings.get('active_db')
+        # الحصول على إعدادات قاعدة البيانات النشطة
+        db_settings = get_active_database_settings()
+        active_db_id = db_settings.get('active_db')
 
-    if active_db_id and str(active_db_id) in db_settings.get('databases', {}):
-        # استخدام إعدادات قاعدة البيانات النشطة
-        active_db_settings = db_settings['databases'][str(active_db_id)]
+        if active_db_id and str(active_db_id) in db_settings.get('databases', {}):
+            # استخدام إعدادات قاعدة البيانات النشطة
+            active_db_settings = db_settings['databases'][str(active_db_id)]
 
-        # تحقق من وجود معلمة reset_db في عنوان URL
-        if os.environ.get('RESET_DB') == '1':
-            # إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية
-            reset_to_default_settings()
-            print("تم إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية")
-
-            # استخدام إعدادات قاعدة البيانات الافتراضية
-            DATABASES = {
-                'default': dj_database_url.config(
-                    default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
-                    conn_max_age=600,
-                    conn_health_checks=True,
-                )
-            }
-        else:
             # استخدام إعدادات قاعدة البيانات النشطة
             DATABASES = {
                 'default': {
@@ -172,36 +169,42 @@ try:
             }
 
             print(f"تم تحميل إعدادات قاعدة البيانات النشطة: {active_db_settings.get('NAME')}")
-    else:
-        # استخدام إعدادات قاعدة البيانات الافتراضية
+        else:
+            # استخدام إعدادات قاعدة البيانات الافتراضية
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.postgresql',
+                    'NAME': os.environ.get('DB_NAME', 'crm_system'),
+                    'USER': os.environ.get('DB_USER', 'crm_user'),
+                    'PASSWORD': os.environ.get('DB_PASSWORD', '5525'),
+                    'HOST': os.environ.get('DB_HOST', 'localhost'),
+                    'PORT': os.environ.get('DB_PORT', '5432'),
+                    'ATOMIC_REQUESTS': False,
+                    'AUTOCOMMIT': True,
+                    'CONN_MAX_AGE': 600,
+                    'CONN_HEALTH_CHECKS': True,
+                }
+            }
+
+            print("تم تحميل إعدادات قاعدة البيانات الافتراضية")
+    except Exception as e:
+        # في حالة حدوث خطأ، استخدم الإعدادات الافتراضية
         DATABASES = {
-            'default': dj_database_url.config(
-                default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
-                conn_max_age=600,
-                conn_health_checks=True,
-            )
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.environ.get('DB_NAME', 'crm_system'),
+                'USER': os.environ.get('DB_USER', 'crm_user'),
+                'PASSWORD': os.environ.get('DB_PASSWORD', '5525'),
+                'HOST': os.environ.get('DB_HOST', 'localhost'),
+                'PORT': os.environ.get('DB_PORT', '5432'),
+                'ATOMIC_REQUESTS': False,
+                'AUTOCOMMIT': True,
+                'CONN_MAX_AGE': 600,
+                'CONN_HEALTH_CHECKS': True,
+            }
         }
 
-        print("تم تحميل إعدادات قاعدة البيانات الافتراضية")
-except Exception as e:
-    # في حالة حدوث خطأ، استخدم الإعدادات الافتراضية
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL', f"postgresql://{os.environ.get('DB_USER', 'crm_user')}:{os.environ.get('DB_PASSWORD', '5525')}@{os.environ.get('DB_HOST', 'localhost')}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'crm_system')}"),
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-
-    print(f"حدث خطأ أثناء تحميل إعدادات قاعدة البيانات: {str(e)}")
-
-    # محاولة إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية
-    try:
-        from data_management.db_settings import reset_to_default_settings
-        reset_to_default_settings()
-        print("تم إعادة تعيين إعدادات قاعدة البيانات إلى الإعدادات الافتراضية")
-    except Exception as reset_error:
-        print(f"حدث خطأ أثناء إعادة تعيين إعدادات قاعدة البيانات: {str(reset_error)}")
+        print(f"حدث خطأ أثناء تحميل إعدادات قاعدة البيانات: {str(e)}")
 
 # إضافة إعدادات إضافية لقاعدة البيانات
 DATABASES['default']['ATOMIC_REQUESTS'] = False
@@ -513,38 +516,4 @@ if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST'
     # تعطيل التصحيح التلقائي للمخطط
     DATABASES['default']['AUTOCOMMIT'] = True  # تمكين AUTOCOMMIT لتجنب مشاكل الاتصال
 
-    # إعدادات قاعدة بيانات Railway
-    # استخدام متغيرات البيئة الصريحة
-    if os.environ.get('POSTGRES_PASSWORD'):
-        # طباعة متغيرات البيئة المتاحة للتشخيص
-        print("متغيرات البيئة المتاحة:")
-        print(f"POSTGRES_DB: {os.environ.get('POSTGRES_DB')}")
-        print(f"POSTGRES_USER: {os.environ.get('POSTGRES_USER')}")
-        print(f"RAILWAY_PRIVATE_DOMAIN: {os.environ.get('RAILWAY_PRIVATE_DOMAIN')}")
-
-        # إعادة تعيين DATABASES لاستخدام إعدادات Railway مباشرة
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': os.environ.get('POSTGRES_DB', 'railway'),
-                'USER': os.environ.get('POSTGRES_USER', 'postgres'),
-                'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
-                'HOST': os.environ.get('RAILWAY_PRIVATE_DOMAIN', 'localhost'),
-                'PORT': os.environ.get('PGPORT', '5432'),
-                'ATOMIC_REQUESTS': False,
-                'AUTOCOMMIT': True,
-                'CONN_MAX_AGE': 300,
-                'CONN_HEALTH_CHECKS': True,
-            }
-        }
-        print(f"تم تكوين قاعدة بيانات Railway: {DATABASES['default']['NAME']} على {DATABASES['default']['HOST']}")
-
-        # تنظيف ذاكرة التخزين المؤقت
-        from django.core.cache import cache
-        cache.clear()
-
-        # إغلاق الاتصالات الحالية
-        from django.db import connections
-        connections.close_all()
-    else:
-        print("متغيرات بيئة Railway غير متوفرة، استخدام الإعدادات الافتراضية")
+    # تم نقل إعدادات قاعدة بيانات Railway إلى بداية الملف

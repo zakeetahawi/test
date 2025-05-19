@@ -6,6 +6,13 @@ import sys
 
 def main():
     """Run administrative tasks."""
+    # إعداد متغيرات البيئة لقاعدة بيانات Railway
+    if 'POSTGRES_PASSWORD' in os.environ:
+        print("تم اكتشاف بيئة Railway في manage.py")
+        # تعيين متغيرات البيئة لقاعدة البيانات
+        os.environ['DATABASE_URL'] = f"postgresql://{os.environ.get('POSTGRES_USER')}:{os.environ.get('POSTGRES_PASSWORD')}@{os.environ.get('RAILWAY_PRIVATE_DOMAIN')}:5432/{os.environ.get('POSTGRES_DB')}"
+        print(f"تم تعيين DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm.settings')
     try:
         from django.core.management import execute_from_command_line

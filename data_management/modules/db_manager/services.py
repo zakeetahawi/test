@@ -723,7 +723,7 @@ class DatabaseService:
     def import_database_advanced(self, file_path, database_config=None, user=None, import_mode='merge',
                                clear_data=False, conflict_resolution='skip', import_settings=True,
                                import_users=False, import_customers=True, import_products=True,
-                               import_orders=True, import_inspections=True):
+                               import_orders=True, import_inspections=True, ignore_source_db_info=True):
         """
         استيراد قاعدة بيانات بخيارات متقدمة
 
@@ -740,6 +740,7 @@ class DatabaseService:
             import_products: هل يتم استيراد المنتجات
             import_orders: هل يتم استيراد الطلبات
             import_inspections: هل يتم استيراد الفحوصات
+            ignore_source_db_info: هل يتم تجاهل معلومات قاعدة البيانات المصدر
 
         Returns:
             قاموس يحتوي على إحصائيات الاستيراد
@@ -765,17 +766,20 @@ class DatabaseService:
         if file_ext == '.json':
             stats = self._import_json_advanced(
                 file_path, database_config, should_clear_data, import_mode, conflict_resolution,
-                import_settings, import_users, import_customers, import_products, import_orders, import_inspections
+                import_settings, import_users, import_customers, import_products, import_orders, import_inspections,
+                ignore_source_db_info
             )
         elif file_ext == '.sql':
             stats = self._import_sql_advanced(
                 file_path, database_config, should_clear_data, import_mode, conflict_resolution,
-                import_settings, import_users, import_customers, import_products, import_orders, import_inspections
+                import_settings, import_users, import_customers, import_products, import_orders, import_inspections,
+                ignore_source_db_info
             )
         elif file_ext == '.dump':
             stats = self._import_dump_advanced(
                 file_path, database_config, should_clear_data, import_mode, conflict_resolution,
-                import_settings, import_users, import_customers, import_products, import_orders, import_inspections
+                import_settings, import_users, import_customers, import_products, import_orders, import_inspections,
+                ignore_source_db_info
             )
         else:
             raise ValueError(f"نوع الملف '{file_ext}' غير مدعوم للاستيراد")
@@ -783,7 +787,8 @@ class DatabaseService:
         return stats
 
     def _import_json_advanced(self, file_path, database_config, clear_data, import_mode, conflict_resolution,
-                            import_settings, import_users, import_customers, import_products, import_orders, import_inspections):
+                            import_settings, import_users, import_customers, import_products, import_orders, import_inspections,
+                            ignore_source_db_info=True):
         """استيراد ملف JSON بخيارات متقدمة"""
         # إحصائيات الاستيراد
         stats = {
@@ -878,7 +883,8 @@ class DatabaseService:
         return stats
 
     def _import_sql_advanced(self, file_path, database_config, clear_data, import_mode, conflict_resolution,
-                           import_settings, import_users, import_customers, import_products, import_orders, import_inspections):
+                           import_settings, import_users, import_customers, import_products, import_orders, import_inspections,
+                           ignore_source_db_info=True):
         """استيراد ملف SQL بخيارات متقدمة"""
         # إحصائيات الاستيراد
         stats = {
@@ -956,6 +962,12 @@ class DatabaseService:
                 # حذف الملف المؤقت
                 os.unlink(temp_file_path)
             else:
+                # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+                if ignore_source_db_info:
+                    logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+                    # تعديل ملف SQL لتجاهل معلومات قاعدة البيانات المصدر
+                    self._modify_sql_file_for_import(file_path, database_config)
+
                 # استيراد جميع البيانات
                 self._restore_postgresql_backup(database_config, file_path, clear_data)
         elif database_config.db_type == 'mysql':
@@ -997,6 +1009,12 @@ class DatabaseService:
                 # حذف الملف المؤقت
                 os.unlink(temp_file_path)
             else:
+                # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+                if ignore_source_db_info:
+                    logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+                    # تعديل ملف SQL لتجاهل معلومات قاعدة البيانات المصدر
+                    self._modify_sql_file_for_import(file_path, database_config)
+
                 # استيراد جميع البيانات
                 self._restore_mysql_backup(database_config, file_path, clear_data)
         else:
@@ -1009,7 +1027,8 @@ class DatabaseService:
         return stats
 
     def _import_dump_advanced(self, file_path, database_config, clear_data, import_mode, conflict_resolution,
-                            import_settings, import_users, import_customers, import_products, import_orders, import_inspections):
+                            import_settings, import_users, import_customers, import_products, import_orders, import_inspections,
+                            ignore_source_db_info=True):
         """استيراد ملف DUMP بخيارات متقدمة"""
         # إحصائيات الاستيراد
         stats = {
@@ -1274,6 +1293,11 @@ class DatabaseService:
                     logger.error(f"حدث خطأ أثناء استيراد ملف DUMP: {str(e)}")
                     raise
             else:
+                # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+                if ignore_source_db_info:
+                    logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+                    # لا يمكن تعديل ملف DUMP مباشرة، لذلك سنستخدم خيارات pg_restore لتجاهل معلومات المالك والصلاحيات
+
                 # استيراد جميع البيانات
                 self._restore_postgresql_backup(database_config, file_path, clear_data)
         else:

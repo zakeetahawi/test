@@ -5,6 +5,10 @@
 import os
 import traceback
 import threading
+import logging
+
+# إعداد السجل
+logger = logging.getLogger(__name__)
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
@@ -1083,98 +1087,145 @@ def database_import(request):
     if request.method == 'POST':
         form = DatabaseImportForm(request.POST, request.FILES)
         if form.is_valid():
-            # حفظ نموذج الاستيراد
-            import_record = form.save(commit=False)
-            import_record.status = 'pending'
-            import_record.created_by = request.user
-            import_record.save()
-
             try:
-                # استيراد قاعدة البيانات
-                database_service = DatabaseService(import_record.database_config.id)
-
-                # تحديد خيارات الاستيراد
-                import_options = {
-                    'file_path': import_record.file.path,
-                    'database_config': import_record.database_config,
-                    'user': request.user,
-                    'clear_data': import_record.clear_data,
-                    'ignore_source_db_info': import_record.ignore_source_db_info,
-                }
-
-                # إضافة خيارات الاستيراد الانتقائي من النموذج
-                import_mode = form.cleaned_data.get('import_mode', 'merge')
-                if import_mode == 'selective':
-                    import_options.update({
-                        'import_mode': 'selective',
-                        'import_settings': form.cleaned_data.get('import_settings', True),
-                        'import_users': form.cleaned_data.get('import_users', False),
-                        'import_customers': form.cleaned_data.get('import_customers', True),
-                        'import_products': form.cleaned_data.get('import_products', True),
-                        'import_orders': form.cleaned_data.get('import_orders', True),
-                        'import_inspections': form.cleaned_data.get('import_inspections', True),
-                        'conflict_resolution': form.cleaned_data.get('conflict_resolution', 'skip'),
-                    })
-                else:
-                    import_options.update({
-                        'import_mode': import_mode,
-                        'conflict_resolution': form.cleaned_data.get('conflict_resolution', 'skip'),
-                    })
-
-                # بدء عملية الاستيراد في خلفية منفصلة
-                import threading
-
-                def import_task():
-                    try:
-                        # تحديث حالة الاستيراد
-                        import_record.status = 'processing'
-                        import_record.log = 'بدء عملية استيراد البيانات...\n'
-                        import_record.save()
-
-                        # استيراد البيانات
-                        result = database_service.import_database_advanced(**import_options)
-
-                        # تحديث إحصائيات الاستيراد
-                        import_record.total_records = result.get('total_records', 0)
-                        import_record.imported_records = result.get('imported_records', 0)
-                        import_record.skipped_records = result.get('skipped_records', 0)
-                        import_record.failed_records = result.get('failed_records', 0)
-
-                        # تحديث حالة الاستيراد
-                        import_record.status = 'completed'
-                        import_record.completed_at = timezone.now()
-                        import_record.log += '\nاكتملت عملية الاستيراد بنجاح.\n'
-                        import_record.log += f'\nإجمالي السجلات: {import_record.total_records}\n'
-                        import_record.log += f'السجلات المستوردة: {import_record.imported_records}\n'
-                        import_record.log += f'السجلات المتخطاة: {import_record.skipped_records}\n'
-                        import_record.log += f'السجلات الفاشلة: {import_record.failed_records}\n'
-                        import_record.save()
-                    except Exception as e:
-                        # تحديث حالة الاستيراد في حالة الخطأ
-                        import_record.status = 'failed'
-                        import_record.log += f'\n❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n'
-                        import_record.log += f'\n🔍 تفاصيل الخطأ:\n{traceback.format_exc()}\n'
-                        import_record.log += '\n💡 اقتراحات للإصلاح:\n'
-                        import_record.log += '- تأكد من صحة تنسيق ملف الاستيراد.\n'
-                        import_record.log += '- تأكد من توافق إصدار قاعدة البيانات.\n'
-                        import_record.log += '- تحقق من صلاحيات المستخدم.\n'
-                        import_record.save()
-
-                # بدء العملية في خلفية منفصلة
-                thread = threading.Thread(target=import_task)
-                thread.daemon = True
-                thread.start()
-
-                messages.success(request, _('تم بدء عملية استيراد البيانات بنجاح. يمكنك متابعة حالة الاستيراد من صفحة التفاصيل.'))
-                return redirect('data_management:db_manager:import_status', pk=import_record.pk)
-            except Exception as e:
-                # تحديث حالة الاستيراد في حالة الخطأ
-                import_record.status = 'failed'
-                import_record.log = f'❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n'
+                # حفظ نموذج الاستيراد
+                import_record = form.save(commit=False)
+                import_record.status = 'pending'
+                import_record.created_by = request.user
                 import_record.save()
 
-                messages.error(request, _(f'حدث خطأ أثناء بدء عملية استيراد البيانات: {str(e)}'))
-                return redirect('data_management:db_manager:import_detail', pk=import_record.pk)
+                # تسجيل معلومات الاستيراد للتشخيص
+                logger.info(f"تم إنشاء سجل استيراد جديد بالمعرف {import_record.id} للمستخدم {request.user.username}")
+                logger.info(f"قاعدة البيانات المستهدفة: {import_record.database_config.name} (ID: {import_record.database_config.id})")
+                logger.info(f"ملف الاستيراد: {import_record.file.name}")
+
+                try:
+                    # استيراد قاعدة البيانات
+                    database_service = DatabaseService(import_record.database_config.id)
+
+                    # تحديد خيارات الاستيراد
+                    import_options = {
+                        'file_path': import_record.file.path,
+                        'database_config': import_record.database_config,
+                        'user': request.user,
+                        'clear_data': import_record.clear_data,
+                        'ignore_source_db_info': import_record.ignore_source_db_info,
+                    }
+
+                    # إضافة خيارات الاستيراد الانتقائي من النموذج
+                    import_mode = form.cleaned_data.get('import_mode', 'merge')
+                    if import_mode == 'selective':
+                        import_options.update({
+                            'import_mode': 'selective',
+                            'import_settings': form.cleaned_data.get('import_settings', True),
+                            'import_users': form.cleaned_data.get('import_users', False),
+                            'import_customers': form.cleaned_data.get('import_customers', True),
+                            'import_products': form.cleaned_data.get('import_products', True),
+                            'import_orders': form.cleaned_data.get('import_orders', True),
+                            'import_inspections': form.cleaned_data.get('import_inspections', True),
+                            'conflict_resolution': form.cleaned_data.get('conflict_resolution', 'skip'),
+                        })
+                    else:
+                        import_options.update({
+                            'import_mode': import_mode,
+                            'conflict_resolution': form.cleaned_data.get('conflict_resolution', 'skip'),
+                        })
+
+                    # تسجيل خيارات الاستيراد للتشخيص
+                    logger.info(f"خيارات الاستيراد: {import_options}")
+
+                    # بدء عملية الاستيراد في خلفية منفصلة
+                    def import_task():
+                        try:
+                            # تحديث حالة الاستيراد
+                            import_record.status = 'processing'
+                            import_record.log = 'بدء عملية استيراد البيانات...\n'
+                            import_record.save()
+
+                            logger.info(f"بدء عملية استيراد البيانات لسجل الاستيراد {import_record.id}")
+
+                            # استيراد البيانات
+                            result = database_service.import_database_advanced(**import_options)
+
+                            # تحديث إحصائيات الاستيراد
+                            import_record.total_records = result.get('total_records', 0)
+                            import_record.imported_records = result.get('imported_records', 0)
+                            import_record.skipped_records = result.get('skipped_records', 0)
+                            import_record.failed_records = result.get('failed_records', 0)
+
+                            # تحديث حالة الاستيراد
+                            import_record.status = 'completed'
+                            import_record.completed_at = timezone.now()
+                            import_record.log += '\nاكتملت عملية الاستيراد بنجاح.\n'
+                            import_record.log += f'\nإجمالي السجلات: {import_record.total_records}\n'
+                            import_record.log += f'السجلات المستوردة: {import_record.imported_records}\n'
+                            import_record.log += f'السجلات المتخطاة: {import_record.skipped_records}\n'
+                            import_record.log += f'السجلات الفاشلة: {import_record.failed_records}\n'
+                            import_record.save()
+
+                            logger.info(f"اكتملت عملية استيراد البيانات لسجل الاستيراد {import_record.id} بنجاح")
+                        except Exception as e:
+                            # تحديث حالة الاستيراد في حالة الخطأ
+                            import_record.status = 'failed'
+                            import_record.log += f'\n❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n'
+                            import_record.log += f'\n🔍 تفاصيل الخطأ:\n{traceback.format_exc()}\n'
+                            import_record.log += '\n💡 اقتراحات للإصلاح:\n'
+                            import_record.log += '- تأكد من صحة تنسيق ملف الاستيراد.\n'
+                            import_record.log += '- تأكد من توافق إصدار قاعدة البيانات.\n'
+                            import_record.log += '- تحقق من صلاحيات المستخدم.\n'
+                            import_record.save()
+
+                            logger.error(f"فشلت عملية استيراد البيانات لسجل الاستيراد {import_record.id}: {str(e)}")
+                            logger.error(traceback.format_exc())
+
+                    # بدء العملية في خلفية منفصلة
+                    thread = threading.Thread(target=import_task)
+                    thread.daemon = True
+                    thread.start()
+
+                    # التحقق من وجود سجل الاستيراد بعد إنشائه
+                    try:
+                        # محاولة استرداد سجل الاستيراد للتأكد من وجوده
+                        check_import = DatabaseImport.objects.get(pk=import_record.pk)
+                        logger.info(f"تم التحقق من وجود سجل الاستيراد {check_import.id}")
+                    except DatabaseImport.DoesNotExist:
+                        logger.error(f"لم يتم العثور على سجل الاستيراد {import_record.pk} بعد إنشائه!")
+                        # إنشاء سجل جديد إذا لم يتم العثور على السجل الأصلي
+                        import_record = DatabaseImport.objects.create(
+                            file=form.cleaned_data['file'],
+                            database_config=form.cleaned_data['database_config'],
+                            status='pending',
+                            clear_data=form.cleaned_data.get('clear_data', False),
+                            ignore_source_db_info=form.cleaned_data.get('ignore_source_db_info', True),
+                            created_by=request.user
+                        )
+                        logger.info(f"تم إنشاء سجل استيراد جديد بديل بالمعرف {import_record.id}")
+
+                    messages.success(request, _('تم بدء عملية استيراد البيانات بنجاح. يمكنك متابعة حالة الاستيراد من صفحة التفاصيل.'))
+                    return redirect('data_management:db_manager:import_status', pk=import_record.pk)
+                except Exception as e:
+                    # تحديث حالة الاستيراد في حالة الخطأ
+                    import_record.status = 'failed'
+                    import_record.log = f'❌ فشلت العملية بسبب الخطأ التالي:\n{str(e)}\n'
+                    import_record.save()
+
+                    logger.error(f"حدث خطأ أثناء بدء عملية استيراد البيانات: {str(e)}")
+                    logger.error(traceback.format_exc())
+
+                    messages.error(request, _(f'حدث خطأ أثناء بدء عملية استيراد البيانات: {str(e)}'))
+                    return redirect('data_management:db_manager:import_detail', pk=import_record.pk)
+            except Exception as e:
+                # في حالة حدوث خطأ أثناء إنشاء سجل الاستيراد
+                logger.error(f"حدث خطأ أثناء إنشاء سجل الاستيراد: {str(e)}")
+                logger.error(traceback.format_exc())
+
+                messages.error(request, _(f'حدث خطأ أثناء إنشاء سجل الاستيراد: {str(e)}'))
+                return redirect('data_management:db_manager:db_import')
+        else:
+            # في حالة عدم صحة النموذج
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
     else:
         form = DatabaseImportForm()
 
@@ -1207,10 +1258,31 @@ def import_detail(request, pk):
 def import_status(request, pk):
     """عرض حالة عملية الاستيراد"""
     try:
-        db_import = get_object_or_404(DatabaseImport, pk=pk)
+        # محاولة العثور على سجل الاستيراد
+        try:
+            db_import = DatabaseImport.objects.get(pk=pk)
+        except DatabaseImport.DoesNotExist:
+            # إذا لم يتم العثور على سجل الاستيراد، نعرض رسالة خطأ ونعيد توجيه المستخدم
+            messages.error(request, _('لم يتم العثور على سجل الاستيراد المطلوب. قد يكون تم حذفه أو لم يتم إنشاؤه بشكل صحيح.'))
 
+            # تسجيل معلومات إضافية للتشخيص
+            logger.error(f"لم يتم العثور على سجل الاستيراد بالمعرف {pk}")
+
+            # التحقق من وجود سجلات استيراد أخرى
+            recent_imports = DatabaseImport.objects.order_by('-created_at')[:5]
+            if recent_imports.exists():
+                logger.info(f"سجلات الاستيراد الأخيرة: {[imp.id for imp in recent_imports]}")
+
+                # إعادة توجيه المستخدم إلى أحدث سجل استيراد إذا كان موجودًا
+                latest_import = recent_imports.first()
+                messages.info(request, _('تم العثور على سجل استيراد آخر. جاري إعادة التوجيه...'))
+                return redirect('data_management:db_manager:import_status', pk=latest_import.pk)
+
+            # إذا لم يتم العثور على أي سجلات استيراد، نعيد توجيه المستخدم إلى صفحة الاستيراد
+            return redirect('data_management:db_manager:db_import')
+
+        # معالجة طلبات AJAX
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            # استجابة AJAX لتحديث الحالة
             try:
                 # تحليل السجل لاستخراج معلومات إضافية
                 log = db_import.log or ''
@@ -1249,12 +1321,14 @@ def import_status(request, pk):
                 return JsonResponse(response_data)
             except Exception as e:
                 # في حالة حدوث خطأ في استجابة AJAX
+                logger.error(f"خطأ في استجابة AJAX: {str(e)}")
                 return JsonResponse({
                     'status': 'error',
                     'error': str(e),
                     'log': db_import.log or '',
                 })
 
+        # عرض صفحة حالة الاستيراد
         return render(request, 'data_management/db_manager/import_status.html', {
             'db_import': db_import,
         })
@@ -1264,10 +1338,12 @@ def import_status(request, pk):
 
         # تسجيل الخطأ
         import traceback
+        logger.error(f"خطأ غير متوقع في صفحة حالة الاستيراد: {str(e)}")
+        logger.error(traceback.format_exc())
         traceback.print_exc()
 
-        # إعادة توجيه المستخدم إلى صفحة لوحة التحكم
-        return redirect('data_management:db_manager:db_dashboard')
+        # إعادة توجيه المستخدم إلى صفحة الاستيراد
+        return redirect('data_management:db_manager:db_import')
 
 
 def analyze_import_log(log, status):

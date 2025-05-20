@@ -1099,6 +1099,7 @@ def database_import(request):
                     'database_config': import_record.database_config,
                     'user': request.user,
                     'clear_data': import_record.clear_data,
+                    'ignore_source_db_info': import_record.ignore_source_db_info,
                 }
 
                 # إضافة خيارات الاستيراد الانتقائي من النموذج

@@ -529,6 +529,26 @@
                                         </div>
                                     </div>
 
+                                    <!-- خيار تجاهل معلومات قاعدة البيانات المصدر -->
+                                    <div class="mb-4">
+                                        <div class="form-check form-switch">
+                                            {{ form.ignore_source_db_info|add_class:"form-check-input" }}
+                                            <label class="form-check-label" for="{{ form.ignore_source_db_info.id_for_label }}">
+                                                <strong>{{ form.ignore_source_db_info.label }}</strong>
+                                            </label>
+                                            <div class="form-check-description">
+                                                {% trans "تفعيل هذا الخيار سيؤدي إلى تجاهل معلومات قاعدة البيانات المصدر واستخدام معلومات قاعدة البيانات الحالية بدلاً من ذلك. هذا مفيد عند نقل البيانات بين قواعد بيانات مختلفة (مثل النقل من قاعدة بيانات محلية إلى Railway)." %}
+                                            </div>
+                                            {% if form.ignore_source_db_info.errors %}
+                                                <div class="text-danger">
+                                                    {% for error in form.ignore_source_db_info.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
                                     <!-- خيارات الاستيراد الانتقائي (تظهر فقط في وضع الاستيراد الانتقائي) -->
                                     <div class="mb-4 selective-import-options" style="display: none;">
                                         <h6 class="mb-3">{% trans "اختر البيانات التي تريد استيرادها" %}</h6>
@@ -921,6 +941,7 @@
             const fileName = $('#fileName').text();
             const dbName = $(`.database-card[data-db-id="${selectedDbId}"]`).find('.card-title').text();
             const clearData = $('#{{ form.clear_data.id_for_label }}').is(':checked');
+            const ignoreSourceDbInfo = $('#{{ form.ignore_source_db_info.id_for_label }}').is(':checked');
 
             Swal.fire({
                 title: 'تأكيد الاستيراد',
@@ -931,6 +952,7 @@
                             <li>اسم الملف: <strong>${fileName}</strong></li>
                             <li>قاعدة البيانات: <strong>${dbName}</strong></li>
                             <li>حذف البيانات الحالية: <strong>${clearData ? 'نعم' : 'لا'}</strong></li>
+                            <li>تجاهل معلومات قاعدة البيانات المصدر: <strong>${ignoreSourceDbInfo ? 'نعم' : 'لا'}</strong></li>
                         </ul>
                         <p class="text-danger">ملاحظة: هذه العملية قد تستغرق بعض الوقت حسب حجم الملف.</p>
                     </div>

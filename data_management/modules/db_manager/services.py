@@ -10,6 +10,7 @@ import datetime
 import uuid
 import shutil
 import logging
+import re
 from django.conf import settings
 from django.utils import timezone
 from django.db import connection, connections
@@ -178,7 +179,7 @@ class DatabaseService:
 
         return True
 
-    def import_database(self, file_path, database_config=None, clear_data=False, created_by=None):
+    def import_database(self, file_path, database_config=None, clear_data=False, created_by=None, ignore_source_db_info=True):
         """
         استيراد قاعدة بيانات من ملف
 
@@ -187,6 +188,7 @@ class DatabaseService:
             database_config: إعدادات قاعدة البيانات
             clear_data: هل يتم حذف البيانات القديمة
             created_by: المستخدم الذي أنشأ عملية الاستيراد
+            ignore_source_db_info: تجاهل معلومات قاعدة البيانات المصدر
 
         Returns:
             كائن DatabaseImport
@@ -200,6 +202,7 @@ class DatabaseService:
             database_config=database_config,
             status='processing',
             clear_data=clear_data,
+            ignore_source_db_info=ignore_source_db_info,
             created_by=created_by
         )
 
@@ -208,11 +211,11 @@ class DatabaseService:
             file_ext = os.path.splitext(file_path)[1].lower()
 
             if file_ext == '.json':
-                self._import_json(file_path, database_config, clear_data)
+                self._import_json(file_path, database_config, clear_data, ignore_source_db_info)
             elif file_ext == '.sql':
-                self._import_sql(file_path, database_config, clear_data)
+                self._import_sql(file_path, database_config, clear_data, ignore_source_db_info)
             elif file_ext == '.dump':
-                self._import_dump(file_path, database_config, clear_data)
+                self._import_dump(file_path, database_config, clear_data, ignore_source_db_info)
             else:
                 raise ValueError(f"نوع الملف '{file_ext}' غير مدعوم للاستيراد")
 
@@ -631,7 +634,7 @@ class DatabaseService:
             # تفعيل التحقق من المفاتيح الأجنبية
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
 
-    def _import_json(self, file_path, database_config, clear_data):
+    def _import_json(self, file_path, database_config, clear_data, ignore_source_db_info=True):
         """استيراد ملف JSON"""
         # حذف البيانات القديمة إذا لزم الأمر
         if clear_data:
@@ -640,21 +643,82 @@ class DatabaseService:
         # استيراد البيانات
         call_command('loaddata', file_path)
 
-    def _import_sql(self, file_path, database_config, clear_data):
+        # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+        if ignore_source_db_info:
+            logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+            # إعادة تعيين كلمة مرور المستخدم الافتراضي
+            self._reset_admin_user()
+
+    def _import_sql(self, file_path, database_config, clear_data, ignore_source_db_info=True):
         """استيراد ملف SQL"""
         if database_config.db_type == 'postgresql':
+            # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+            if ignore_source_db_info:
+                logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+                # تعديل ملف SQL لتجاهل معلومات قاعدة البيانات المصدر
+                self._modify_sql_file_for_import(file_path, database_config)
+
             self._restore_postgresql_backup(database_config, file_path, clear_data)
         elif database_config.db_type == 'mysql':
+            # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+            if ignore_source_db_info:
+                logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+                # تعديل ملف SQL لتجاهل معلومات قاعدة البيانات المصدر
+                self._modify_sql_file_for_import(file_path, database_config)
+
             self._restore_mysql_backup(database_config, file_path, clear_data)
         else:
             raise ValueError(f"نوع قاعدة البيانات '{database_config.db_type}' غير مدعوم لاستيراد ملفات SQL")
 
-    def _import_dump(self, file_path, database_config, clear_data):
+    def _import_dump(self, file_path, database_config, clear_data, ignore_source_db_info=True):
         """استيراد ملف DUMP"""
         if database_config.db_type == 'postgresql':
+            # إذا تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر
+            if ignore_source_db_info:
+                logger.info("تم تفعيل خيار تجاهل معلومات قاعدة البيانات المصدر")
+                # لا يمكن تعديل ملف DUMP مباشرة، لذلك سنستخدم خيارات pg_restore لتجاهل معلومات المالك والصلاحيات
+
             self._restore_postgresql_backup(database_config, file_path, clear_data)
         else:
             raise ValueError(f"نوع قاعدة البيانات '{database_config.db_type}' غير مدعوم لاستيراد ملفات DUMP")
+
+    def _modify_sql_file_for_import(self, file_path, database_config):
+        """تعديل ملف SQL لتجاهل معلومات قاعدة البيانات المصدر"""
+        try:
+            # إنشاء ملف مؤقت للملف المعدل
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql', mode='w+', encoding='utf-8')
+            temp_file_path = temp_file.name
+
+            # قراءة محتوى الملف الأصلي
+            with open(file_path, 'r', encoding='utf-8') as original_file:
+                content = original_file.read()
+
+            # تعديل محتوى الملف لتجاهل معلومات قاعدة البيانات المصدر
+            # 1. استبدال اسم قاعدة البيانات
+            content = re.sub(r'USE\s+`[^`]+`', f'USE `{database_config.database_name}`', content, flags=re.IGNORECASE)
+            content = re.sub(r'\\connect\s+[^\s;]+', f'\\connect {database_config.database_name}', content, flags=re.IGNORECASE)
+
+            # 2. تجاهل أوامر إنشاء قاعدة البيانات
+            content = re.sub(r'CREATE\s+DATABASE\s+[^;]+;', '', content, flags=re.IGNORECASE)
+            content = re.sub(r'DROP\s+DATABASE\s+[^;]+;', '', content, flags=re.IGNORECASE)
+
+            # 3. تجاهل أوامر تغيير قاعدة البيانات
+            content = re.sub(r'ALTER\s+DATABASE\s+[^;]+;', '', content, flags=re.IGNORECASE)
+
+            # كتابة المحتوى المعدل إلى الملف المؤقت
+            temp_file.write(content)
+            temp_file.close()
+
+            # استبدال الملف الأصلي بالملف المعدل
+            shutil.move(temp_file_path, file_path)
+
+            logger.info("تم تعديل ملف SQL لتجاهل معلومات قاعدة البيانات المصدر")
+
+        except Exception as e:
+            logger.error(f"خطأ أثناء تعديل ملف SQL: {str(e)}")
+            # إذا حدث خطأ، نستمر بالملف الأصلي
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
 
     def import_database_advanced(self, file_path, database_config=None, user=None, import_mode='merge',
                                clear_data=False, conflict_resolution='skip', import_settings=True,

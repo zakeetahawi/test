@@ -139,10 +139,17 @@ class DatabaseImportForm(forms.ModelForm):
         help_text=_('كيفية التعامل مع السجلات المتكررة.')
     )
 
+    ignore_source_db_info = forms.BooleanField(
+        required=False,
+        initial=True,
+        label=_('تجاهل معلومات قاعدة البيانات المصدر'),
+        help_text=_('استخدام معلومات قاعدة البيانات الحالية بدلاً من المعلومات المخزنة في ملف الاستيراد. مفيد عند نقل البيانات بين قواعد بيانات مختلفة.')
+    )
+
     class Meta:
         model = DatabaseImport
         fields = [
-            'file', 'database_config', 'clear_data',
+            'file', 'database_config', 'clear_data', 'ignore_source_db_info',
         ]
 
 

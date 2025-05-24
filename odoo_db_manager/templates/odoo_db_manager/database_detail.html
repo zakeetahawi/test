@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="odoo-dashboard">
+    <!-- شريط الأدوات العلوي -->
+    <div class="odoo-toolbar">
+        <div class="odoo-toolbar-left">
+            <h1>{{ database.name }}</h1>
+        </div>
+        <div class="odoo-toolbar-right">
+            <a href="{% url 'odoo_db_manager:dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> العودة
+            </a>
+            <a href="{% url 'odoo_db_manager:backup_create_for_database' database.id %}" class="btn btn-success">
+                <i class="fas fa-save"></i> نسخة احتياطية
+            </a>
+            {% if not database.is_active %}
+            <a href="{% url 'odoo_db_manager:activate_database' database.id %}" class="btn btn-primary">
+                <i class="fas fa-check"></i> تنشيط
+            </a>
+            {% endif %}
+            <a href="{% url 'odoo_db_manager:delete_database' database.id %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> حذف
+            </a>
+        </div>
+    </div>
+
+    <!-- تفاصيل قاعدة البيانات -->
+    <div class="odoo-detail">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">معلومات قاعدة البيانات</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tr>
+                                <th>الاسم</th>
+                                <td>{{ database.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>النوع</th>
+                                <td>{{ database.get_db_type_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>الحالة</th>
+                                <td>
+                                    {% if database.is_active %}
+                                    <span class="badge bg-success">نشطة</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">غير نشطة</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>حالة الإنشاء</th>
+                                <td>
+                                    {% if database.status %}
+                                    <span class="badge bg-success">تم الإنشاء بنجاح</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">فشل الإنشاء</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if not database.status %}
+                            <tr>
+                                <th>رسالة الخطأ</th>
+                                <td>
+                                    <div class="alert alert-danger mb-0 py-1">{{ database.error_message }}</div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th>تاريخ الإنشاء</th>
+                                <td>{{ database.created_at|date:"Y-m-d H:i" }}</td>
+                            </tr>
+                            <tr>
+                                <th>تاريخ التحديث</th>
+                                <td>{{ database.updated_at|date:"Y-m-d H:i" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">معلومات الاتصال</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tr>
+                                <th>المضيف</th>
+                                <td>{{ database.connection_info.HOST|default:"localhost" }}</td>
+                            </tr>
+                            <tr>
+                                <th>المنفذ</th>
+                                <td>{{ database.connection_info.PORT|default:"5432" }}</td>
+                            </tr>
+                            <tr>
+                                <th>اسم قاعدة البيانات</th>
+                                <td>
+                                    <strong>{{ database.name }}</strong>
+                                    {% if database.connection_info.NAME %}
+                                        <div class="mt-1">
+                                            <small class="text-muted">اسم الملف/قاعدة البيانات الفعلي:</small>
+                                            <code>{{ database.connection_info.NAME }}</code>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>اسم المستخدم</th>
+                                <td>{{ database.connection_info.USER|default:"" }}</td>
+                            </tr>
+                            <tr>
+                                <th>سلسلة الاتصال</th>
+                                <td><code>{{ database.connection_string }}</code></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- النسخ الاحتياطية -->
+    <div class="mt-4">
+        <h3>النسخ الاحتياطية</h3>
+        <div class="odoo-list-view">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>الاسم</th>
+                        <th>الحجم</th>
+                        <th>تاريخ الإنشاء</th>
+                        <th>تم الإنشاء بواسطة</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backups %}
+                    <tr>
+                        <td>{{ backup.name }}</td>
+                        <td>{{ backup.size_display }}</td>
+                        <td>{{ backup.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ backup.created_by.username|default:"" }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                    إجراءات
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{% url 'odoo_db_manager:backup_detail' backup.id %}">عرض</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'odoo_db_manager:backup_restore' backup.id %}">استعادة</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="{% url 'odoo_db_manager:backup_delete' backup.id %}">حذف</a></li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">لا توجد نسخ احتياطية</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

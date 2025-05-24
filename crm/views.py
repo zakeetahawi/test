@@ -29,23 +29,23 @@ def home(request):
     orders_count = Order.objects.count()
     production_count = ProductionOrder.objects.count()
     products_count = Product.objects.count()
-    
+
     # Get recent orders
     recent_orders = Order.objects.select_related('customer').order_by('-order_date')[:5]
-    
+
     # Get active production orders
     production_orders = ProductionOrder.objects.select_related(
         'order', 'production_line'
     ).exclude(
         status__in=['completed', 'cancelled']
     ).order_by('estimated_completion')[:5]
-    
+
     # Get low stock products
     low_stock_products = [
         product for product in Product.objects.all()
         if product.needs_restock
     ][:10]
-    
+
     context = {
         'customers_count': customers_count,
         'orders_count': orders_count,
@@ -56,7 +56,7 @@ def home(request):
         'low_stock_products': low_stock_products,
         'current_year': timezone.now().year,
     }
-    
+
     return render(request, 'home.html', context)
 
 
@@ -68,7 +68,7 @@ def about(request):
     about_settings = AboutPageSettings.objects.first()
     if not about_settings:
         about_settings = AboutPageSettings.objects.create()
-    
+
     context = {
         'title': about_settings.title,
         'subtitle': about_settings.subtitle,
@@ -88,13 +88,13 @@ def contact(request):
     contact_settings = ContactFormSettings.objects.first()
     if not contact_settings:
         contact_settings = ContactFormSettings.objects.create()
-    
+
     if request.method == 'POST':
         name = request.POST.get('name')
         email = request.POST.get('email')
         subject = request.POST.get('subject')
         message = request.POST.get('message')
-        
+
         if not all([name, email, subject, message]):
             messages.error(request, contact_settings.form_error_message)
         elif not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
@@ -104,7 +104,7 @@ def contact(request):
             # For now, we'll just show a success message
             messages.success(request, contact_settings.form_success_message)
             return redirect('contact')
-    
+
     context = {
         'title': contact_settings.title,
         'description': contact_settings.description,
@@ -126,27 +126,27 @@ def serve_media_file(request, path):
     file_path = os.path.join(settings.MEDIA_ROOT, path)
     if not os.path.exists(file_path):
         raise Http404("Media file not found")
-    
+
     try:
         # استخدام mimetypes للكشف عن نوع الملف
         content_type, encoding = mimetypes.guess_type(file_path)
         content_type = content_type or 'application/octet-stream'
-        
+
         # فتح الملف كـ binary stream
         file = open(file_path, 'rb')
-        
+
         # إنشاء FileResponse مع streaming content
         response = FileResponse(file, content_type=content_type)
-        
+
         # إعداد headers مناسبة للملف
         filename = os.path.basename(file_path)
         response['Content-Disposition'] = f'inline; filename="{smart_str(filename)}"'
-        
+
         # إضافة headers إضافية للPDF
         if content_type == 'application/pdf':
             response['Accept-Ranges'] = 'bytes'
             response['Content-Length'] = os.path.getsize(file_path)
-            
+
         return response
     except IOError:
         raise Http404("Error reading file")
@@ -154,6 +154,12 @@ def serve_media_file(request, path):
         if 'file' in locals():
             file.close()
         raise Http404(f"Error processing file: {str(e)}")
+
+def data_management_redirect(request):
+    """
+    إعادة توجيه من المسار القديم /data_management/ إلى المسار الجديد /database/
+    """
+    return redirect('odoo_db_manager:dashboard')
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

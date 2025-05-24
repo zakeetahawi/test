@@ -120,12 +120,15 @@ class CompanyInfoAdmin(admin.ModelAdmin):
     readonly_fields = ('developer', 'version', 'release_date')
 
     def has_add_permission(self, request):
+        # السماح للموظفين بإضافة معلومات الشركة
+        if request.user.is_staff:
+            return True
         # Check if there's already an instance
         return not CompanyInfo.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
-        # Prevent deletion of the company info
-        return False
+        # السماح للموظفين بحذف معلومات الشركة
+        return request.user.is_staff
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
@@ -187,9 +190,59 @@ class DepartmentAdmin(admin.ModelAdmin):
         return qs.filter(id__in=department_ids)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.is_core:
-            return False  # لا يمكن حذف الأقسام الأساسية
-        return super().has_delete_permission(request, obj)
+        # السماح للموظفين بحذف جميع الأقسام (بما في ذلك الأساسية)
+        if request.user.is_staff:
+            return True  # صلاحيات كاملة للموظفين
+
+        # للمستخدمين العاديين - منع الحذف
+        return False
+
+    def has_add_permission(self, request):
+        # السماح للموظفين بإضافة أقسام جديدة
+        return request.user.is_staff
+
+    def has_change_permission(self, request, obj=None):
+        # السماح للموظفين بتعديل جميع الأقسام
+        return request.user.is_staff
+
+    def has_view_permission(self, request, obj=None):
+        # السماح للموظفين بعرض جميع الأقسام
+        return request.user.is_staff
+
+    def delete_model(self, request, obj):
+        """حذف قسم واحد - صلاحيات كاملة"""
+        from django.contrib import messages
+
+        if obj.is_core:
+            messages.warning(
+                request,
+                f"تم حذف القسم الأساسي: {obj.name} - تأكد من أن هذا ما تريده!"
+            )
+
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        """حذف مجموعة أقسام - صلاحيات كاملة"""
+        from django.contrib import messages
+
+        # عد الأقسام الأساسية وغير الأساسية
+        core_departments = queryset.filter(is_core=True)
+        non_core_departments = queryset.filter(is_core=False)
+        total_count = queryset.count()
+
+        if core_departments.exists():
+            messages.warning(
+                request,
+                f"تحذير: سيتم حذف {core_departments.count()} قسم أساسي من أصل {total_count} قسم!"
+            )
+
+        # حذف جميع الأقسام المحددة
+        queryset.delete()
+
+        messages.success(
+            request,
+            f"تم حذف {total_count} قسم بنجاح (منها {core_departments.count()} أساسي و {non_core_departments.count()} غير أساسي)."
+        )
 
     fieldsets = (
         (_('معلومات أساسية'), {
@@ -299,10 +352,12 @@ class PermissionAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
-        return False  # لا يمكن إضافة صلاحيات جديدة من خلال واجهة الإدارة
+        # السماح للموظفين بإضافة صلاحيات جديدة
+        return request.user.is_staff
 
     def has_delete_permission(self, request, obj=None):
-        return False  # لا يمكن حذف صلاحيات من خلال واجهة الإدارة
+        # السماح للموظفين بحذف الصلاحيات
+        return request.user.is_staff
 
 
 @admin.register(SystemSettings)
@@ -335,9 +390,12 @@ class SystemSettingsAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        # السماح للموظفين بإضافة إعدادات النظام
+        if request.user.is_staff:
+            return True
         # Check if there's already an instance
         return not SystemSettings.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
-        # Prevent deletion of the system settings
-        return False
+        # السماح للموظفين بحذف إعدادات النظام
+        return request.user.is_staff

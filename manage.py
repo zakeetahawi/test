@@ -30,10 +30,28 @@ def main():
                 import django
                 django.setup()
 
-                # تنفيذ أمر auto_migrate
+                # تنفيذ أمر migrate مع استثناء ترحيل accounts.fix_user_model_swap
                 from django.core.management import call_command
+                from django.db.migrations.recorder import MigrationRecorder
+                from django.db import connection
+
                 print("جاري تنفيذ الترحيلات تلقائيًا...")
-                call_command('auto_migrate')
+
+                # الحصول على قائمة الترحيلات المطبقة
+                recorder = MigrationRecorder(connection)
+                applied_migrations = recorder.applied_migrations()
+
+                # التحقق مما إذا كان ترحيل accounts.fix_user_model_swap موجودًا
+                problematic_migration = ('accounts', 'fix_user_model_swap')
+
+                # تنفيذ الترحيلات باستثناء الترحيل المشكل
+                if problematic_migration not in applied_migrations:
+                    # إضافة الترحيل المشكل إلى قائمة الترحيلات المطبقة لتجنب تنفيذه
+                    recorder.record_applied(*problematic_migration)
+                    print(f"تم تجاوز ترحيل {problematic_migration[0]}.{problematic_migration[1]}")
+
+                # تنفيذ باقي الترحيلات
+                call_command('migrate')
                 print("تم تنفيذ الترحيلات بنجاح.")
 
                 # تعيين متغير بيئي لتجنب تنفيذ الترحيلات مرتين
@@ -41,6 +59,7 @@ def main():
             except Exception as e:
                 print(f"حدث خطأ أثناء تنفيذ الترحيلات التلقائية: {str(e)}")
 
+    # تنفيذ الأمر
     execute_from_command_line(sys.argv)
 
 

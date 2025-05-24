@@ -85,54 +85,13 @@ CORE_DEPARTMENTS = [
     {
         'name': 'إدارة البيانات',
         'code': 'data_management',
-        'url_name': 'data_management:index',
+        'url_name': 'odoo_db_manager:dashboard',
         'department_type': 'department',
         'icon': 'fas fa-database',
         'order': 80,
         'has_pages': True,
         'is_core': True,
-        'children': [
-            {
-                'name': 'مزامنة غوغل',
-                'code': 'google_sync',
-                'url_name': 'data_management:google_sync',
-                'department_type': 'unit',
-                'icon': 'fab fa-google',
-                'order': 10,
-                'has_pages': False,
-                'is_core': True,
-            },
-            {
-                'name': 'استيراد/تصدير إكسل',
-                'code': 'excel_import_export',
-                'url_name': 'data_management:excel_dashboard',
-                'department_type': 'unit',
-                'icon': 'fas fa-file-excel',
-                'order': 20,
-                'has_pages': False,
-                'is_core': True,
-            },
-            {
-                'name': 'النسخ الاحتياطي',
-                'code': 'backup',
-                'url_name': 'data_management:backup_list',
-                'department_type': 'unit',
-                'icon': 'fas fa-save',
-                'order': 30,
-                'has_pages': False,
-                'is_core': True,
-            },
-            {
-                'name': 'إدارة قواعد البيانات',
-                'code': 'db_manager',
-                'url_name': 'data_management:db_dashboard',
-                'department_type': 'unit',
-                'icon': 'fas fa-database',
-                'order': 40,
-                'has_pages': False,
-                'is_core': True,
-            }
-        ]
+        'children': []
     }
 ]
 
@@ -150,30 +109,65 @@ def create_core_departments():
         for child in dept.get('children', []):
             core_child_codes.append(child['code'])
 
-    # إنشاء الأقسام الرئيسية
+    # إنشاء الأقسام الرئيسية مع الحفاظ على حالة التفعيل
     for dept_data in CORE_DEPARTMENTS:
-        children = dept_data.pop('children', [])
+        children = dept_data.get('children', [])
+        dept_data_clean = {k: v for k, v in dept_data.items() if k != 'children'}
 
-        # إنشاء القسم الرئيسي إذا لم يكن موجودًا
-        dept, _ = Department.objects.update_or_create(
-            code=dept_data['code'],
-            defaults=dept_data
-        )
+        # التحقق من وجود القسم أولاً
+        existing_dept = Department.objects.filter(code=dept_data_clean['code']).first()
+        dept = None  # تهيئة المتغير
 
-        # إنشاء الأقسام الفرعية
-        for child_data in children:
-            child_data['parent'] = dept
-            Department.objects.update_or_create(
-                code=child_data['code'],
-                defaults=child_data
-            )
+        if existing_dept:
+            # إذا كان القسم موجود، نحدث البيانات فقط بدون تغيير is_active
+            current_is_active = existing_dept.is_active
+            dept_data_copy = dept_data_clean.copy()
+            dept_data_copy['is_active'] = current_is_active  # الحفاظ على الحالة الحالية
 
-    # تعطيل الأقسام غير الأساسية
-    Department.objects.filter(parent__isnull=True).exclude(code__in=core_dept_codes).update(is_active=False)
-    Department.objects.filter(parent__isnull=False).exclude(code__in=core_child_codes).update(is_active=False)
+            for key, value in dept_data_copy.items():
+                setattr(existing_dept, key, value)
+            existing_dept.save()
+            dept = existing_dept
+        else:
+            # إنشاء قسم جديد - جميع الأقسام في CORE_DEPARTMENTS أساسية
+            dept = Department.objects.create(**dept_data_clean)
 
-    # تأكد من أن جميع الأقسام الأساسية نشطة
-    Department.objects.filter(code__in=core_dept_codes).update(is_active=True, is_core=True)
-    Department.objects.filter(code__in=core_child_codes).update(is_active=True, is_core=True)
+        # إنشاء الأقسام الفرعية مع نفس المنطق
+        if dept:  # التأكد من أن القسم الرئيسي موجود
+            for child_data in children:
+                child_data['parent'] = dept
+                existing_child = Department.objects.filter(code=child_data['code']).first()
+
+                if existing_child:
+                    # الحفاظ على حالة التفعيل للقسم الفرعي
+                    current_is_active = existing_child.is_active
+                    child_data['is_active'] = current_is_active
+
+                    for key, value in child_data.items():
+                        setattr(existing_child, key, value)
+                    existing_child.save()
+                else:
+                    # إنشاء قسم فرعي جديد فقط إذا كان أساسي
+                    if child_data.get('is_core', False):
+                        Department.objects.create(**child_data)
+                    # لا ننشئ الأقسام الفرعية غير الأساسية إذا تم حذفها
+
+    # تحديث الأقسام الأساسية لتكون is_core=True فقط (بدون تغيير is_active)
+    Department.objects.filter(code__in=core_dept_codes).update(is_core=True)
+    Department.objects.filter(code__in=core_child_codes).update(is_core=True)
+
+    # حذف الأقسام الوهمية والإدارات والوحدات الإضافية
+    real_departments = [
+        'customers', 'orders', 'inventory', 'inspections',
+        'installations', 'factory', 'reports', 'data_management'
+    ]
+
+    # حذف جميع الأقسام التي ليست في القائمة الحقيقية
+    fake_departments = Department.objects.exclude(code__in=real_departments)
+    deleted_count = fake_departments.count()
+    fake_departments.delete()
+
+    if deleted_count > 0:
+        print(f"تم حذف {deleted_count} قسم/إدارة/وحدة إضافية")
 
     print(f"تم إنشاء {len(core_dept_codes)} قسم أساسي و {len(core_child_codes)} قسم فرعي أساسي")

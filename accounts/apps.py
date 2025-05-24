@@ -23,4 +23,5 @@ class AccountsConfig(AppConfig):
 
         # استخدام أمر الإدارة بدلاً من الوصول المباشر إلى قاعدة البيانات
         call_command('create_core_departments')
-        call_command('create_departments')
+        # تم تعطيل create_departments لمنع إنشاء الإدارات والوحدات الإضافية
+        # call_command('create_departments')

@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'odoo_db_manager/css/style.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="odoo-dashboard">
+    <!-- شريط الأدوات العلوي -->
+    <div class="odoo-toolbar">
+        <div class="odoo-toolbar-left">
+            <h1>{{ backup.name }}</h1>
+        </div>
+        <div class="odoo-toolbar-right">
+            <a href="{% url 'odoo_db_manager:dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> العودة
+            </a>
+            <a href="{% url 'odoo_db_manager:backup_download' backup.id %}" class="btn btn-success">
+                <i class="fas fa-download"></i> تحميل
+            </a>
+            <a href="{% url 'odoo_db_manager:backup_restore' backup.id %}" class="btn btn-primary">
+                <i class="fas fa-undo"></i> استعادة
+            </a>
+            <a href="{% url 'odoo_db_manager:backup_delete' backup.id %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> حذف
+            </a>
+        </div>
+    </div>
+
+    <!-- تفاصيل النسخة الاحتياطية -->
+    <div class="odoo-detail">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">معلومات النسخة الاحتياطية</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tr>
+                                <th>الاسم</th>
+                                <td>{{ backup.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>قاعدة البيانات</th>
+                                <td>
+                                    <a href="{% url 'odoo_db_manager:database_detail' backup.database.id %}">
+                                        {{ backup.database.name }}
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>الحجم</th>
+                                <td>{{ backup.size_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>تاريخ الإنشاء</th>
+                                <td>{{ backup.created_at|date:"Y-m-d H:i" }}</td>
+                            </tr>
+                            <tr>
+                                <th>تم الإنشاء بواسطة</th>
+                                <td>{{ backup.created_by.username|default:"" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">معلومات الملف</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tr>
+                                <th>مسار الملف</th>
+                                <td><code>{{ backup.file_path }}</code></td>
+                            </tr>
+                            <tr>
+                                <th>نوع النسخة الاحتياطية</th>
+                                <td>
+                                    {% if backup.backup_type == 'customers' %}
+                                        بيانات العملاء
+                                    {% elif backup.backup_type == 'users' %}
+                                        بيانات المستخدمين
+                                    {% elif backup.backup_type == 'settings' %}
+                                        إعدادات النظام
+                                    {% elif backup.backup_type == 'full' %}
+                                        كل البيانات
+                                    {% else %}
+                                        {{ backup.backup_type }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

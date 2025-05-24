@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'inventory',
     'orders',
     'reports',
-    'data_management.apps.DataManagementConfig',  # تطبيق إدارة البيانات الموحد
+    'odoo_db_manager.apps.OdooDbManagerConfig',  # تطبيق إدارة قواعد البيانات على طراز أودو
     'corsheaders',
     'django_apscheduler', # إضافة مكتبة جدولة المهام
     'dbbackup',  # إضافة تطبيق النسخ الاحتياطي
@@ -60,8 +60,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-if not TESTING and DEBUG:
-    INSTALLED_APPS += ['debug_toolbar']
+# Disable debug toolbar temporarily
+# if not TESTING and DEBUG:
+#     INSTALLED_APPS += ['debug_toolbar']
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -79,13 +80,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'crm.middleware.PerformanceMiddleware',  # وسيط قياس وتحسين الأداء
     'crm.middleware.LazyLoadMiddleware',  # وسيط التحميل الكسول للصور
-    'data_management.modules.db_manager.middleware.DefaultUserMiddleware',  # وسيط إنشاء المستخدم الافتراضي
-    'data_management.middleware.RailwayDebugMiddleware',  # وسيط تتبع الأخطاء في Railway
 ]
 
+# Disable debug toolbar temporarily
 if DEBUG:
     MIDDLEWARE.extend([
-        'debug_toolbar.middleware.DebugToolbarMiddleware',
+        # 'debug_toolbar.middleware.DebugToolbarMiddleware',
         'crm.middleware.QueryPerformanceMiddleware',
         'crm.middleware.PerformanceCookiesMiddleware',
     ])
@@ -108,7 +108,6 @@ TEMPLATES = [
                 'accounts.context_processors.company_info',
                 'accounts.context_processors.footer_settings',
                 'accounts.context_processors.system_settings',
-                'data_management.context_processors.data_management_urls',
             ],
         },
     },
@@ -151,7 +150,12 @@ if os.environ.get('DATABASE_URL'):
 else:
     # محاولة تحميل إعدادات قاعدة البيانات من الملف الخارجي
     try:
-        from data_management.db_settings import get_active_database_settings, reset_to_default_settings
+        # استيراد إعدادات قاعدة البيانات من odoo_db_manager
+        try:
+            from odoo_db_manager.db_settings import get_active_database_settings, reset_to_default_settings
+            print("تم استيراد إعدادات قاعدة البيانات من odoo_db_manager")
+        except ImportError:
+            print("فشل استيراد إعدادات قاعدة البيانات من odoo_db_manager")
 
         # الحصول على إعدادات قاعدة البيانات النشطة
         db_settings = get_active_database_settings()

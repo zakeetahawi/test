@@ -6,15 +6,8 @@ from . import views
 from .views_health import health_check
 from accounts.views import admin_logout_view
 from inventory.views import dashboard_view
-from api_views import (
-    dashboard_stats,
-    customer_list,
-    customer_detail,
-    customer_categories,
-    inspection_list,
-    inspection_detail,
-    inspection_stats
-)
+from accounts.api_views import dashboard_stats
+from customers.views import customer_list, customer_detail
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -36,12 +29,6 @@ urlpatterns = [
     # مسارات API للعملاء
     path('api/customers/', customer_list, name='customer_list'),
     path('api/customers/<int:pk>/', customer_detail, name='customer_detail'),
-    path('api/customer-categories/', customer_categories, name='customer_categories'),
-
-    # مسارات API للمعاينات
-    path('api/inspections/', inspection_list, name='inspection_list'),
-    path('api/inspections/<int:pk>/', inspection_detail, name='inspection_detail'),
-    path('api/inspections/stats/', inspection_stats, name='inspection_stats'),
 
     # مسارات لوحة التحكم
     path('admin/', admin.site.urls),
@@ -69,7 +56,9 @@ urlpatterns = [
     path('reports/', include('reports.urls', namespace='reports')),
     path('inspections/', include('inspections.urls', namespace='inspections')),
     path('installations/', include('installations.urls', namespace='installations')),
-    path('data_management/', include('data_management.urls', namespace='data_management')),
+    # إعادة توجيه من المسار القديم إلى المسار الجديد
+    path('data_management/', views.data_management_redirect, name='data_management_redirect'),
+    path('database/', include('odoo_db_manager.urls', namespace='odoo_db_manager')),
 ]
 
 # خدمة الملفات الثابتة في بيئة التطوير
@@ -77,9 +66,9 @@ if settings.DEBUG:
     # Only serve static files in development
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
-    # Add debug toolbar only if not running tests
-    if not getattr(settings, 'TESTING', False):
-        import debug_toolbar
-        urlpatterns += [
-            path('__debug__/', include(debug_toolbar.urls)),
-        ]
+    # Disable debug toolbar temporarily
+    # if not getattr(settings, 'TESTING', False):
+    #     import debug_toolbar
+    #     urlpatterns += [
+    #         path('__debug__/', include(debug_toolbar.urls)),
+    #     ]

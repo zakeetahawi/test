@@ -152,15 +152,15 @@
                                     {% endif %}
                                 </div>
                                 <div class="backup-card-footer">
-                                    <div class="backup-actions">
-                                        <a href="{% url 'db_manager:backup_download' backup.id %}" class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-download"></i> {% trans "تنزيل" %}
+                                    <div class="d-flex justify-content-center">
+                                        <a href="{% url 'db_manager:backup_download' backup.id %}" class="btn btn-link text-primary mx-1" title="{% trans 'تنزيل' %}">
+                                            <i class="fas fa-download fa-lg"></i>
                                         </a>
-                                        <a href="{% url 'db_manager:backup_restore' backup.id %}" class="btn btn-sm btn-outline-success">
-                                            <i class="fas fa-undo"></i> {% trans "استعادة" %}
+                                        <a href="{% url 'db_manager:backup_restore' backup.id %}" class="btn btn-link text-success mx-1" title="{% trans 'استعادة' %}">
+                                            <i class="fas fa-undo fa-lg"></i>
                                         </a>
-                                        <a href="{% url 'db_manager:backup_delete' backup.id %}" class="btn btn-sm btn-outline-danger">
-                                            <i class="fas fa-trash"></i> {% trans "حذف" %}
+                                        <a href="{% url 'db_manager:backup_delete' backup.id %}" class="btn btn-link text-danger mx-1" title="{% trans 'حذف' %}">
+                                            <i class="fas fa-trash fa-lg"></i>
                                         </a>
                                     </div>
                                 </div>

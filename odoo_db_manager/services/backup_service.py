@@ -354,13 +354,14 @@ class BackupService:
         # استخدام نفس طريقة Django dumpdata
         self._create_django_backup(database, file_path, backup_type)
 
-    def restore_backup(self, backup_id, clear_data=False):
+    def restore_backup(self, backup_id, clear_data=False, create_new_database=True):
         """
-        استعادة نسخة احتياطية
+        استعادة نسخة احتياطية مع إنشاء قاعدة بيانات جديدة
 
         Args:
             backup_id: معرف النسخة الاحتياطية
-            clear_data: هل يتم حذف البيانات القديمة قبل الاستعادة
+            clear_data: هل يتم حذف البيانات القديمة قبل الاستعادة (مهمل - سيتم إنشاء قاعدة جديدة)
+            create_new_database: إنشاء قاعدة بيانات جديدة مطابقة للنسخة المستعادة (افتراضي: True)
 
         Returns:
             True إذا تمت الاستعادة بنجاح

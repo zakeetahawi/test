@@ -76,6 +76,58 @@ def database_list(request):
 
 @login_required
 @user_passes_test(is_staff_or_superuser)
+def database_discover(request):
+    """اكتشاف قواعد البيانات الموجودة في PostgreSQL"""
+    if request.method == 'POST':
+        try:
+            # اكتشاف ومزامنة قواعد البيانات
+            database_service = DatabaseService()
+            database_service.sync_discovered_databases()
+
+            messages.success(request, _('تم اكتشاف ومزامنة قواعد البيانات بنجاح.'))
+        except Exception as e:
+            messages.error(request, _(f'حدث خطأ أثناء اكتشاف قواعد البيانات: {str(e)}'))
+
+        return redirect('odoo_db_manager:database_list')
+
+    # عرض قواعد البيانات المكتشفة قبل المزامنة
+    try:
+        database_service = DatabaseService()
+        discovered_dbs = database_service.discover_postgresql_databases()
+
+        # التحقق من قواعد البيانات الموجودة في النظام
+        existing_dbs = Database.objects.filter(db_type='postgresql').values_list('name', flat=True)
+
+        # تصنيف قواعد البيانات
+        new_dbs = []
+        existing_in_system = []
+
+        for db_info in discovered_dbs:
+            if db_info['name'] in existing_dbs:
+                existing_in_system.append(db_info)
+            else:
+                new_dbs.append(db_info)
+
+        context = {
+            'discovered_dbs': discovered_dbs,
+            'new_dbs': new_dbs,
+            'existing_in_system': existing_in_system,
+            'title': _('اكتشاف قواعد البيانات'),
+        }
+
+    except Exception as e:
+        messages.error(request, _(f'حدث خطأ أثناء اكتشاف قواعد البيانات: {str(e)}'))
+        context = {
+            'discovered_dbs': [],
+            'new_dbs': [],
+            'existing_in_system': [],
+            'title': _('اكتشاف قواعد البيانات'),
+        }
+
+    return render(request, 'odoo_db_manager/database_discover.html', context)
+
+@login_required
+@user_passes_test(is_staff_or_superuser)
 def database_detail(request, pk):
     """عرض تفاصيل قاعدة البيانات"""
     # الحصول على قاعدة البيانات

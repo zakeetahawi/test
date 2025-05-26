@@ -21,10 +21,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # تفعيل وضع التطوير بشكل دائم للكشف عن الأخطاء
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ['true', 't', '1', 'yes', 'y']
 
-# تفعيل تتبع الأخطاء في الإنتاج
-RAILWAY_DEBUG = os.environ.get('RAILWAY_DEBUG', 'True').lower() in ['true', 't', '1', 'yes', 'y']
-
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,web-production-f91f.up.railway.app').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -129,7 +126,6 @@ CHANNEL_LAYERS = {
 # Database
 # استخدام DATABASE_URL مباشرة إذا كان متاحًا
 if os.environ.get('DATABASE_URL'):
-    print(f"استخدام DATABASE_URL: {os.environ.get('DATABASE_URL')}")
     DATABASES = {
         'default': dj_database_url.config(
             default=os.environ.get('DATABASE_URL'),
@@ -137,25 +133,14 @@ if os.environ.get('DATABASE_URL'):
             conn_health_checks=True,
         )
     }
-    print("تم تكوين قاعدة البيانات من DATABASE_URL")
-
-    # طباعة معلومات قاعدة البيانات للتشخيص
-    db_config = DATABASES['default']
-    print(f"معلومات قاعدة البيانات:")
-    print(f"ENGINE: {db_config.get('ENGINE')}")
-    print(f"NAME: {db_config.get('NAME')}")
-    print(f"USER: {db_config.get('USER')}")
-    print(f"HOST: {db_config.get('HOST')}")
-    print(f"PORT: {db_config.get('PORT')}")
 else:
     # محاولة تحميل إعدادات قاعدة البيانات من الملف الخارجي
     try:
         # استيراد إعدادات قاعدة البيانات من odoo_db_manager
         try:
             from odoo_db_manager.db_settings import get_active_database_settings, reset_to_default_settings
-            print("تم استيراد إعدادات قاعدة البيانات من odoo_db_manager")
         except ImportError:
-            print("فشل استيراد إعدادات قاعدة البيانات من odoo_db_manager")
+            pass
 
         # الحصول على إعدادات قاعدة البيانات النشطة
         db_settings = get_active_database_settings()
@@ -181,7 +166,7 @@ else:
                 }
             }
 
-            print(f"تم تحميل إعدادات قاعدة البيانات النشطة: {active_db_settings.get('NAME')}")
+
         else:
             # استخدام إعدادات قاعدة البيانات الافتراضية
             DATABASES = {
@@ -199,7 +184,7 @@ else:
                 }
             }
 
-            print("تم تحميل إعدادات قاعدة البيانات الافتراضية")
+
     except Exception as e:
         # في حالة حدوث خطأ، استخدم الإعدادات الافتراضية
         DATABASES = {
@@ -217,7 +202,7 @@ else:
             }
         }
 
-        print(f"حدث خطأ أثناء تحميل إعدادات قاعدة البيانات: {str(e)}")
+
 
 # إضافة إعدادات إضافية لقاعدة البيانات
 DATABASES['default']['ATOMIC_REQUESTS'] = False
@@ -323,7 +308,7 @@ SIMPLE_JWT = {
 if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true':
     # HTTPS/SSL Settings
     SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # مهم لـ Railway
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
     # Session and CSRF Settings
     SESSION_COOKIE_SECURE = True
@@ -348,7 +333,8 @@ if not DEBUG and os.environ.get('ENABLE_SSL_SECURITY', 'false').lower() == 'true
 
     # Additional Security Headers
     CSRF_TRUSTED_ORIGINS = [
-        'https://*.up.railway.app',  # للسماح بالوصول من تطبيقات Railway
+        'https://localhost',
+        'https://127.0.0.1',
     ]
 
 # CORS settings
@@ -359,8 +345,6 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.up.railway.app',
-    'https://*.railway.app'
 ]
 
 # تعديل إعدادات CORS الإضافية
@@ -429,8 +413,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.up.railway.app',
-    'https://*.railway.app'
 ]
 
 CSRF_COOKIE_SAMESITE = None
@@ -453,8 +435,6 @@ CORS_ORIGIN_WHITELIST = [
     'http://127.0.0.1:5173',  # منفذ Vite الافتراضي
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.up.railway.app',
-    'https://*.railway.app'
 ]
 
 # Security Settings
@@ -490,12 +470,12 @@ SESSION_CLEANUP_SCHEDULE = {
     'minute': 0,  # تنفيذ المهمة في الدقيقة 0
 }
 
-# إعدادات تحسين الأداء لـ Railway
-if os.environ.get('RAILWAY_ENVIRONMENT') or 'railway' in os.environ.get('PGHOST', ''):
-    # تقليل عدد الاستعلامات المسموح بها في صفحة واحدة
-    DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+# إعدادات تحسين الأداء
+# تقليل عدد الاستعلامات المسموح بها في صفحة واحدة
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
 
-    # تعطيل التسجيل المفصل في الإنتاج
+# تعطيل التسجيل المفصل في الإنتاج
+if not DEBUG:
     LOGGING = {
         'version': 1,
         'disable_existing_loggers': False,

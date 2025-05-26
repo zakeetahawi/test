@@ -227,12 +227,118 @@ class DatabaseService:
         with open(settings_file, 'w') as f:
             json.dump(db_settings, f, indent=4)
 
+    def discover_postgresql_databases(self):
+        """اكتشاف قواعد البيانات الموجودة في PostgreSQL"""
+        try:
+            # الحصول على معلومات الاتصال من متغيرات البيئة أو الإعدادات
+            if os.environ.get('DATABASE_URL'):
+                import dj_database_url
+                db_config = dj_database_url.parse(os.environ.get('DATABASE_URL'))
+                user = db_config.get('USER', 'postgres')
+                password = db_config.get('PASSWORD', '')
+                host = db_config.get('HOST', 'localhost')
+                port = str(db_config.get('PORT', '5432'))
+            else:
+                user = os.environ.get('DB_USER', 'postgres')
+                password = os.environ.get('DB_PASSWORD', '5525')
+                host = os.environ.get('DB_HOST', 'localhost')
+                port = os.environ.get('DB_PORT', '5432')
+
+            # التحقق من وجود أداة psql
+            if not self._check_command_exists('psql'):
+                print("أداة psql غير موجودة. لا يمكن اكتشاف قواعد البيانات.")
+                return []
+
+            # استعلام للحصول على قائمة قواعد البيانات
+            env = os.environ.copy()
+            env['PGPASSWORD'] = password
+
+            list_cmd = [
+                'psql',
+                '-h', host,
+                '-p', port,
+                '-U', user,
+                '-t',  # بدون عناوين
+                '-c', "SELECT datname FROM pg_database WHERE datistemplate = false;"
+            ]
+
+            result = subprocess.run(list_cmd, env=env, check=True,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True)
+
+            # تحليل النتيجة
+            databases = []
+            for line in result.stdout.splitlines():
+                db_name = line.strip()
+                if db_name and db_name not in ['postgres', 'template0', 'template1']:
+                    databases.append({
+                        'name': db_name,
+                        'type': 'postgresql',
+                        'connection_info': {
+                            'ENGINE': 'django.db.backends.postgresql',
+                            'NAME': db_name,
+                            'USER': user,
+                            'PASSWORD': password,
+                            'HOST': host,
+                            'PORT': port,
+                        }
+                    })
+
+            print(f"تم اكتشاف {len(databases)} قاعدة بيانات في PostgreSQL")
+            return databases
+
+        except Exception as e:
+            print(f"خطأ في اكتشاف قواعد البيانات: {str(e)}")
+            return []
+
+    def sync_discovered_databases(self):
+        """مزامنة قواعد البيانات المكتشفة مع النظام"""
+        discovered_dbs = self.discover_postgresql_databases()
+
+        if not discovered_dbs:
+            return
+
+        synced_count = 0
+        for db_info in discovered_dbs:
+            try:
+                # التحقق من وجود قاعدة البيانات في النظام
+                existing_db = Database.objects.filter(
+                    name=db_info['name'],
+                    db_type='postgresql'
+                ).first()
+
+                if not existing_db:
+                    # إنشاء قاعدة بيانات جديدة في النظام
+                    database = Database.objects.create(
+                        name=db_info['name'],
+                        db_type='postgresql',
+                        connection_info=db_info['connection_info'],
+                        is_active=False  # لا نجعلها نشطة تلقائياً
+                    )
+                    print(f"تم إضافة قاعدة البيانات المكتشفة: {db_info['name']}")
+                    synced_count += 1
+                else:
+                    # تحديث معلومات الاتصال إذا لزم الأمر
+                    existing_db.connection_info = db_info['connection_info']
+                    existing_db.save()
+                    print(f"تم تحديث قاعدة البيانات: {db_info['name']}")
+
+            except Exception as e:
+                print(f"خطأ في مزامنة قاعدة البيانات {db_info['name']}: {str(e)}")
+
+        if synced_count > 0:
+            print(f"تم مزامنة {synced_count} قاعدة بيانات جديدة مع النظام")
+
     def sync_databases_from_settings(self):
         """مزامنة قواعد البيانات من ملف الإعدادات"""
+        # إذا كان DATABASE_URL موجود، لا نحتاج لملف الإعدادات
+        if os.environ.get('DATABASE_URL'):
+            return
+
         # قراءة ملف الإعدادات
         settings_file = os.path.join(settings.BASE_DIR, 'db_settings.json')
         if not os.path.exists(settings_file):
-            print("ملف الإعدادات غير موجود")
+            # لا نطبع رسالة إذا كان DATABASE_URL موجود
             return
 
         try:

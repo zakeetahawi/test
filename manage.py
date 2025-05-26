@@ -6,10 +6,10 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    # إعداد متغيرات البيئة لقاعدة بيانات Railway
+    # إعداد متغيرات البيئة لقاعدة البيانات
     if 'DATABASE_URL' in os.environ:
-        print("تم اكتشاف بيئة Railway في manage.py")
-        print(f"DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+        print(f"استخدام DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+        print("تم تكوين قاعدة البيانات من DATABASE_URL")
 
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm.settings')
     try:

@@ -148,7 +148,9 @@ class BackupService:
                 print(f"فشل استخدام pg_dump: {str(e)}")
                 print("استخدام الطريقة البديلة...")
 
-        # إذا لم تكن قاعدة البيانات PostgreSQL، نستخدم الطريقة البديلة
+        # إذا لم تكن قاعدة البيانات PostgreSQL أو فشل pg_dump، نستخدم الطريقة البديلة
+        print("استخدام طريقة Django dumpdata كبديل...")
+
         # تحديد التطبيقات والنماذج المطلوبة حسب نوع النسخة الاحتياطية
         include_models = []
 
@@ -159,6 +161,20 @@ class BackupService:
         elif backup_type == 'settings':
             include_models = ['sites.Site', 'auth.Permission']
             # يمكن إضافة المزيد من نماذج الإعدادات حسب الحاجة
+        elif backup_type == 'full':
+            # للنسخة الكاملة، نشمل جميع التطبيقات الأساسية
+            include_models = [
+                'accounts',
+                'customers',
+                'orders',
+                'inspections',
+                'inventory',
+                'installations',
+                'factory',
+                'reports',
+                'odoo_db_manager'
+            ]
+            print(f"نسخة كاملة - سيتم تضمين {len(include_models)} تطبيق")
 
         # استخدام ملف مؤقت للبيانات
         temp_dir = tempfile.mkdtemp()
@@ -287,6 +303,10 @@ class BackupService:
         print(f"كلمة المرور: {password}")
         print(f"مسار الملف: {file_path}")
 
+        # فحص حجم قاعدة البيانات قبل النسخ
+        db_size = self._get_postgresql_database_size(database_name, user, password, host, port)
+        print(f"حجم قاعدة البيانات: {db_size:,} بايت ({db_size/1024/1024:.2f} MB)")
+
         # تأكد من أن جميع المعلمات هي سلاسل نصية
         port_str = str(port)
 
@@ -295,40 +315,75 @@ class BackupService:
             # إنشاء ملف SQL مؤقت
             temp_sql_file = f"{file_path}.sql"
 
-            # إنشاء أمر لتصدير البيانات بتنسيق SQL
+            # إنشاء أمر لتصدير البيانات بتنسيق SQL (نسخة كاملة محسنة)
             dump_cmd = [
                 'pg_dump',
                 '-h', str(host),
                 '-p', port_str,
                 '-U', str(user),
-                '--format=plain',  # تنسيق SQL نصي
-                '--no-owner',      # بدون معلومات المالك
-                '--no-acl',        # بدون صلاحيات
+                '--format=plain',           # تنسيق SQL نصي
+                '--inserts',                # استخدام INSERT بدلاً من COPY لضمان قابلية القراءة
+                '--column-inserts',         # تضمين أسماء الأعمدة في INSERT
+                '--no-owner',               # بدون معلومات المالك
+                '--no-privileges',          # بدون صلاحيات
+                '--create',                 # تضمين أوامر CREATE للجداول
+                '--clean',                  # تضمين أوامر DROP قبل CREATE
+                '--if-exists',              # استخدام IF EXISTS مع DROP
+                '--verbose',                # إظهار تفاصيل العملية
                 str(database_name)
             ]
 
             print(f"الأمر: {' '.join(dump_cmd)}")
 
             # تنفيذ الأمر وحفظ المخرجات في ملف SQL
+            print("بدء تنفيذ pg_dump...")
+            result = subprocess.run(
+                dump_cmd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,  # لا نريد رفع استثناء فوراً
+                text=True,
+                encoding='utf-8'
+            )
+
+            # التحقق من نجاح العملية
+            if result.returncode != 0:
+                error_msg = result.stderr
+                print(f"خطأ في pg_dump: {error_msg}")
+                raise subprocess.CalledProcessError(result.returncode, dump_cmd, stderr=error_msg)
+
+            # كتابة المخرجات إلى الملف المؤقت
             with open(temp_sql_file, 'w', encoding='utf-8') as f:
-                subprocess.run(
-                    dump_cmd,
-                    env=env,
-                    stdout=f,
-                    stderr=subprocess.PIPE,
-                    check=True
-                )
+                f.write(result.stdout)
+
+            # التحقق من حجم الملف المؤقت
+            temp_size = os.path.getsize(temp_sql_file)
+            print(f"حجم ملف SQL المؤقت: {temp_size:,} بايت")
+
+            if temp_size < 1000:  # أقل من 1KB يعتبر صغير جداً
+                print("تحذير: حجم النسخة الاحتياطية صغير جداً! قد تكون هناك مشكلة.")
+                # عرض محتوى الملف للتشخيص
+                with open(temp_sql_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    print(f"محتوى الملف: {content[:500]}...")
 
             # ضغط الملف
+            print("ضغط الملف...")
             with open(temp_sql_file, 'rb') as f_in:
                 with gzip.open(file_path, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
+
+            # التحقق من حجم الملف المضغوط
+            compressed_size = os.path.getsize(file_path)
+            print(f"حجم الملف المضغوط: {compressed_size:,} بايت")
 
             # حذف الملف المؤقت
             if os.path.exists(temp_sql_file):
                 os.unlink(temp_sql_file)
 
             print(f"تم إنشاء النسخة الاحتياطية بنجاح: {file_path}")
+            print(f"نسبة الضغط: {(temp_size/compressed_size):.1f}:1")
             return True
 
         except subprocess.CalledProcessError as e:
@@ -341,6 +396,34 @@ class BackupService:
                 return False
 
             raise RuntimeError(f"فشل إنشاء النسخة الاحتياطية: {error_msg}")
+
+    def _get_postgresql_database_size(self, database_name, user, password, host, port):
+        """الحصول على حجم قاعدة البيانات PostgreSQL"""
+        try:
+            env = os.environ.copy()
+            env['PGPASSWORD'] = password
+
+            # استعلام لحساب حجم قاعدة البيانات
+            size_query = f"SELECT pg_database_size('{database_name}');"
+
+            # تنفيذ الاستعلام
+            result = subprocess.run([
+                'psql',
+                '-h', str(host),
+                '-p', str(port),
+                '-U', str(user),
+                '-d', str(database_name),
+                '-t',  # بدون رؤوس
+                '-c', size_query
+            ], env=env, capture_output=True, text=True, check=True)
+
+            # استخراج الحجم من النتيجة
+            size_str = result.stdout.strip()
+            return int(size_str) if size_str.isdigit() else 0
+
+        except Exception as e:
+            print(f"فشل في الحصول على حجم قاعدة البيانات: {str(e)}")
+            return 0
 
     def _create_sqlite_backup(self, database, file_path, backup_type='full'):
         """

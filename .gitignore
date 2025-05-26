@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
 
 # Ignore virtual environment
 venv/
@@ -10,8 +12,7 @@ ENV/
 
 # Ignore environment files
 .env
-# Don't ignore .env.production as it's a template for Railway
-!.env.production
+.env.*
 
 # السماح بملف قاعدة البيانات
 # *.sqlite3
@@ -29,6 +30,12 @@ media/google_credentials/
 media/imports_exports/
 media/db_backups/
 media/db_imports/
+media/backups/
+
+# Ignore database settings and temporary files
+db_settings.json
+staticfiles/
+backups/
 
 # Ignore OS files
 .DS_Store

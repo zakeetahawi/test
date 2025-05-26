@@ -877,12 +877,8 @@ def schedule_delete(request, pk):
                     backup.delete()
 
             # حذف الجدولة من المجدول
-            if scheduled_backup_service.scheduler:
-                job_id = f"backup_{schedule.id}"
-                try:
-                    scheduled_backup_service.scheduler.remove_job(job_id)
-                except:
-                    pass
+            job_id = f"backup_{schedule.id}"
+            scheduled_backup_service.remove_job(job_id)
 
             # حذف جدولة النسخة الاحتياطية
             schedule.delete()
@@ -918,12 +914,8 @@ def schedule_toggle(request, pk):
         scheduled_backup_service._schedule_backup(schedule)
         messages.success(request, _('تم تنشيط جدولة النسخة الاحتياطية بنجاح.'))
     else:
-        if scheduled_backup_service.scheduler:
-            job_id = f"backup_{schedule.id}"
-            try:
-                scheduled_backup_service.scheduler.remove_job(job_id)
-            except:
-                pass
+        job_id = f"backup_{schedule.id}"
+        scheduled_backup_service.remove_job(job_id)
         messages.success(request, _('تم إيقاف جدولة النسخة الاحتياطية بنجاح.'))
 
     return redirect('odoo_db_manager:schedule_detail', pk=schedule.pk)
@@ -938,7 +930,7 @@ def schedule_run_now(request, pk):
 
     try:
         # تشغيل الجدولة الآن
-        backup = scheduled_backup_service._create_backup(schedule.id)
+        backup = scheduled_backup_service.run_job_now(schedule.id)
         if backup:
             messages.success(request, _('تم إنشاء النسخة الاحتياطية بنجاح.'))
         else:
